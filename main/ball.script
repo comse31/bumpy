@@ -1,6 +1,10 @@
 local SIZE = 64.0
 local BPM = 80.0
 
+-- сетка игрового экрана 6 на 6
+local COLS = 6
+local CELL_W = 960.0 / COLS
+
 local PERIOD = 60.0 / BPM
 local HEIGHT = 2.0 * SIZE
 local GRAVITY = 8.0 * HEIGHT / (PERIOD * PERIOD)
@@ -16,7 +20,7 @@ local THRESHOLD = THRESHOLD_MS / 1000.0
 local SQUASH_DURATION = 0.15
 local SQUASH_AMOUNT = 0.25
 
-local STEP = 2.0 * SIZE
+local STEP = CELL_W
 local MOVE_DURATION = 0.25
 local MOVE_HEIGHT = SIZE
 local TILT_ANGLE = math.rad(20.0)
@@ -66,13 +70,20 @@ local function landing_time(self, vy)
     return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
 end
 
--- подскок на HOP_HEIGHT (на 2/3 ниже половины амплитуды) со смещением в заданном направлении
+-- подскок на HOP_HEIGHT (на 2/3 ниже половины амплитуды) со смещением в заданном направлении;
+-- возвращает false, если смещение невозможно (край экрана)
 local function hop_and_move(self, direction)
+    local target_col = vmath.clamp(self.col + direction, 0, COLS - 1)
+    if target_col == self.col then
+        return false
+    end
+    self.col = target_col
     local vy = hop_velocity(self)
     local t_land = landing_time(self, vy)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
     move(self, direction)
     self.next_touch_time = self.time + t_land
+    return true
 end
 
 -- направление удерживаемой клавиши; если нажаты обе — смещения нет
@@ -93,6 +104,8 @@ function init(self)
     self.arc_prev = 0.0
     self.tilt = 0.0
     self.tilt_t = 0.0
+    self.col = vmath.clamp(math.floor(go.get_position().x / CELL_W), 0, COLS - 1)
+    self.game_over = false
     self.time = 0.0
     self.touch_time = -math.huge
     self.next_touch_time = nil
@@ -102,6 +115,7 @@ function init(self)
     self.press_used = false
     self.left_held = false
     self.right_held = false
+    self.contact_processed = false
     self.visual = go.get_id("ball_visual")
     go.set_parent(self.visual, go.get_id(), true)
 end
@@ -109,14 +123,29 @@ end
 function update(self, dt)
     self.time = self.time + dt
 
+    -- падение вниз за экран: конец игры
+    if not self.game_over and go.get_position().y < -SIZE then
+        self.game_over = true
+        go.set("#collision_object", "linear_velocity", vmath.vector3())
+        print("game over: ball fell off the screen")
+        return
+    end
+    if self.game_over then
+        return
+    end
+
+    -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
+    self.contact_processed = false
+
     -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг касания
     local dir = held_direction(self)
     if dir ~= 0 and not self.press_used then
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD then
             -- клавиша удерживается сразу после касания: подскок и смещение сейчас
-            hop_and_move(self, dir)
-            self.press_used = true
+            if hop_and_move(self, dir) then
+                self.press_used = true
+            end
         else
             local until_next = math.huge
             if self.next_touch_time then
@@ -177,6 +206,12 @@ end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("contact_point_response") then
+        -- contact_point_response может приходить несколько раз за кадр (несколько точек контакта);
+        -- обрабатываем только первый контакт в кадре
+        if self.contact_processed then
+            return
+        end
+        self.contact_processed = true
         self.touch_time = self.time
         self.ground_y = go.get_position().y - self.arc_prev
         local direction = 0
@@ -187,8 +222,9 @@ function on_message(self, message_id, message, sender)
         -- новый цикл отскока: разрешено одно нажатие
         self.press_used = false
         if direction ~= 0 then
-            hop_and_move(self, direction)
-            self.press_used = true
+            if hop_and_move(self, direction) then
+                self.press_used = true
+            end
         else
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
