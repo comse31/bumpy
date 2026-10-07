@@ -24,3 +24,6 @@ desktop.ini
 
 # Logs
 *.log
+/.editor_settings
+/.internal
+/build

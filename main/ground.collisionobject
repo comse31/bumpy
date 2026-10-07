@@ -1,6 +1,26 @@
-collision_shape: "box { x: 480.0 y: 40.0 }"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_BOX
+    position {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    index: 0
+    count: 3
+  }
+  data: 480.0
+  data: 40.0
+  data: 1.0
+}
 type: COLLISION_OBJECT_TYPE_STATIC
-mass: 1.0
+mass: 0.0
 friction: 0.6
 restitution: 0.2
 group: "ground"
