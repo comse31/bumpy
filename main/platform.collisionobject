@@ -15,8 +15,8 @@ embedded_collision_shape {
     index: 0
     count: 3
   }
-  data: 140.0
-  data: 20.0
+  data: 480.0
+  data: 40.0
   data: 1.0
 }
 type: COLLISION_OBJECT_TYPE_STATIC
