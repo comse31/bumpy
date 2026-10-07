@@ -5,6 +5,13 @@ local PERIOD = 60.0 / BPM
 local HEIGHT = 2.0 * SIZE
 local GRAVITY = 8.0 * HEIGHT / (PERIOD * PERIOD)
 local JUMP_SPEED = GRAVITY * PERIOD * 0.5
+local HALF_HEIGHT = HEIGHT / 2.0
+-- высота прыжка со смещением: на 2/3 ниже половины амплитуды
+local HOP_HEIGHT = HALF_HEIGHT * (1.0 - 2.0 / 3.0)
+
+-- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
+local THRESHOLD_MS = 150.0
+local THRESHOLD = THRESHOLD_MS / 1000.0
 
 local SQUASH_DURATION = 0.15
 local SQUASH_AMOUNT = 0.25
@@ -36,6 +43,38 @@ local function move(self, direction)
     self.tilt_t = TILT_DURATION
 end
 
+-- высота мяча над землей (реальная позиция уже включает дугу смещения)
+local function height_above_ground(self)
+    if not self.ground_y then
+        return 0.0
+    end
+    return math.max(0.0, go.get_position().y - self.ground_y)
+end
+
+-- вертикальная скорость, чтобы достичь HOP_HEIGHT из текущей высоты
+local function hop_velocity(self)
+    local h = height_above_ground(self)
+    if h >= HOP_HEIGHT then
+        return 0.0
+    end
+    return math.sqrt(2.0 * GRAVITY * (HOP_HEIGHT - h))
+end
+
+-- время до приземления при текущей высоте и вертикальной скорости
+local function landing_time(self, vy)
+    local h = height_above_ground(self)
+    return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
+end
+
+-- подскок на HOP_HEIGHT (на 2/3 ниже половины амплитуды) со смещением в заданном направлении
+local function hop_and_move(self, direction)
+    local vy = hop_velocity(self)
+    local t_land = landing_time(self, vy)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    move(self, direction)
+    self.next_touch_time = self.time + t_land
+end
+
 function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
@@ -44,11 +83,20 @@ function init(self)
     self.arc_prev = 0.0
     self.tilt = 0.0
     self.tilt_t = 0.0
+    self.time = 0.0
+    self.touch_time = -math.huge
+    self.next_touch_time = nil
+    self.ground_y = nil
+    self.pending_dir = 0
+    self.pending_time = 0.0
+    self.press_used = false
     self.visual = go.get_id("ball_visual")
     go.set_parent(self.visual, go.get_id(), true)
 end
 
 function update(self, dt)
+    self.time = self.time + dt
+
     if self.move_t > 0.0 then
         self.move_t = math.max(0.0, self.move_t - dt)
         local k = 1.0 - self.move_t / MOVE_DURATION
@@ -78,17 +126,50 @@ end
 
 function on_input(self, action_id, action)
     if action.pressed or action.repeated then
+        local direction = 0
         if action_id == hash("right") then
-            move(self, 1)
+            direction = 1
         elseif action_id == hash("left") then
-            move(self, -1)
+            direction = -1
+        end
+        if direction ~= 0 and not self.press_used then
+            local since_touch = self.time - self.touch_time
+            local until_next = math.huge
+            if self.next_touch_time then
+                until_next = self.next_touch_time - self.time
+            end
+            if since_touch <= THRESHOLD then
+                -- нажатие сразу после касания: подскок на половину амплитуды и смещение сейчас
+                hop_and_move(self, direction)
+                self.press_used = true
+            elseif until_next <= THRESHOLD then
+                -- нажатие перед следующим касанием: ждем контакта
+                self.pending_dir = direction
+                self.pending_time = self.time
+                self.press_used = true
+            end
         end
     end
 end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("contact_point_response") then
-        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+        self.touch_time = self.time
+        self.ground_y = go.get_position().y - self.arc_prev
+        local direction = 0
+        if self.pending_dir ~= 0 and (self.time - self.pending_time) <= THRESHOLD then
+            direction = self.pending_dir
+        end
+        self.pending_dir = 0
+        -- новый цикл отскока: разрешено одно нажатие
+        self.press_used = false
+        if direction ~= 0 then
+            hop_and_move(self, direction)
+            self.press_used = true
+        else
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+            self.next_touch_time = self.time + PERIOD
+        end
         self.squash = 1.0
         apply_squash(self)
     end
