@@ -1,0 +1,65 @@
+elements {
+  type: TYPEDEF
+  name: "CompGuiPropertySetterFn"
+  brief: "GUI component property setter function"
+  description: "GUI component property setter function"
+  returnvalues {
+    name: ""
+    doc: "PROPERTY_RESULT_OK on success"
+    types: "dmGameObject::PropertyResult"
+  }
+  parameters {
+    name: "scene"
+    doc: "The GUI scene"
+    types: "dmGui::HScene"
+    is_optional: false
+  }
+  parameters {
+    name: "params"
+    doc: "Property parameters"
+    types: "dmGameObject::ComponentSetPropertyParams"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: TYPEDEF
+  name: "CompGuiPropertyGetterFn"
+  brief: "GUI component property getter function"
+  description: "GUI component property getter function"
+  returnvalues {
+    name: ""
+    doc: "PROPERTY_RESULT_OK on success"
+    types: "dmGameObject::PropertyResult"
+  }
+  parameters {
+    name: "scene"
+    doc: "The GUI scene"
+    types: "dmGui::HScene"
+    is_optional: false
+  }
+  parameters {
+    name: "params"
+    doc: "Property parameters"
+    types: "dmGameObject::ComponentGetPropertyParams"
+    is_optional: false
+  }
+  parameters {
+    name: "out_value"
+    doc: "Output value"
+    types: "dmGameObject::PropertyDesc&"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+info {
+  namespace: "dmGameSystem"
+  name: "GameSystem GUI Component"
+  brief: "Gui Component Property API documentation"
+  description: "Per-property registration functions for GUI component extensions."
+  path: "engine/gamesys/src/dmsdk/gamesys/components/comp_gui.h"
+  file: "dmsdk/gamesys/components/comp_gui.h"
+  language: "C++"
+}

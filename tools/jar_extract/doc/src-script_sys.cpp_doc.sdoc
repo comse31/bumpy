@@ -1,0 +1,688 @@
+elements {
+  type: ENUM
+  name: "sys.NETWORK"
+  brief: "Network connectivity states"
+  description: "Network connectivity states"
+  examples: ""
+  members {
+    name: "sys.NETWORK_CONNECTED"
+    doc: "Connected through Wi-Fi or another non-cellular network."
+    type: ""
+  }
+  members {
+    name: "sys.NETWORK_CONNECTED_CELLULAR"
+    doc: "Connected through a cellular network."
+    type: ""
+  }
+  members {
+    name: "sys.NETWORK_DISCONNECTED"
+    doc: "No network connection was found."
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.open_url_attributes"
+  brief: "URL opening attributes"
+  description: "URL opening attributes"
+  examples: ""
+  members {
+    name: "target?"
+    doc: "HTML5 browsing context: `_self`, `_blank`, `_parent`, `_top`, or a named window."
+    type: "string"
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.sys_info_options"
+  brief: "System-information options"
+  description: "System-information options"
+  examples: ""
+  members {
+    name: "ignore_secure?"
+    doc: "Omit operating-system-protected values such as `device_ident`."
+    type: "boolean"
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.sys_info"
+  brief: "System information"
+  description: "System information"
+  examples: ""
+  members {
+    name: "device_model?"
+    doc: "Device model on iOS and Android."
+    type: "string"
+  }
+  members {
+    name: "manufacturer?"
+    doc: "Device manufacturer on iOS and Android."
+    type: "string"
+  }
+  members {
+    name: "system_name"
+    doc: "Operating-system name."
+    type: "string"
+  }
+  members {
+    name: "system_version"
+    doc: "Operating-system version."
+    type: "string"
+  }
+  members {
+    name: "api_version"
+    doc: "Platform API version."
+    type: "string"
+  }
+  members {
+    name: "language"
+    doc: "ISO 639 language code."
+    type: "string"
+  }
+  members {
+    name: "device_language"
+    doc: "Preferred device language, optionally followed by an ISO 15924 script code."
+    type: "string"
+  }
+  members {
+    name: "territory"
+    doc: "ISO 3166-1 alpha-2 country code or UN M.49 numeric region code."
+    type: "string"
+  }
+  members {
+    name: "gmt_offset"
+    doc: "Current GMT offset in minutes."
+    type: "number"
+  }
+  members {
+    name: "device_ident?"
+    doc: "Operating-system-protected device identifier."
+    type: "string"
+  }
+  members {
+    name: "user_agent?"
+    doc: "HTTP user agent on HTML5."
+    type: "string"
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.engine_info"
+  brief: "Engine information"
+  description: "Engine information"
+  examples: ""
+  members {
+    name: "version"
+    doc: "Defold engine version."
+    type: "string"
+  }
+  members {
+    name: "version_sha1"
+    doc: "Engine build SHA-1."
+    type: "string"
+  }
+  members {
+    name: "is_debug"
+    doc: "Whether this is a debug engine build."
+    type: "boolean"
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.application_info"
+  brief: "Application information"
+  description: "Application information"
+  examples: ""
+  members {
+    name: "installed"
+    doc: "Whether the queried application is installed."
+    type: "boolean"
+  }
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "sys.interface_info"
+  brief: "Network-interface information"
+  description: "Network-interface information"
+  examples: ""
+  members {
+    name: "name"
+    doc: "Interface name."
+    type: "string"
+  }
+  members {
+    name: "address?"
+    doc: "IP address, when available."
+    type: "string"
+  }
+  members {
+    name: "mac?"
+    doc: "Hardware MAC address, when available."
+    type: "string"
+  }
+  members {
+    name: "up"
+    doc: "Whether the interface can transmit and receive data."
+    type: "boolean"
+  }
+  members {
+    name: "running"
+    doc: "Whether the interface is running."
+    type: "boolean"
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.save"
+  brief: "saves a lua table to a file stored on disk"
+  description: "The table can later be loaded by <code>sys.load</code>.\nUse <code>sys.get_save_file</code> to obtain a valid location for the file.\nInternally, this function uses a workspace buffer sized output file sized 512kb.\nThis size reflects the output file size which must not exceed this limit.\nAdditionally, the total number of rows that any one table may contain is limited to 65536\n(i.e. a 16 bit range). When tables are used to represent arrays, the values of\nkeys are permitted to fall within a 32 bit range, supporting sparse arrays, however\nthe limit on the total number of rows remains in effect.\nThis function will raise a Lua error if an error occurs while saving the table."
+  parameters {
+    name: "filename"
+    doc: "file to write to"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "table"
+    doc: "lua table to save"
+    types: "table<any, any>"
+    is_optional: false
+  }
+  examples: "Save data:\n\n```lua\nlocal my_table = {}\ntable.insert(my_table, \"my_value\")\nlocal my_file_path = sys.get_save_file(\"my_game\", \"my_file\")\nsys.save(my_file_path, my_table)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.load"
+  brief: "loads a lua table from a file on disk"
+  description: "If the file exists, it must have been created by <code>sys.save</code> to be loaded.\nThis function will raise a Lua error if an error occurs while loading the file."
+  returnvalues {
+    name: "loaded"
+    doc: "lua table, which is empty if the file could not be found"
+    types: "table<any, any>"
+  }
+  parameters {
+    name: "filename"
+    doc: "file to read from"
+    types: "string"
+    is_optional: false
+  }
+  examples: "Load data that was previously saved, e.g. an earlier game session:\n\n```lua\nlocal my_file_path = sys.get_save_file(\"my_game\", \"my_file\")\nlocal my_table = sys.load(my_file_path)\nif not next(my_table) then\n  -- empty table\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.exists"
+  brief: "check if a path exists"
+  description: "Check if a path exists\nGood for checking if a file exists before loading a large file"
+  returnvalues {
+    name: "result"
+    doc: "`true` if the path exists, `false` otherwise"
+    types: "boolean"
+  }
+  parameters {
+    name: "path"
+    doc: "path to check"
+    types: "string"
+    is_optional: false
+  }
+  examples: "Load data but return nil if path didn\'t exist\n\n```lua\nif not sys.exists(path) then\n    return nil\nend\nreturn sys.load(path) -- returns {} if it failed\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_host_path"
+  brief: "create a path to the host device for unit testing"
+  description: "Create a path to the host device for unit testing\nUseful for saving logs etc during development"
+  returnvalues {
+    name: "host_path"
+    doc: "the path prefixed with the proper host mount"
+    types: "string"
+  }
+  parameters {
+    name: "filename"
+    doc: "file to read from"
+    types: "string"
+    is_optional: false
+  }
+  examples: "Save data on the host\n\n```lua\nlocal host_path = sys.get_host_path(\"logs/test.txt\")\nsys.save(host_path, mytable)\n```\n\nLoad data from the host\n\n```lua\nlocal host_path = sys.get_host_path(\"logs/test.txt\")\nlocal table = sys.load(host_path)\n```"
+  notes: "Only enabled in debug builds. In release builds returns the string unchanged"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_save_file"
+  brief: "gets the save-file path"
+  description: "The save-file path is operating system specific and is typically located under the user\'s home directory.\nThis function will raise a Lua error if unable to get the save file path."
+  returnvalues {
+    name: "path"
+    doc: "path to save-file"
+    types: "string"
+  }
+  parameters {
+    name: "application_id"
+    doc: "user defined id of the application, which helps define the location of the save-file"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "file_name"
+    doc: "file-name to get path for"
+    types: "string"
+    is_optional: false
+  }
+  examples: "Find a path where we can store data:\n\n```lua\nlocal my_file_path = sys.get_save_file(\"my_game\", \"my_file\")\n-- macOS: /Users/foobar/Library/Application Support/my_game/my_file\nprint(my_file_path) --> /Users/foobar/Library/Application Support/my_game/my_file\n\n-- Windows: C:\\Users\\foobar\\AppData\\Roaming\\my_game\\my_file\nprint(my_file_path) --> C:\\Users\\foobar\\AppData\\Roaming\\my_game\\my_file\n\n-- Linux: $XDG_DATA_HOME/my_game/my_file or /home/foobar/.my_game/my_file\n-- Linux: Defaults to /home/foobar/.local/share/my_game/my_file if neither exist.\nprint(my_file_path) --> /home/foobar/.local/share/my_game/my_file\n\n-- Android package name: com.foobar.packagename\nprint(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file\n\n-- iOS: my_game.app\nprint(my_file_path) --> /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file\n\n-- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file\nprint(my_file_path) --> /data/.my_game/my_file\n```"
+  notes: "Setting the environment variable `DM_SAVE_HOME` overrides the default application support path."
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_application_path"
+  brief: "gets the application path"
+  description: "The path from which the application is run.\nThis function will raise a Lua error if unable to get the application support path."
+  returnvalues {
+    name: "path"
+    doc: "path to application executable"
+    types: "string"
+  }
+  examples: "Find a path where we can store data (the example path is on the macOS platform):\n\n```lua\n-- macOS: /Applications/my_game.app\nlocal application_path = sys.get_application_path()\nprint(application_path) --> /Applications/my_game.app\n\n-- Windows: C:\\Program Files\\my_game\\my_game.exe\nprint(application_path) --> C:\\Program Files\\my_game\n\n-- Linux: /home/foobar/my_game/my_game\nprint(application_path) --> /home/foobar/my_game\n\n-- Android package name: com.foobar.my_game\nprint(application_path) --> /data/user/0/com.foobar.my_game\n\n-- iOS: my_game.app\nprint(application_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app\n\n-- HTML5: http://www.foobar.com/my_game/\nprint(application_path) --> http://www.foobar.com/my_game\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_config_string"
+  brief: "get string config value with optional default value"
+  description: "Get string config value from the game.project configuration file with optional default value"
+  returnvalues {
+    name: "value"
+    doc: "config value as a string. default_value if the config key does not exist. nil if no default value was supplied."
+    types: "string"
+    types: "nil"
+  }
+  parameters {
+    name: "key"
+    doc: "key to get value for. The syntax is SECTION.KEY"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "default_value"
+    doc: "(optional) default value to return if the value does not exist"
+    types: "string"
+    is_optional: true
+  }
+  examples: "Get user config value\n\n```lua\nlocal text = sys.get_config_string(\"my_game.text\", \"default text\")\n```\n\nStart the engine with a bootstrap config override and add a custom config value\n\n```\n$ dmengine --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1\n```\n\nRead the custom config value from the command line\n\n```lua\nlocal testmode = sys.get_config_int(\"mygame.testmode\")\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_config_int"
+  brief: "get integer config value with optional default value"
+  description: "Get integer config value from the game.project configuration file with optional default value"
+  returnvalues {
+    name: "value"
+    doc: "config value as an integer. default_value if the config key does not exist. 0 if no default value was supplied."
+    types: "number"
+  }
+  parameters {
+    name: "key"
+    doc: "key to get value for. The syntax is SECTION.KEY"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "default_value"
+    doc: "(optional) default value to return if the value does not exist"
+    types: "number"
+    is_optional: true
+  }
+  examples: "Get user config value\n\n```lua\nlocal speed = sys.get_config_int(\"my_game.speed\", 20) -- with default value\n```\n\n```lua\nlocal testmode = sys.get_config_int(\"my_game.testmode\") -- without default value\nif testmode ~= nil then\n    -- do stuff\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_config_number"
+  brief: "get number config value with optional default value"
+  description: "Get number config value from the game.project configuration file with optional default value"
+  returnvalues {
+    name: "value"
+    doc: "config value as an number. default_value if the config key does not exist. 0 if no default value was supplied."
+    types: "number"
+  }
+  parameters {
+    name: "key"
+    doc: "key to get value for. The syntax is SECTION.KEY"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "default_value"
+    doc: "(optional) default value to return if the value does not exist"
+    types: "number"
+    is_optional: true
+  }
+  examples: "Get user config value\n\n```lua\nlocal speed = sys.get_config_number(\"my_game.speed\", 20.0)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_config_boolean"
+  brief: "get boolean config value with optional default value"
+  description: "Get boolean config value from the game.project configuration file with optional default value"
+  returnvalues {
+    name: "value"
+    doc: "config value as a boolean. default_value if the config key does not exist. false if no default value was supplied."
+    types: "boolean"
+  }
+  parameters {
+    name: "key"
+    doc: "key to get value for. The syntax is SECTION.KEY"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "default_value"
+    doc: "(optional) default value to return if the value does not exist"
+    types: "boolean"
+    is_optional: true
+  }
+  examples: "Get user config value\n\n```lua\nlocal vsync = sys.get_config_boolean(\"display.vsync\", false)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.open_url"
+  brief: "open url in default application"
+  description: "Open URL in default application, typically a browser"
+  returnvalues {
+    name: "success"
+    doc: "a boolean indicating if the url could be opened or not"
+    types: "boolean"
+  }
+  parameters {
+    name: "url"
+    doc: "url to open"
+    types: "string"
+    is_optional: false
+  }
+  parameters {
+    name: "attributes"
+    doc: "optional URL opening attributes"
+    types: "sys.open_url_attributes"
+    is_optional: true
+  }
+  examples: "Open an URL:\n\n```lua\nlocal success = sys.open_url(\"http://www.defold.com\", {target = \"_blank\"})\nif not success then\n  -- could not open the url...\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.load_resource"
+  brief: "loads resource from game data"
+  description: "Loads a custom resource. Specify the full filename of the resource that you want\nto load. When loaded, the file data is returned as a string.\nIf loading fails, the function returns `nil` plus the error message.\n\nIn order for the engine to include custom resources in the build process, you need\nto specify them in the \"custom_resources\" key in your \"game.project\" settings file.\nYou can specify single resource files or directories. If a directory is included\nin the resource list, all files and directories in that directory is recursively\nincluded:\n\nFor example \"main/data/,assets/level_data.json\"."
+  returnvalues {
+    name: "data"
+    doc: "loaded data, or `nil` if the resource could not be loaded"
+    types: "string"
+    types: "nil"
+  }
+  returnvalues {
+    name: "error"
+    doc: "the error message, or `nil` if no error occurred"
+    types: "string"
+    types: "nil"
+  }
+  parameters {
+    name: "filename"
+    doc: "resource to load, full path"
+    types: "string"
+    is_optional: false
+  }
+  examples: "```lua\n-- Load level data into a string\nlocal data, error = sys.load_resource(\"/assets/level_data.json\")\n-- Decode json string to a Lua table\nif data then\n  local data_table = json.decode(data)\n  pprint(data_table)\nelse\n  print(error)\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_sys_info"
+  brief: "get system information"
+  description: "Returns a table with system information."
+  returnvalues {
+    name: "sys_info"
+    doc: "system information"
+    types: "sys.sys_info"
+  }
+  parameters {
+    name: "options"
+    doc: "optional system-information options"
+    types: "sys.sys_info_options"
+    is_optional: true
+  }
+  examples: "How to get system information:\n\n```lua\nlocal info = sys.get_sys_info()\nif info.system_name == \"HTML5\" then\n  -- We are running in a browser.\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_engine_info"
+  brief: "get engine information"
+  description: "Returns a table with engine information."
+  returnvalues {
+    name: "engine_info"
+    doc: "engine information"
+    types: "sys.engine_info"
+  }
+  examples: "How to retrieve engine information:\n\n```lua\n-- Update version text label so our testers know what version we\'re running\nlocal engine_info = sys.get_engine_info()\nlocal version_str = \"Defold \" .. engine_info.version .. \"\\n\" .. engine_info.version_sha1\ngui.set_text(gui.get_node(\"version\"), version_str)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_application_info"
+  brief: "get application information"
+  description: "Returns a table with application information for the requested app.\n\n[icon:iOS] On iOS, the `app_string` is an url scheme for the app that is queried. Your\ngame needs to list the schemes that are queried in an `LSApplicationQueriesSchemes` array\nin a custom \"Info.plist\".\n\n[icon:android] On Android, the `app_string` is the package identifier for the app."
+  returnvalues {
+    name: "app_info"
+    doc: "application information"
+    types: "sys.application_info"
+  }
+  parameters {
+    name: "app_string"
+    doc: "platform specific string with application package or query, see above for details."
+    types: "string"
+    is_optional: false
+  }
+  examples: "Check if twitter is installed:\n\n```lua\nsysinfo = sys.get_sys_info()\ntwitter = {}\n\nif sysinfo.system_name == \"Android\" then\n  twitter = sys.get_application_info(\"com.twitter.android\")\nelseif sysinfo.system_name == \"iPhone OS\" then\n  twitter = sys.get_application_info(\"twitter:\")\nend\n\nif twitter.installed then\n  -- twitter is installed!\nend\n```\n\n[icon:iOS] Info.plist for the iOS app needs to list the schemes that are queried:\n\n```xml\n...\n<key>LSApplicationQueriesSchemes</key>\n <array>\n   <string>twitter</string>\n </array>\n...\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_ifaddrs"
+  brief: "enumerate network interfaces"
+  description: "Returns an array of tables with information on network interfaces."
+  returnvalues {
+    name: "ifaddrs"
+    doc: "network interfaces"
+    types: "sys.interface_info[]"
+  }
+  examples: "How to get the IP address of interface \"en0\":\n\n```lua\nifaddrs = sys.get_ifaddrs()\nfor _,interface in ipairs(ifaddrs) do\n  if interface.name == \"en0\" then\n    local ip = interface.address\n  end\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.set_error_handler"
+  brief: "set the error handler"
+  description: "Set the Lua error handler function.\nThe error handler is a function which is called whenever a lua runtime error occurs."
+  parameters {
+    name: "error_handler"
+    doc: "the function to be called on error\n\n`source`\n: [type:string] The runtime context of the error. Currently, this is always `\"lua\"`.\n\n`message`\n: [type:string] The source file, line number and error message.\n\n`traceback`\n: [type:string] The stack traceback."
+    types: "fun(source:string, message:string, traceback:string)"
+    is_optional: false
+  }
+  examples: "Install error handler that just prints the errors\n\n```lua\nlocal function my_error_handler(source, message, traceback)\n  print(source)    --> lua\n  print(message)   --> main/my.script:10: attempt to perform arithmetic on a string value\n  print(traceback) --> stack traceback:\n                   -->         main/test.script:10: in function \'boom\'\n                   -->         main/test.script:15: in function <main/my.script:13>\nend\n\nlocal function boom()\n  return 10 + \"string\"\nend\n\nfunction init(self)\n  sys.set_error_handler(my_error_handler)\n  boom()\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.set_connectivity_host"
+  brief: "set host to check for network connectivity against"
+  description: "Sets the host that is used to check for network connectivity against."
+  parameters {
+    name: "host"
+    doc: "hostname to check against"
+    types: "string"
+    is_optional: false
+  }
+  examples: "```lua\nsys.set_connectivity_host(\"www.google.com\")\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.get_connectivity"
+  brief: "get current network connectivity status"
+  description: "[icon:ios] [icon:android] Returns the current network connectivity status\non mobile platforms.\n\nOn desktop, this function always return `sys.NETWORK_CONNECTED`."
+  returnvalues {
+    name: "status"
+    doc: "network connectivity status"
+    types: "sys.NETWORK"
+  }
+  examples: "Check if we are connected through a cellular connection\n\n```lua\nif (sys.NETWORK_CONNECTED_CELLULAR == sys.get_connectivity()) then\n  print(\"Connected via cellular, avoid downloading big files!\")\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.exit"
+  brief: "exits application"
+  description: "Terminates the game application and reports the specified <code>code</code> to the OS."
+  parameters {
+    name: "code"
+    doc: "exit code to report to the OS, 0 means clean exit"
+    types: "number"
+    is_optional: false
+  }
+  examples: "This examples demonstrates how to exit the application when some kind of quit messages is received (maybe from gui or similar):\n\n```lua\nfunction on_message(self, message_id, message, sender)\n    if message_id == hash(\"quit\") then\n        sys.exit(0)\n    end\nend\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.reboot"
+  brief: "reboot engine with arguments"
+  description: "Reboots the game engine with a specified set of arguments.\nArguments will be translated into command line arguments. Calling reboot\nfunction is equivalent to starting the engine with the same arguments.\n\nOn startup the engine reads configuration from \"game.project\" in the\nproject root."
+  parameters {
+    name: "arg1"
+    doc: "argument 1"
+    types: "string"
+    is_optional: true
+  }
+  parameters {
+    name: "arg2"
+    doc: "argument 2"
+    types: "string"
+    is_optional: true
+  }
+  parameters {
+    name: "arg3"
+    doc: "argument 3"
+    types: "string"
+    is_optional: true
+  }
+  parameters {
+    name: "arg4"
+    doc: "argument 4"
+    types: "string"
+    is_optional: true
+  }
+  parameters {
+    name: "arg5"
+    doc: "argument 5"
+    types: "string"
+    is_optional: true
+  }
+  parameters {
+    name: "arg6"
+    doc: "argument 6"
+    types: "string"
+    is_optional: true
+  }
+  examples: "How to reboot engine with a specific bootstrap collection.\n\n```lua\nlocal arg1 = \'--config=bootstrap.main_collection=/my.collectionc\'\nlocal arg2 = \'build/game.projectc\'\nsys.reboot(arg1, arg2)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.set_vsync_swap_interval"
+  brief: "set vsync swap interval"
+  description: "Request a presentation interval relative to vertical blanks (v-blank).\n0 requests disabling vsync and 1 requests presenting every refresh (the default).\nOpenGL may support larger intervals, such as 2 for every other refresh.\nVulkan and Metal treat any nonzero interval as enabling vsync; DX12 clamps\nintervals to the supported range 0 through 4. Actual behavior depends on\nthe backend, platform, and driver.\n\nOn platforms where Defold owns the application loop, a positive\n`display.update_frequency` or a positive value set by `sys.set_update_frequency()`\nuses timer pacing and requests a swap interval of 0. The requested\nswap interval is retained and applied again when the update frequency is set to 0.\n\nThis setting may be overridden by driver settings."
+  parameters {
+    name: "swap_interval"
+    doc: "target swap interval."
+    types: "number"
+    is_optional: false
+  }
+  examples: "Setting the swap interval to swap every v-blank\n\n```lua\nsys.set_vsync_swap_interval(1)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.set_update_frequency"
+  brief: "set update frequency"
+  description: "Set game update-frequency (frame cap). This option is equivalent to\n`display.update_frequency` in the \"game.project\" settings but set at run-time.\nOn platforms where Defold owns the application loop, a positive value uses\ntimer pacing and requests a swap interval of 0 to avoid an additional vsync\nwait where supported. Setting the frequency to 0 restores the requested swap\ninterval and uses variable-rate updates. Platform-owned loops, such as HTML5\nand iOS, retain their platform scheduling and presentation behavior. There is\nno guarantee that the frame cap will be achieved depending on platform and\nhardware constraints.\n\nWith engine-side timer pacing, the update dt can be shortened or enlarged to\naccount for elapsed time; the frame cap does not guarantee a constant dt.\nElapsed time beyond max(engine.max_time_step, 1 / frequency) is discarded,\nso accumulated dt can trail wall-clock time after hitches. An intentional\nfixed interval longer than engine.max_time_step is allowed. This setting\nis separate from the fixed_update() timestep."
+  parameters {
+    name: "frequency"
+    doc: "target frequency in hertz. 0 selects a variable\nframe rate; negative values are treated as 0."
+    types: "number"
+    is_optional: false
+  }
+  examples: "Setting the update frequency to 60 frames per second\n\n```lua\nsys.set_update_frequency(60)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.serialize"
+  brief: "serializes a lua table to a buffer and returns it"
+  description: "The buffer can later deserialized by <code>sys.deserialize</code>.\nThis function has all the same limitations as <code>sys.save</code>.\nThis function will raise a Lua error if an error occurs while serializing the table."
+  returnvalues {
+    name: "buffer"
+    doc: "serialized data buffer"
+    types: "string"
+  }
+  parameters {
+    name: "table"
+    doc: "lua table to serialize"
+    types: "table<any, any>"
+    is_optional: false
+  }
+  examples: "Serialize table:\n\n```lua\nlocal my_table = {}\ntable.insert(my_table, \"my_value\")\nlocal buffer = sys.serialize(my_table)\n```"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "sys.deserialize"
+  brief: "deserializes buffer into a lua table"
+  description: "This function will raise a Lua error if an error occurs while deserializing the buffer."
+  returnvalues {
+    name: "table"
+    doc: "lua table with deserialized data"
+    types: "table<any, any>"
+  }
+  parameters {
+    name: "buffer"
+    doc: "buffer to deserialize from"
+    types: "string"
+    is_optional: false
+  }
+  examples: "Deserialize a lua table that was previously serialized:\n\n```lua\nlocal buffer = sys.serialize(my_table)\nlocal table = sys.deserialize(buffer)\n```"
+  language: ""
+}
+info {
+  namespace: "sys"
+  name: "System"
+  brief: "System API documentation"
+  description: "Functions and messages for using system resources, controlling the engine,\nerror handling and debugging."
+  path: "engine/script/src/script_sys.cpp"
+  file: ""
+  language: "Lua"
+}

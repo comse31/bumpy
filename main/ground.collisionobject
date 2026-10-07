@@ -1,0 +1,7 @@
+collision_shape: "box { x: 480.0 y: 40.0 }"
+type: COLLISION_OBJECT_TYPE_STATIC
+mass: 1.0
+friction: 0.6
+restitution: 0.2
+group: "ground"
+mask: "ball"

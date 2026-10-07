@@ -1,0 +1,521 @@
+elements {
+  type: ENUM
+  name: "dmMessage::Result"
+  brief: "Result enum"
+  description: "Result enum"
+  examples: ""
+  members {
+    name: "RESULT_OK"
+    doc: "= 0"
+    type: ""
+  }
+  members {
+    name: "RESULT_SOCKET_EXISTS"
+    doc: "= -1"
+    type: ""
+  }
+  members {
+    name: "RESULT_SOCKET_NOT_FOUND"
+    doc: "= -2"
+    type: ""
+  }
+  members {
+    name: "RESULT_SOCKET_OUT_OF_RESOURCES"
+    doc: "= -3"
+    type: ""
+  }
+  members {
+    name: "RESULT_INVALID_SOCKET_NAME"
+    doc: "= -4"
+    type: ""
+  }
+  members {
+    name: "RESULT_MALFORMED_URL"
+    doc: "= -5"
+    type: ""
+  }
+  members {
+    name: "RESULT_NAME_OK_SOCKET_NOT_FOUND"
+    doc: "= -6"
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: TYPEDEF
+  name: "HSocket"
+  brief: "Socket handle"
+  description: "Socket handle"
+  examples: ""
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "dmMessage::URL"
+  brief: "URL specifying a sender/receiver of messages"
+  description: "URL specifying a sender/receiver of messages"
+  examples: ""
+  notes: "Currently has a hard limit of 32 bytes"
+  notes: "This struct is a part of the save file APi (see script_table.cpp)"
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "dmMessage::StringURL"
+  brief: "Helper struct for parsing a string of the form \"so..."
+  description: "Helper struct for parsing a string of the form \"socket:path#fragment\""
+  examples: ""
+  members {
+    name: "m_Socket"
+    doc: "The socket"
+    type: "const char*"
+  }
+  members {
+    name: "m_SocketSize"
+    doc: "The socket length"
+    type: "uint32_t"
+  }
+  members {
+    name: "m_Path"
+    doc: "The path"
+    type: "const char*"
+  }
+  members {
+    name: "m_PathSize"
+    doc: "The path length"
+    type: "uint32_t"
+  }
+  members {
+    name: "m_Fragment"
+    doc: "The fragment"
+    type: "const char*"
+  }
+  members {
+    name: "m_FragmentSize"
+    doc: "The fragment length"
+    type: "uint32_t"
+  }
+  notes: "The sizes do not include the null character. There is no null character since the dmMessage::ParseURL is non destructive."
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "ResetUrl"
+  brief: "Resets the given URL to default values."
+  description: "Resets the given URL to default values."
+  parameters {
+    name: "url"
+    doc: "URL to reset"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  examples: ""
+  notes: "Previously the URL wasn\'t reset in the constructor and certain calls to ResetURL might currently be redundant"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "GetSocket"
+  brief: "Get the message socket"
+  description: "Get the message socket"
+  returnvalues {
+    name: "socket"
+    doc: ""
+    types: "dmMessage::HSocket"
+  }
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "SetSocket"
+  brief: "Set the socket"
+  description: "Set the socket"
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  parameters {
+    name: "socket"
+    doc: ""
+    types: "dmMessage::HSocket"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "IsSocketValid"
+  brief: "Tests if a socket is valid (not deleted)."
+  description: "Tests if a socket is valid (not deleted)."
+  returnvalues {
+    name: "result"
+    doc: "if the socket is valid or not"
+    types: "bool"
+  }
+  parameters {
+    name: "socket"
+    doc: "Socket"
+    types: "dmMessage::HSocket"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "GetSocketName"
+  brief: "Get socket name"
+  description: "Get socket name"
+  returnvalues {
+    name: "name"
+    doc: "socket name. 0 if it was not found"
+    types: "const char*"
+  }
+  parameters {
+    name: "socket"
+    doc: "Socket"
+    types: "dmMessage::HSocket"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "GetSocketNameHash"
+  brief: "Get socket name hash"
+  description: "Get socket name hash"
+  returnvalues {
+    name: "name_hash"
+    doc: "socket name hash. 0 if it was not found"
+    types: "dmhash_t"
+  }
+  parameters {
+    name: "socket"
+    doc: "Socket"
+    types: "dmMessage::HSocket"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "GetPath"
+  brief: "Get the message path"
+  description: "Get the message path"
+  returnvalues {
+    name: "path"
+    doc: ""
+    types: "dmhash_t"
+  }
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "SetPath"
+  brief: "Set the message path"
+  description: "Set the message path"
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  parameters {
+    name: "path"
+    doc: ""
+    types: "dmhash_t"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "GetFragment"
+  brief: "Get the message fragment"
+  description: "Get the message fragment"
+  returnvalues {
+    name: "fragment"
+    doc: ""
+    types: "dmhash_t"
+  }
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "SetFragment"
+  brief: "Set the message fragment"
+  description: "Set the message fragment"
+  parameters {
+    name: "url"
+    doc: "url"
+    types: "dmMessage::URL"
+    is_optional: false
+  }
+  parameters {
+    name: "fragment"
+    doc: ""
+    types: "dmhash_t"
+    is_optional: false
+  }
+  examples: ""
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "Message"
+  brief: ""
+  description: ""
+  examples: ""
+  language: ""
+}
+elements {
+  type: TYPEDEF
+  name: "dmMMessage::MessageDestroyCallback"
+  brief: "A callback for messages that needs cleanup after b..."
+  description: "A callback for messages that needs cleanup after being dispatched. E.g. for freeing resources/memory."
+  examples: ""
+  language: ""
+}
+elements {
+  type: STRUCT
+  name: "Message"
+  brief: "Message data desc used at dispatch callback. When ..."
+  description: "Message data desc used at dispatch callback. When a message is posted,\nthe actual object is copied into the sockets internal buffer."
+  examples: ""
+  members {
+    name: "m_Sender"
+    doc: "Sender uri"
+    type: "dmMessage::URL"
+  }
+  members {
+    name: "m_Receiver"
+    doc: "Receiver uri"
+    type: "dmMessage::URL"
+  }
+  members {
+    name: "m_Id"
+    doc: "Unique id of message"
+    type: "dmhash_t"
+  }
+  members {
+    name: "m_UserData1"
+    doc: "User data pointer"
+    type: "uintptr_t"
+  }
+  members {
+    name: "m_UserData2"
+    doc: "User data pointer"
+    type: "uintptr_t"
+  }
+  members {
+    name: "m_Descriptor"
+    doc: "User specified descriptor of the message data"
+    type: "uintptr_t"
+  }
+  members {
+    name: "m_DataSize"
+    doc: "Size of message data in bytes"
+    type: "uint32_t"
+  }
+  members {
+    name: "m_Next"
+    doc: "Ptr to next message (or 0 if last)"
+    type: "dmMessage::Message*"
+  }
+  members {
+    name: "m_DestroyCallback"
+    doc: "If set, will be called after each dispatch"
+    type: "dmMessage::MessageDestroyCallback"
+  }
+  members {
+    name: "m_Data"
+    doc: "Payload"
+    type: "uint8_t*"
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "Post"
+  brief: "Post an message to a socket"
+  description: "Post an message to a socket"
+  returnvalues {
+    name: "RESULT_OK"
+    doc: "if the message was posted"
+    types: ""
+  }
+  parameters {
+    name: "sender"
+    doc: "The sender URL if the receiver wants to respond. 0x0 is accepted"
+    types: "dmMessage::URL*"
+    is_optional: false
+  }
+  parameters {
+    name: "receiver"
+    doc: "The receiver URL, must not be 0x0"
+    types: "dmMessage::URL*"
+    is_optional: false
+  }
+  parameters {
+    name: "message_id"
+    doc: "Message id"
+    types: "dmhash_t"
+    is_optional: false
+  }
+  parameters {
+    name: "user_data1"
+    doc: "User data that can be used when both the sender and receiver are known"
+    types: "uintptr_t"
+    is_optional: false
+  }
+  parameters {
+    name: "user_data2"
+    doc: "User data that can be used when both the sender and receiver are known."
+    types: "uintptr_t"
+    is_optional: false
+  }
+  parameters {
+    name: "descriptor"
+    doc: "User specified descriptor of the message data"
+    types: "uintptr_t"
+    is_optional: false
+  }
+  parameters {
+    name: "message_data"
+    doc: "Message data reference"
+    types: "void*"
+    is_optional: false
+  }
+  parameters {
+    name: "message_data_size"
+    doc: "Message data size in bytes"
+    types: "uint32_t"
+    is_optional: false
+  }
+  parameters {
+    name: "destroy_callback"
+    doc: "if set, will be called after each message dispatch"
+    types: "dmMessage::MessageDestroyCallback"
+    is_optional: false
+  }
+  examples: ""
+  notes: "Message data is copied by value"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "PostDDF"
+  brief: "post a ddf message to a socket"
+  description: "Post a DDF message to a socket. A helper wrapper for Post()\'ing a DDF message"
+  returnvalues {
+    name: "RESULT_OK"
+    doc: "if the message was posted"
+    types: ""
+  }
+  parameters {
+    name: "message"
+    doc: "Message data reference"
+    types: "T*"
+    is_optional: false
+  }
+  parameters {
+    name: "sender"
+    doc: "The sender URL if the receiver wants to respond. 0x0 is accepted"
+    types: "dmMessage::URL*"
+    is_optional: false
+  }
+  parameters {
+    name: "receiver"
+    doc: "The receiver URL, must not be 0x0"
+    types: "dmMessage::URL*"
+    is_optional: false
+  }
+  parameters {
+    name: "user_data1"
+    doc: "User data that can be used when both the sender and receiver are known"
+    types: "uintptr_t"
+    is_optional: false
+  }
+  parameters {
+    name: "user_data2"
+    doc: "User data that can be used when both the sender and receiver are known."
+    types: "uintptr_t"
+    is_optional: false
+  }
+  parameters {
+    name: "destroy_callback"
+    doc: "if set, will be called after each message dispatch"
+    types: "dmMessage::MessageDestroyCallback"
+    is_optional: false
+  }
+  examples: "```cpp\n// dmMessage::URL sender, receiver;\n// dmGameObject::HInstance go;\n\ndmGameSystemDDF::PlayAnimation msg;\nmsg.m_Id = animation_id;\nmsg.m_Offset = params.m_CursorStart;\nmsg.m_PlaybackRate = params.m_PlaybackRate;\n\ndmMessage::Result result = dmMessage::Post(&msg, &sender, &receiver, (uintptr_t)go, 0, 0));\n```"
+  tparams {
+    name: "T"
+    doc: "Must be a DDF type"
+    type: ""
+  }
+  notes: "Message data is copied by value"
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "ParseUrl"
+  brief: "Convert a string to a URL struct"
+  description: "Convert a string to a URL struct"
+  returnvalues {
+    name: "-"
+    doc: "RESULT_OK on success\n- RESULT_MALFORMED_URL if the uri could not be parsed"
+    types: ""
+  }
+  parameters {
+    name: "uri"
+    doc: "string of the format [socket:][path][#fragment]"
+    types: "const char*"
+    is_optional: false
+  }
+  parameters {
+    name: "out"
+    doc: "url in string format, must not be 0x0"
+    types: "dmMessage::StringUrl"
+    is_optional: false
+  }
+  examples: ""
+  notes: "No allocation occurs, thus no cleanup is needed."
+  language: ""
+}
+info {
+  namespace: "dmMessage"
+  name: "Message"
+  brief: "Message API documentation"
+  description: "Api for sending messages"
+  path: "engine/dlib/src/dmsdk/dlib/message.h"
+  file: "dmsdk/dlib/message.h"
+  language: "C++"
+}

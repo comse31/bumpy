@@ -1,0 +1,165 @@
+elements {
+  type: FUNCTION
+  name: "Min"
+  brief: "Min function"
+  description: "Min function"
+  returnvalues {
+    name: "v"
+    doc: "Min of a and b"
+    types: "T"
+  }
+  parameters {
+    name: "a"
+    doc: "Value a"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "b"
+    doc: "Value b"
+    types: "T"
+    is_optional: false
+  }
+  examples: ""
+  tparams {
+    name: "T"
+    doc: ""
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "Max"
+  brief: "Max function"
+  description: "Max function"
+  returnvalues {
+    name: "v"
+    doc: "Max of a and b"
+    types: "T"
+  }
+  parameters {
+    name: "a"
+    doc: "Value a"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "b"
+    doc: "Value b"
+    types: "T"
+    is_optional: false
+  }
+  examples: ""
+  tparams {
+    name: "T"
+    doc: ""
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "Clamp"
+  brief: "Clamp function"
+  description: "Clamp function"
+  returnvalues {
+    name: "v"
+    doc: "Value closest to v inside the range [min, max]"
+    types: "T"
+  }
+  parameters {
+    name: "v"
+    doc: "Value to clamp"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "min"
+    doc: "Lower bound"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "max"
+    doc: "Upper bound"
+    types: "T"
+    is_optional: false
+  }
+  examples: ""
+  tparams {
+    name: "T"
+    doc: ""
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "Select"
+  brief: "Select one of two values"
+  description: "Select one of two values depending on the sign of another."
+  returnvalues {
+    name: "v"
+    doc: "a when x >= 0, b otherwise"
+    types: "T"
+  }
+  parameters {
+    name: "x"
+    doc: "Value to test for positiveness"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "a"
+    doc: "Result if test succeeded"
+    types: "T"
+    is_optional: false
+  }
+  parameters {
+    name: "b"
+    doc: "Result if test failed"
+    types: "T"
+    is_optional: false
+  }
+  examples: ""
+  tparams {
+    name: "T"
+    doc: ""
+    type: ""
+  }
+  language: ""
+}
+elements {
+  type: FUNCTION
+  name: "Abs"
+  brief: "Abs function"
+  description: "Abs function"
+  returnvalues {
+    name: "v"
+    doc: "Absolute value of x"
+    types: "T"
+  }
+  parameters {
+    name: "x"
+    doc: ""
+    types: "T"
+    is_optional: false
+  }
+  examples: ""
+  tparams {
+    name: "T"
+    doc: ""
+    type: ""
+  }
+  language: ""
+}
+info {
+  namespace: "dmMath"
+  name: "Math"
+  brief: "Math API documentation"
+  description: "Math functions."
+  path: "engine/dlib/src/dmsdk/dlib/math.h"
+  file: "dmsdk/dlib/math.h"
+  language: "C++"
+}
