@@ -1,4 +1,4 @@
-local SIZE = 64.0
+local SIZE = 32.0
 local BPM = 80.0
 
 -- сетка игрового экрана 6 на 6
