@@ -75,6 +75,16 @@ local function hop_and_move(self, direction)
     self.next_touch_time = self.time + t_land
 end
 
+-- направление удерживаемой клавиши; если нажаты обе — смещения нет
+local function held_direction(self)
+    if self.right_held and not self.left_held then
+        return 1
+    elseif self.left_held and not self.right_held then
+        return -1
+    end
+    return 0
+end
+
 function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
@@ -90,12 +100,36 @@ function init(self)
     self.pending_dir = 0
     self.pending_time = 0.0
     self.press_used = false
+    self.left_held = false
+    self.right_held = false
     self.visual = go.get_id("ball_visual")
     go.set_parent(self.visual, go.get_id(), true)
 end
 
 function update(self, dt)
     self.time = self.time + dt
+
+    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг касания
+    local dir = held_direction(self)
+    if dir ~= 0 and not self.press_used then
+        local since_touch = self.time - self.touch_time
+        if since_touch <= THRESHOLD then
+            -- клавиша удерживается сразу после касания: подскок и смещение сейчас
+            hop_and_move(self, dir)
+            self.press_used = true
+        else
+            local until_next = math.huge
+            if self.next_touch_time then
+                until_next = self.next_touch_time - self.time
+            end
+            if until_next <= THRESHOLD then
+                -- клавиша удерживается перед следующим касанием: ждем контакта
+                self.pending_dir = dir
+                self.pending_time = self.time
+                self.press_used = true
+            end
+        end
+    end
 
     if self.move_t > 0.0 then
         self.move_t = math.max(0.0, self.move_t - dt)
@@ -125,29 +159,18 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
-    if action.pressed or action.repeated then
-        local direction = 0
-        if action_id == hash("right") then
-            direction = 1
-        elseif action_id == hash("left") then
-            direction = -1
+    -- отслеживаем только состояние клавиш: нажата / отжата
+    if action_id == hash("right") then
+        if action.pressed or action.repeated then
+            self.right_held = true
+        elseif action.released then
+            self.right_held = false
         end
-        if direction ~= 0 and not self.press_used then
-            local since_touch = self.time - self.touch_time
-            local until_next = math.huge
-            if self.next_touch_time then
-                until_next = self.next_touch_time - self.time
-            end
-            if since_touch <= THRESHOLD then
-                -- нажатие сразу после касания: подскок на половину амплитуды и смещение сейчас
-                hop_and_move(self, direction)
-                self.press_used = true
-            elseif until_next <= THRESHOLD then
-                -- нажатие перед следующим касанием: ждем контакта
-                self.pending_dir = direction
-                self.pending_time = self.time
-                self.press_used = true
-            end
+    elseif action_id == hash("left") then
+        if action.pressed or action.repeated then
+            self.left_held = true
+        elseif action.released then
+            self.left_held = false
         end
     end
 end
