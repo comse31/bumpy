@@ -1,23 +1,14 @@
 name: "main"
-scale_along_z: 0
 instances {
   id: "p1_1"
   prototype: "/main/platform.go"
   position {
     x: 80.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -26,18 +17,10 @@ instances {
   position {
     x: 240.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -46,18 +29,10 @@ instances {
   position {
     x: 400.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -66,18 +41,10 @@ instances {
   position {
     x: 560.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -86,18 +53,10 @@ instances {
   position {
     x: 720.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -106,18 +65,10 @@ instances {
   position {
     x: 880.0
     y: 20.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -126,18 +77,10 @@ instances {
   position {
     x: 240.0
     y: 126.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -146,38 +89,10 @@ instances {
   position {
     x: 400.0
     y: 126.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
-  }
-}
-instances {
-  id: "p2_4"
-  prototype: "/main/platform.go"
-  position {
-    x: 560.0
-    y: 126.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -186,18 +101,10 @@ instances {
   position {
     x: 720.0
     y: 126.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -206,18 +113,10 @@ instances {
   position {
     x: 880.0
     y: 126.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -226,18 +125,10 @@ instances {
   position {
     x: 400.0
     y: 233.33
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -246,38 +137,10 @@ instances {
   position {
     x: 560.0
     y: 233.33
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
-  }
-}
-instances {
-  id: "p3_5"
-  prototype: "/main/platform.go"
-  position {
-    x: 720.0
-    y: 233.33
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -286,18 +149,10 @@ instances {
   position {
     x: 880.0
     y: 233.33
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -306,18 +161,10 @@ instances {
   position {
     x: 560.0
     y: 340.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -326,18 +173,10 @@ instances {
   position {
     x: 720.0
     y: 340.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -346,18 +185,10 @@ instances {
   position {
     x: 880.0
     y: 340.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -366,18 +197,10 @@ instances {
   position {
     x: 720.0
     y: 446.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -386,18 +209,10 @@ instances {
   position {
     x: 880.0
     y: 446.67
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -406,18 +221,10 @@ instances {
   position {
     x: 880.0
     y: 553.33
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.14583
     y: 0.25
-    z: 1.0
   }
 }
 instances {
@@ -426,13 +233,6 @@ instances {
   position {
     x: 400.0
     y: 46.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.0625
@@ -446,13 +246,6 @@ instances {
   position {
     x: 400.0
     y: 46.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
   }
   scale3 {
     x: 0.0625
@@ -460,3 +253,4 @@ instances {
     z: 0.0625
   }
 }
+scale_along_z: 0

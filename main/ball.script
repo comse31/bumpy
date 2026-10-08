@@ -10,15 +10,22 @@ local CELL_H = SCREEN_H / COLS
 local RADIUS = SIZE / 2.0
 
 local PERIOD = 60.0 / BPM
-local HEIGHT = 2.0 * SIZE
+-- высота обычного прыжка: в верхней точке мяч не должен касаться платформы выше,
+-- т.е. HEIGHT + 2*RADIUS < зазор между уровнями (48 + 32 < 106.7 - 20)
+local HEIGHT = 1.5 * SIZE
 local GRAVITY = 8.0 * HEIGHT / (PERIOD * PERIOD)
 local JUMP_SPEED = GRAVITY * PERIOD * 0.5
--- высокий прыжок (Space/Up): в 2 раза выше обычного
-local HIGH_JUMP_SPEED = math.sqrt(2.0) * JUMP_SPEED
+-- высокий прыжок (Space/Up): высота = высота игровой ячейки + высота обычного прыжка
+local HIGH_JUMP_HEIGHT = CELL_H + HEIGHT
+local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
 
 -- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
 local THRESHOLD_MS = 100.0
 local THRESHOLD = THRESHOLD_MS / 1000.0
+
+-- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
+-- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
+local CONTACT_DEDUP = 0.1
 
 local SQUASH_DURATION = 0.15
 local SQUASH_AMOUNT = 0.25
@@ -47,12 +54,22 @@ local function column_center(col)
     return (col + 0.5) * CELL_W
 end
 
-local function move(self, direction)
+-- длительность дуги смещения: не дольше времени до приземления, чтобы контакт
+-- не приходил посреди дуги (гонка move_t / contact_point_response)
+local function move_duration_for(t_land)
+    if t_land <= 0.0 then
+        return MOVE_DURATION
+    end
+    return math.max(1.0 / 60.0, math.min(MOVE_DURATION, t_land))
+end
+
+local function move(self, direction, duration)
     local position = go.get_position()
     self.move_from = position.x
     -- всегда приземляемся точно в центр целевой платформы
     self.move_to = column_center(self.col)
-    self.move_t = MOVE_DURATION
+    self.move_duration = duration or MOVE_DURATION
+    self.move_t = self.move_duration
     self.arc_prev = 0.0
     self.tilt = -direction * TILT_ANGLE
     self.tilt_t = TILT_DURATION
@@ -96,22 +113,24 @@ end
 -- подскок (в вершине дуги нижний край мяча — по середине ячейки) со смещением в заданном направлении;
 -- смещение за пределы поля равносильно падению вниз (конец игры)
 local function hop_and_move(self, direction)
+    local old_col = self.col
     self.col = self.col + direction
+    print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
     local vy = hop_velocity(self)
     local t_land = landing_time(self, vy)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
-    move(self, direction)
+    move(self, direction, move_duration_for(t_land))
     self.next_touch_time = self.time + t_land
     return true
 end
 
 -- направление удерживаемой клавиши; если нажаты обе — смещения нет
 local function held_direction(self)
-    if self.right_held and not self.left_held then
-        return 1
-    elseif self.left_held and not self.right_held then
-        return -1
-    end
+    local left  = self.left_held  and not self.right_held
+    local right = self.right_held and not self.left_held
+
+    if right then return  1 end
+    if left  then return -1 end
     return 0
 end
 
@@ -120,6 +139,7 @@ function init(self)
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
     self.squash = 0.0
     self.move_t = 0.0
+    self.move_duration = MOVE_DURATION
     self.arc_prev = 0.0
     self.tilt = 0.0
     self.tilt_t = 0.0
@@ -127,10 +147,12 @@ function init(self)
     self.game_over = false
     self.time = 0.0
     self.touch_time = -math.huge
+    self.last_contact_time = -math.huge
     self.next_touch_time = nil
     self.ground_y = nil
     self.pending_dir = 0
     self.pending_time = 0.0
+    self.pending_jump = false
     self.press_used = false
     self.left_held = false
     self.right_held = false
@@ -168,12 +190,16 @@ function update(self, dt)
         local rdir = held_direction(self)
         if rdir ~= 0 then
             self.col = self.col + rdir
-            move(self, rdir)
             -- начать падение: вертикальная скорость не выше нуля (без подскока вверх)
             local velocity = go.get("#collision_object", "linear_velocity")
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, math.min(velocity.y, 0.0), 0.0))
+            local vy = math.min(velocity.y, 0.0)
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+            -- дуга не длиннее времени падения: контакт придёт после её конца
+            move(self, rdir, move_duration_for(landing_time(self, vy)))
             self.high_jump = false
             self.rising = false
+            -- нажатие потрачено: следующее смещение только после нового цикла отскока
+            self.press_used = true
             -- смещение уже сделано во время полёта: приземление не должно
             -- добавлять второе (иначе мяч улетит сразу на 2 платформы)
             self.rising_moved = true
@@ -188,6 +214,7 @@ function update(self, dt)
             -- клавиша удерживается сразу после касания: подскок и смещение сейчас
             if hop_and_move(self, dir) then
                 self.press_used = true
+                self.pending_dir = 0
             end
         else
             local until_next = math.huge
@@ -203,9 +230,35 @@ function update(self, dt)
         end
     end
 
+    -- высокий прыжок: то же окно threshold вокруг касания, что и смещение —
+    -- учитывается состояние клавиши (нажата/отжата), а не событие нажатия
+    if self.jump_held and not self.press_used and not self.high_jump then
+        local since_touch = self.time - self.touch_time
+        if since_touch <= THRESHOLD then
+            -- клавиша удерживается сразу после касания: высокий прыжок сейчас
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
+            self.rising = true
+            self.high_jump = true
+            self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
+            self.press_used = true
+            self.squash = 1.0
+            apply_squash(self)
+        else
+            local until_next = math.huge
+            if self.next_touch_time then
+                until_next = self.next_touch_time - self.time
+            end
+            if until_next <= THRESHOLD then
+                -- клавиша удерживается перед следующим касанием: ждем контакта
+                self.pending_jump = true
+                self.press_used = true
+            end
+        end
+    end
+
     if self.move_t > 0.0 then
         self.move_t = math.max(0.0, self.move_t - dt)
-        local k = 1.0 - self.move_t / MOVE_DURATION
+        local k = 1.0 - self.move_t / self.move_duration
         local x = self.move_from + (self.move_to - self.move_from) * k
         local arc = MOVE_HEIGHT * (1.0 - (2.0 * k - 1.0) * (2.0 * k - 1.0))
         local pos = go.get_position()
@@ -261,14 +314,31 @@ function on_message(self, message_id, message, sender)
             return
         end
         self.contact_processed = true
+        -- дедупликация между кадрами: пока мяч ещё не оторвался от поверхности,
+        -- Box2D присылает контакт повторно в следующем шаге физики; один прыжок
+        -- должен дать ровно одну запись
+        if self.time - self.last_contact_time < CONTACT_DEDUP then
+            return
+        end
+        self.last_contact_time = self.time
+        -- отладка: момент касания мяча платформы; координаты игровой ячейки (от левого нижнего угла)
+        local pos = go.get_position()
+        -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
+        local contact_y = message.normal.y > 0.0 and (pos.y - RADIUS) or (pos.y + RADIUS)
+        local row = math.floor(contact_y / CELL_H + 1e-6)
+        local side = message.normal.y > 0.0 and "сверху" or "снизу"
+        print(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
         -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает
         if message.normal.y <= 0.0 then
             self.rising = false
             return
         end
-        -- приземление точно в центр платформы
+        -- приземление точно в центр платформы; пока дуга смещения идёт,
+        -- не снапим X — дуга сама доведёт мяч до центра (без телепортации)
         local position = go.get_position()
-        go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
+        if self.move_t <= 0.0 then
+            go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
+        end
         self.touch_time = self.time
         self.ground_y = go.get_position().y - self.arc_prev
         self.high_jump = false
@@ -277,6 +347,7 @@ function on_message(self, message_id, message, sender)
         if self.rising_moved then
             self.rising_moved = false
             self.pending_dir = 0
+            self.pending_jump = false
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
             self.squash = 1.0
@@ -294,7 +365,7 @@ function on_message(self, message_id, message, sender)
             if hop_and_move(self, direction) then
                 self.press_used = true
             end
-        elseif self.jump_held then
+        elseif self.jump_held or self.pending_jump then
             -- высокий прыжок: в 2 раза выше обычного; во время полёта можно запрыгнуть на соседнюю ячейку
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
@@ -304,6 +375,7 @@ function on_message(self, message_id, message, sender)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
         end
+        self.pending_jump = false
         self.squash = 1.0
         apply_squash(self)
     end
