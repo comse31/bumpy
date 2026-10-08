@@ -32,9 +32,6 @@ local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
 local MOVE_DURATION = 0.25
--- дуга смещения не должна позволять обычному прыжку достигать платформы выше:
--- HEIGHT + MOVE_HEIGHT < зазор между уровнями - радиус мяча (64 + 4 < 86.7 - 16)
-local MOVE_HEIGHT = SIZE / 8
 local function apply_squash(self)
     local sx = 1.0 + SQUASH_AMOUNT * self.squash
     local sy = 1.0 - SQUASH_AMOUNT * self.squash
@@ -46,7 +43,7 @@ local function column_center(col)
     return (col + 0.5) * CELL_W
 end
 
--- длительность дуги смещения равна времени до приземления: мяч достигает
+-- длительность смещения равна времени до приземления: мяч достигает
 -- центра целевой платформы ровно в момент касания (нижняя точка траектории)
 local function move_duration_for(t_land)
     if t_land <= 0.0 then
@@ -62,7 +59,6 @@ local function move(self, direction, duration)
     self.move_to = column_center(self.col)
     self.move_duration = duration or MOVE_DURATION
     self.move_t = self.move_duration
-    self.arc_prev = 0.0
     -- мяч переворачивается на 180° в сторону прыжка за время смещения
     self.rot_from = self.rot
     self.rot_to = self.rot - direction * math.pi
@@ -70,7 +66,7 @@ local function move(self, direction, duration)
     self.rot_t = self.move_duration
 end
 
--- высота мяча над землей (реальная позиция уже включает дугу смещения)
+-- высота мяча над землей (реальная позиция мяча)
 local function height_above_ground(self)
     if not self.ground_y then
         return 0.0
@@ -78,15 +74,10 @@ local function height_above_ground(self)
     return math.max(0.0, go.get_position().y - self.ground_y)
 end
 
--- высота подскока при перемещении между платформами: в вершине дуги
--- нижний край мяча должен быть по середине ячейки, в которой он находится
+-- высота подскока при перемещении между платформами: обычная высота отскока,
+-- чтобы боковой прыжок был такой же естественной параболой, как вертикальный
 local function hop_height(self)
-    if not self.ground_y then
-        return 0.0
-    end
-    local bottom = self.ground_y - RADIUS
-    local row = math.floor(bottom / CELL_H + 1e-6)
-    return (row + 0.5) * CELL_H - bottom
+    return HEIGHT
 end
 
 -- вертикальная скорость, чтобы достичь вершины подскока из текущей высоты
@@ -105,7 +96,8 @@ local function landing_time(self, vy)
     return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
 end
 
--- подскок (в вершине дуги нижний край мяча — по середине ячейки) со смещением в заданном направлении;
+-- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
+-- X линейно во времени, а высота — физическая парабола, поэтому мяч летит по дуге;
 -- смещение за пределы поля равносильно падению вниз (конец игры)
 local function hop_and_move(self, direction)
     local old_col = self.col
@@ -135,7 +127,6 @@ function init(self)
     self.squash = 0.0
     self.move_t = 0.0
     self.move_duration = MOVE_DURATION
-    self.arc_prev = 0.0
     self.rot = 0.0
     self.rot_from = 0.0
     self.rot_to = 0.0
@@ -192,7 +183,7 @@ function update(self, dt)
             local velocity = go.get("#collision_object", "linear_velocity")
             local vy = math.min(velocity.y, 0.0)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
-            -- дуга не длиннее времени падения: контакт придёт после её конца
+            -- смещение не длиннее времени падения: контакт придёт после его конца
             move(self, rdir, move_duration_for(landing_time(self, vy)))
             self.high_jump = false
             self.rising = false
@@ -254,20 +245,18 @@ function update(self, dt)
         end
     end
 
+    -- смещение по X линейно во времени: вместе с физической параболой по Y это
+    -- даёт естественную траекторию полёта (X и Y проходятся за время полёта)
     if self.move_t > 0.0 then
         self.move_t = math.max(0.0, self.move_t - dt)
         local k = 1.0 - self.move_t / self.move_duration
         local x = self.move_from + (self.move_to - self.move_from) * k
-        local arc = MOVE_HEIGHT * (1.0 - (2.0 * k - 1.0) * (2.0 * k - 1.0))
         local pos = go.get_position()
-        go.set_position(vmath.vector3(x, pos.y - self.arc_prev + arc, pos.z))
-        self.arc_prev = arc
+        go.set_position(vmath.vector3(x, pos.y, pos.z))
         if self.move_t == 0.0 then
             local velocity = go.get("#collision_object", "linear_velocity")
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, velocity.y, 0.0))
         end
-    else
-        self.arc_prev = 0.0
     end
 
     -- поворот мяча на 180° в сторону прыжка во время смещения между платформами
@@ -336,14 +325,14 @@ function on_message(self, message_id, message, sender)
             apply_squash(self)
             return
         end
-        -- приземление точно в центр платформы; пока дуга смещения идёт,
-        -- не снапим X — дуга сама доведёт мяч до центра (без телепортации)
+        -- приземление точно в центр платформы; пока смещение идёт,
+        -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
         local position = go.get_position()
         if self.move_t <= 0.0 then
             go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
         end
         self.touch_time = self.time
-        self.ground_y = go.get_position().y - self.arc_prev
+        self.ground_y = go.get_position().y
         self.high_jump = false
         -- приземление после смены траектории высокого прыжка: обычный отскок,
         -- дополнительное смещение в этом цикле запрещено
