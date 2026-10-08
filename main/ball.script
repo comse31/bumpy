@@ -9,6 +9,16 @@ local CELL_W = SCREEN_W / COLS
 local CELL_H = SCREEN_H / COLS
 local RADIUS = SIZE / 2.0
 
+-- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
+local PLATFORM_H = 20.0
+local PLATFORM_Y_BASE = 20.0
+-- Y центра мяча в момент отскока от каждого ряда ячеек (индекс 0 — нижний ряд):
+-- верхняя грань платформы + радиус мяча; рассчитывается от высоты платформы
+local BOUNCE_Y = {}
+for c = 0, COLS - 1 do
+    BOUNCE_Y[c] = PLATFORM_Y_BASE + PLATFORM_H / 2.0 + RADIUS + c * CELL_H
+end
+
 local PERIOD = 60.0 / BPM
 -- высота обычного прыжка: в верхней точке мяч не должен касаться платформы выше,
 -- т.е. HEIGHT + 2*RADIUS < зазор между уровнями (48 + 32 < 106.7 - 20)
@@ -148,6 +158,8 @@ function init(self)
     self.jump_held = false
     self.rising = false
     self.high_jump = false
+    self.hj_row = nil
+    self.row = 0
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
@@ -172,26 +184,33 @@ function update(self, dt)
     -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
     self.contact_processed = false
 
-    -- высокий прыжок: во время всего полёта (подъём и падение до приземления)
-    -- нажатие влево/вправо производит штатное смещение (запрыгивание) на соседнюю ячейку,
-    -- после чего начинается падение до встречи с платформой
-    if self.high_jump then
-        local rdir = held_direction(self)
-        if rdir ~= 0 then
-            self.col = self.col + rdir
-            -- начать падение: вертикальная скорость не выше нуля (без подскока вверх)
-            local velocity = go.get("#collision_object", "linear_velocity")
-            local vy = math.min(velocity.y, 0.0)
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
-            -- смещение не длиннее времени падения: контакт придёт после его конца
-            move(self, rdir, move_duration_for(landing_time(self, vy)))
-            self.high_jump = false
-            self.rising = false
-            -- нажатие потрачено: следующее смещение только после нового цикла отскока
-            self.press_used = true
-            -- смещение уже сделано во время полёта: приземление не должно
-            -- добавлять второе (иначе мяч улетит сразу на 2 платформы)
-            self.rising_moved = true
+    -- высокий прыжок: учитывается только движение вверх. В момент пересечения
+    -- нижней частью мяча уровня BOUNCE_Y[row] проверяется удержание влево/вправо;
+    -- если нажата — запускается смещение (запрыгивание) и начинается падение
+    if self.high_jump and self.hj_row then
+        local velocity = go.get("#collision_object", "linear_velocity")
+        if velocity.y > 0.0 then
+            local bottom = position.y - RADIUS
+            while self.hj_row < COLS and bottom >= BOUNCE_Y[self.hj_row] do
+                local rdir = held_direction(self)
+                if rdir ~= 0 then
+                    -- запрыгивание: та же траектория, что и обычное смещение —
+                    -- парабола с вершиной на HEIGHT над платформой нового ряда;
+                    -- приземление точно в центр целевой платформы
+                    self.row = self.hj_row
+                    self.ground_y = BOUNCE_Y[self.hj_row]
+                    hop_and_move(self, rdir)
+                    self.high_jump = false
+                    self.rising = false
+                    -- нажатие потрачено: следующее смещение только после нового цикла отскока
+                    self.press_used = true
+                    -- смещение уже сделано во время полёта: приземление не должно
+                    -- добавлять второе (иначе мяч улетит сразу на 2 платформы)
+                    self.rising_moved = true
+                    break
+                end
+                self.hj_row = self.hj_row + 1
+            end
         end
     end
 
@@ -228,6 +247,8 @@ function update(self, dt)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            -- первый уровень для проверки пересечения — над текущим рядом
+            self.hj_row = self.row + 1
             self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
             self.press_used = true
             self.squash = 1.0
@@ -315,7 +336,7 @@ function on_message(self, message_id, message, sender)
         local pos = go.get_position()
         -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
         local contact_y = message.normal.y > 0.0 and (pos.y - RADIUS) or (pos.y + RADIUS)
-        local row = math.floor(contact_y / CELL_H + 1e-6)
+        local row = vmath.clamp(math.floor(contact_y / CELL_H + 1e-6), 0, COLS - 1)
         local side = message.normal.y > 0.0 and "сверху" or "снизу"
         print(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
         -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает
@@ -332,7 +353,10 @@ function on_message(self, message_id, message, sender)
             go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
         end
         self.touch_time = self.time
-        self.ground_y = go.get_position().y
+        -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
+        self.row = row
+        self.ground_y = BOUNCE_Y[row]
+        go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
         -- приземление после смены траектории высокого прыжка: обычный отскок,
         -- дополнительное смещение в этом цикле запрещено
@@ -362,6 +386,8 @@ function on_message(self, message_id, message, sender)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            -- первый уровень для проверки пересечения — над текущим рядом
+            self.hj_row = self.row + 1
             self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
         else
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
