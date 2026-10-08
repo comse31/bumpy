@@ -35,18 +35,10 @@ local MOVE_DURATION = 0.25
 -- дуга смещения не должна позволять обычному прыжку достигать платформы выше:
 -- HEIGHT + MOVE_HEIGHT < зазор между уровнями - радиус мяча (64 + 4 < 86.7 - 16)
 local MOVE_HEIGHT = SIZE / 8
-local TILT_ANGLE = math.rad(20.0)
-local TILT_DURATION = 0.25
-
 local function apply_squash(self)
     local sx = 1.0 + SQUASH_AMOUNT * self.squash
     local sy = 1.0 - SQUASH_AMOUNT * self.squash
     go.set(self.visual, "scale", vmath.vector3(sx, sy, 1.0))
-end
-
-local function apply_tilt(self)
-    local a = self.tilt * (self.tilt_t / TILT_DURATION)
-    go.set(self.visual, "rotation", vmath.quat_rotation_z(a))
 end
 
 -- центр колонки (платформы) по X
@@ -54,13 +46,13 @@ local function column_center(col)
     return (col + 0.5) * CELL_W
 end
 
--- длительность дуги смещения: не дольше времени до приземления, чтобы контакт
--- не приходил посреди дуги (гонка move_t / contact_point_response)
+-- длительность дуги смещения равна времени до приземления: мяч достигает
+-- центра целевой платформы ровно в момент касания (нижняя точка траектории)
 local function move_duration_for(t_land)
     if t_land <= 0.0 then
         return MOVE_DURATION
     end
-    return math.max(1.0 / 60.0, math.min(MOVE_DURATION, t_land))
+    return math.max(1.0 / 60.0, t_land)
 end
 
 local function move(self, direction, duration)
@@ -71,8 +63,11 @@ local function move(self, direction, duration)
     self.move_duration = duration or MOVE_DURATION
     self.move_t = self.move_duration
     self.arc_prev = 0.0
-    self.tilt = -direction * TILT_ANGLE
-    self.tilt_t = TILT_DURATION
+    -- мяч переворачивается на 180° в сторону прыжка за время смещения
+    self.rot_from = self.rot
+    self.rot_to = self.rot - direction * math.pi
+    self.rot_duration = self.move_duration
+    self.rot_t = self.move_duration
 end
 
 -- высота мяча над землей (реальная позиция уже включает дугу смещения)
@@ -141,8 +136,11 @@ function init(self)
     self.move_t = 0.0
     self.move_duration = MOVE_DURATION
     self.arc_prev = 0.0
-    self.tilt = 0.0
-    self.tilt_t = 0.0
+    self.rot = 0.0
+    self.rot_from = 0.0
+    self.rot_to = 0.0
+    self.rot_t = 0.0
+    self.rot_duration = MOVE_DURATION
     self.col = vmath.clamp(math.floor(go.get_position().x / CELL_W), 0, COLS - 1)
     self.game_over = false
     self.time = 0.0
@@ -272,9 +270,12 @@ function update(self, dt)
         self.arc_prev = 0.0
     end
 
-    if self.tilt_t > 0.0 then
-        self.tilt_t = math.max(0.0, self.tilt_t - dt)
-        apply_tilt(self)
+    -- поворот мяча на 180° в сторону прыжка во время смещения между платформами
+    if self.rot_t > 0.0 then
+        self.rot_t = math.max(0.0, self.rot_t - dt)
+        local k = 1.0 - self.rot_t / self.rot_duration
+        self.rot = self.rot_from + (self.rot_to - self.rot_from) * k
+        go.set(self.visual, "rotation", vmath.quat_rotation_z(self.rot))
     end
 
     if self.squash > 0.0 then
@@ -331,6 +332,8 @@ function on_message(self, message_id, message, sender)
         -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает
         if message.normal.y <= 0.0 then
             self.rising = false
+            self.squash = 1.0
+            apply_squash(self)
             return
         end
         -- приземление точно в центр платформы; пока дуга смещения идёт,
