@@ -4,6 +4,13 @@ in highp vec4 position;
 in mediump vec2 texcoord0;
 
 out mediump vec2 var_texcoord0;
+// локальные координаты вершины после shrink, до bend — для скругления углов:
+// интерполяция varying по сжатому quad'у автоматически «следует» за shrink
+out highp vec2 var_local_pos;
+// масштабы по локальным осям X и Y (длины столбцов мировой матрицы)
+out highp vec2 var_scale;
+// коэффициент уменьшения платформы (shrinkable), может быть отрицательным при перелёте пружины
+out highp float var_shrink;
 
 uniform vs_uniforms
 {
@@ -26,4 +33,7 @@ void main()
     highp vec4 p = vec4(xy.x, xy.y, position.z, 1.0);
     gl_Position = mtx_proj * (mtx_worldview * p);
     var_texcoord0 = texcoord0;
+    var_local_pos = vec2(position.x * shrink.x, position.y);
+    var_scale = vec2(length(mtx_worldview[0].xyz), length(mtx_worldview[1].xyz));
+    var_shrink = shrink.x;
 }
