@@ -1,6 +1,6 @@
 components {
   id: "mesh"
-  component: "/main/platforms/shrinkable/platform.mesh"
+  component: "/main/platforms/sloped/platform.mesh"
 }
 components {
   id: "collision_object"
@@ -11,15 +11,11 @@ components {
   component: "/main/platforms/platform.script"
 }
 components {
-  id: "shrink"
-  component: "/main/platforms/shrinkable/shrinkable.script"
-}
-components {
   id: "slope"
   component: "/main/platforms/sloped/sloped.script"
   properties {
     id: "direction"
     type: PROPERTY_TYPE_NUMBER
-    value: "0"
+    value: "1"
   }
 }

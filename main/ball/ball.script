@@ -58,6 +58,17 @@ local function platform_url(row, col)
     return "/p" .. (row + 1) .. "_" .. (col + 1)
 end
 
+-- направление наклона платформы: 1 = вправо, -1 = влево, 0 = плоская.
+-- Определяется по повороту объекта (компонент slope поворачивает всю платформу):
+-- отрицательный угол вокруг Z опускает правый конец (наклон вправо),
+-- положительный — поднимает его (наклон влево)
+local function slope_direction(row, col)
+    local rot = go.get(platform_url(row, col), "rotation")
+    if not rot then return 0 end
+    if math.abs(rot.z) < 0.01 then return 0 end
+    return rot.z > 0 and -1 or 1
+end
+
 -- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
 -- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
 local function bend_platform(self, row, col, dir)
@@ -186,6 +197,7 @@ function init(self)
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
     go.set_parent(self.visual, go.get_id(), true)
+
 end
 
 function update(self, dt)
@@ -384,17 +396,24 @@ function on_message(self, message_id, message, sender)
         land_platform(self, row, self.col)
         go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
-        -- приземление после смены траектории высокого прыжка: обычный отскок,
-        -- дополнительное смещение в этом цикле запрещено
+        -- приземление после смены траектории высокого прыжка: дополнительное
+        -- управляемое смещение в этом цикле запрещено, но наклонная платформа
+        -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
         if self.rising_moved then
             self.rising_moved = false
             self.pending_dir = 0
             self.pending_jump = false
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-            self.next_touch_time = self.time + PERIOD
-            -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
-            -- остаётся true и следующий высокий прыжок становится невозможен
-            self.press_used = false
+            local slope_dir = slope_direction(row, self.col)
+            if slope_dir ~= 0 and self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
+                hop_and_move(self, slope_dir)
+                self.press_used = true
+            else
+                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+                self.next_touch_time = self.time + PERIOD
+                -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
+                -- остаётся true и следующий высокий прыжок становится невозможен
+                self.press_used = false
+            end
             self.squash = 1.0
             apply_squash(self)
             return
@@ -406,7 +425,21 @@ function on_message(self, message_id, message, sender)
         self.pending_dir = 0
         -- новый цикл отскока: разрешено одно нажатие
         self.press_used = false
-        if direction ~= 0 then
+        -- наклонная платформа: неуправляемый отскок в сторону наклона,
+        -- приоритет над любыми командами игрока (tz.txt: «шар неуправляемо отскакивает»);
+        -- направление определяется по повороту объекта платформы (компонент slope)
+        local slope_dir = slope_direction(row, self.col)
+        if slope_dir ~= 0 then
+            if self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
+                hop_and_move(self, slope_dir)
+                self.press_used = true
+            else
+                -- наклон в сторону края экрана: обычный вертикальный отскок,
+                -- дальше мяч улетит за край и упадёт (конец игры)
+                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+                self.next_touch_time = self.time + PERIOD
+            end
+        elseif direction ~= 0 then
             if hop_and_move(self, direction) then
                 self.press_used = true
             end

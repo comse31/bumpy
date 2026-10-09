@@ -13,7 +13,7 @@ instances {
 }
 instances {
   id: "p1_2"
-  prototype: "/main/platforms/default/platform.go"
+  prototype: "/main/platforms/sloped/right.go"
   position {
     x: 240.0
     y: 20.0
@@ -133,7 +133,7 @@ instances {
 }
 instances {
   id: "p3_4"
-  prototype: "/main/platforms/default/platform.go"
+  prototype: "/main/platforms/sloped/left.go"
   position {
     x: 560.0
     y: 233.33
@@ -160,18 +160,6 @@ instances {
   prototype: "/main/platforms/default/platform.go"
   position {
     x: 560.0
-    y: 340.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p4_5"
-  prototype: "/main/platforms/default/platform.go"
-  position {
-    x: 720.0
     y: 340.0
   }
   scale3 {

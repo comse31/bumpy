@@ -10,3 +10,12 @@ components {
   id: "script"
   component: "/main/platforms/platform.script"
 }
+components {
+  id: "slope"
+  component: "/main/platforms/sloped/sloped.script"
+  properties {
+    id: "direction"
+    type: PROPERTY_TYPE_NUMBER
+    value: "0"
+  }
+}
