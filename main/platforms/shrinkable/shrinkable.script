@@ -1,0 +1,60 @@
+-- расходуемая (shrinkable) платформа: после каждого прыжка мяча на неё
+-- платформа уменьшается по горизонтали (высота не меняется) с пружинным
+-- отскоком, а когда прочность исчерпана — исчезает
+-- (визуал сжимается в точку, коллизия отключается, и мяч проваливается)
+go.property("durability", 5) -- число прыжков мяча до исчезновения
+
+local DAMPING = 0.1 -- постоянная затухания пружины
+local OMEGA = 2.0 * math.pi / 0.3 -- частота пружины (период ~0.3 с)
+local EPS = 0.01 -- порог остановки пружины
+
+local function apply(self)
+    -- x — коэффициент ширины; высота (y) не масштабируется
+    go.set("#mesh", "shrink", vmath.vector4(self.scale, 1.0, 1.0, 1.0))
+end
+
+local function start_spring(self, target)
+    self.spring_from = self.scale
+    self.target = target
+    self.spring_t = 0.0
+    self.springing = true
+end
+
+function init(self)
+    self.remaining = self.durability
+    self.scale = 1.0
+    self.target = 1.0
+    self.springing = false
+    self.gone = false
+    apply(self)
+end
+
+function update(self, dt)
+    if not self.springing then
+        return
+    end
+    self.spring_t = self.spring_t + dt
+    local t = self.spring_t
+    -- затухающее колебание вокруг цели: пружина с перелётом и успокоением
+    local k = math.exp(-t / DAMPING) * math.cos(OMEGA * t)
+    self.scale = self.target + (self.spring_from - self.target) * k
+    local envelope = math.abs(self.spring_from - self.target) * math.exp(-t / DAMPING)
+    if t > 0.25 and envelope < EPS then
+        self.scale = self.target
+        self.springing = false
+        -- платформа полностью исчезла: убираем коллизию, мяч проваливается
+        if self.target <= 0.0 and not self.gone then
+            self.gone = true
+            msg.post("#collision_object", "disable")
+        end
+    end
+    apply(self)
+end
+
+function on_message(self, message_id, message, sender)
+    -- "land" приходит от мяча при каждом приземлении на эту платформу
+    if message_id == hash("land") and self.remaining > 0 then
+        self.remaining = self.remaining - 1
+        start_spring(self, self.remaining / self.durability)
+    end
+end
