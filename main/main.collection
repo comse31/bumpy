@@ -85,7 +85,7 @@ instances {
 }
 instances {
   id: "p2_3"
-  prototype: "/main/platforms/default/platform.go"
+  prototype: "/main/platforms/sticky/platform.go"
   position {
     x: 400.0
     y: 126.67

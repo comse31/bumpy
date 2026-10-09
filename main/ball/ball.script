@@ -69,6 +69,15 @@ local function slope_direction(row, col)
     return rot.z > 0 and -1 or 1
 end
 
+-- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
+-- на ней высокий прыжок невозможен — шар «прилипает» к платформе
+local function is_sticky(row, col)
+    local url = platform_url(row, col)
+    if not go.get(url, "position") then return false end
+    local sticky = go.get(url .. "#sticky", "sticky")
+    return sticky and sticky > 0 or false
+end
+
 -- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
 -- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
 local function bend_platform(self, row, col, dir)
@@ -191,6 +200,7 @@ function init(self)
     self.jump_held = false
     self.rising = false
     self.high_jump = false
+    self.sticky_locked = false
     self.hj_row = nil
     self.row = 0
     self.rising_moved = false
@@ -273,8 +283,9 @@ function update(self, dt)
     end
 
     -- высокий прыжок: то же окно threshold вокруг касания, что и смещение —
-    -- учитывается состояние клавиши (нажата/отжата), а не событие нажатия
-    if self.jump_held and not self.press_used and not self.high_jump then
+    -- учитывается состояние клавиши (нажата/отжата), а не событие нажатия;
+    -- на липкой платформе высокий прыжок невозможен (шар «прилипает»)
+    if self.jump_held and not self.press_used and not self.high_jump and not self.sticky_locked then
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас
@@ -394,6 +405,9 @@ function on_message(self, message_id, message, sender)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
         land_platform(self, row, self.col)
+        -- липкая (закрашенная) платформа: после прыжка на неё шар «прилипает» —
+        -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу
+        self.sticky_locked = is_sticky(row, self.col)
         go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
         -- приземление после смены траектории высокого прыжка: дополнительное
@@ -443,7 +457,7 @@ function on_message(self, message_id, message, sender)
             if hop_and_move(self, direction) then
                 self.press_used = true
             end
-        elseif self.jump_held or self.pending_jump then
+        elseif (self.jump_held or self.pending_jump) and not self.sticky_locked then
             -- высокий прыжок: в 2 раза выше обычного; во время полёта можно запрыгнуть на соседнюю ячейку
             bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))

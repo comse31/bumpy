@@ -19,3 +19,12 @@ components {
     value: "1"
   }
 }
+components {
+  id: "sticky"
+  component: "/main/platforms/sticky/sticky.script"
+  properties {
+    id: "sticky"
+    type: PROPERTY_TYPE_NUMBER
+    value: "0"
+  }
+}
