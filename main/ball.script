@@ -53,6 +53,20 @@ local function column_center(col)
     return (col + 0.5) * CELL_W
 end
 
+-- URL платформы в ячейке (row/col — индексы с нуля): /p{row+1}_{col+1}
+local function platform_url(row, col)
+    return "/p" .. (row + 1) .. "_" .. (col + 1)
+end
+
+-- визуальный прогиб платформы, от которой мяч отталкивается;
+-- коллизия не меняется — эффект чисто визуальный
+local function bend_platform(self, row, col)
+    local url = platform_url(row, col)
+    if go.get(url, "position") then
+        msg.post(url, "bend")
+    end
+end
+
 -- длительность смещения равна времени до приземления: мяч достигает
 -- центра целевой платформы ровно в момент касания (нижняя точка траектории)
 local function move_duration_for(t_land)
@@ -244,6 +258,7 @@ function update(self, dt)
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас
+            bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
@@ -366,6 +381,9 @@ function on_message(self, message_id, message, sender)
             self.pending_jump = false
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
+            -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
+            -- остаётся true и следующий высокий прыжок становится невозможен
+            self.press_used = false
             self.squash = 1.0
             apply_squash(self)
             return
@@ -383,6 +401,7 @@ function on_message(self, message_id, message, sender)
             end
         elseif self.jump_held or self.pending_jump then
             -- высокий прыжок: в 2 раза выше обычного; во время полёта можно запрыгнуть на соседнюю ячейку
+            bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
