@@ -366,6 +366,9 @@ function on_message(self, message_id, message, sender)
             self.pending_jump = false
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
+            -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
+            -- остаётся true и следующий высокий прыжок становится невозможен
+            self.press_used = false
             self.squash = 1.0
             apply_squash(self)
             return
