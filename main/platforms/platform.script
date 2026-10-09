@@ -1,0 +1,40 @@
+-- визуальный прогиб платформы как батут: концы платформы остаются на месте,
+-- середина прогибается вниз дугой (гнётся геометрия mesh в вершинном шейдере),
+-- затем упруго возвращается с небольшим «отскоком» вверх;
+-- коллизия при этом не меняется — эффект чисто визуальный
+local BEND_AMOUNT = 32.0 -- прогиб середины в локальных единицах (мир = *0.25)
+local DAMPING = 0.12 -- постоянная затухания упругого колебания
+local OMEGA = 2.0 * math.pi / 0.35 -- частота колебания (период ~0.35 с)
+local T_MAX = 0.7 -- максимальное время анимации
+
+local function apply_bend(self, amount)
+    go.set("#mesh", "bend", vmath.vector4(amount, 0.0, 0.0, 0.0))
+end
+
+function init(self)
+    self.bend_t = -1.0 -- -1: прогиб не активен
+    self.bend_dir = 1.0 -- 1: прогиб вниз, -1: прогиб вверх
+end
+
+function update(self, dt)
+    if self.bend_t >= 0.0 then
+        self.bend_t = self.bend_t + dt
+        local t = self.bend_t
+        -- затухающее колебание: k=1 — максимальный прогиб в момент удара,
+        -- затем k<0 — небольшой отскок в обратную сторону, далее затухание к нулю
+        local k = math.exp(-t / DAMPING) * math.cos(OMEGA * t)
+        if t > T_MAX or math.abs(k) < 0.02 then
+            self.bend_t = -1.0
+            apply_bend(self, 0.0)
+        else
+            apply_bend(self, k * BEND_AMOUNT * self.bend_dir)
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("bend") then
+        self.bend_dir = (message and message.dir) or 1.0
+        self.bend_t = 0.0
+    end
+end

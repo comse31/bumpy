@@ -1,0 +1,29 @@
+#version 140
+
+in highp vec4 position;
+in mediump vec2 texcoord0;
+
+out mediump vec2 var_texcoord0;
+
+uniform vs_uniforms
+{
+    highp mat4 mtx_worldview;
+    highp mat4 mtx_proj;
+    // x — величина прогиба середины платформы в локальных единицах
+    mediump vec4 bend;
+    // x — коэффициент уменьшения визуала платформы (1 = обычный размер)
+    mediump vec4 shrink;
+};
+
+void main()
+{
+    // нормализованная координата вдоль платформы: -1 (левый край) .. +1 (правый)
+    highp float u = position.x / 480.0;
+    // дуга: концы (u = +-1) остаются на месте, середина (u = 0) опускается на bend.x
+    highp float dy = -bend.x * (1.0 - u * u);
+    // уменьшение (shrinkable): сжимаем только по горизонтали к центру платформы
+    highp vec2 xy = vec2(position.x * shrink.x, position.y + dy);
+    highp vec4 p = vec4(xy.x, xy.y, position.z, 1.0);
+    gl_Position = mtx_proj * (mtx_worldview * p);
+    var_texcoord0 = texcoord0;
+}

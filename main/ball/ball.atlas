@@ -1,11 +1,11 @@
 images {
-  image: "/main/free-icon-football-3439544.png"
+  image: "/main/ball/football.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 animations {
   id: "ball"
   images {
-    image: "/main/free-icon-football-3439544.png"
+    image: "/main/ball/football.png"
   }
 }
 margin: 0

@@ -58,12 +58,20 @@ local function platform_url(row, col)
     return "/p" .. (row + 1) .. "_" .. (col + 1)
 end
 
--- визуальный прогиб платформы, от которой мяч отталкивается;
--- коллизия не меняется — эффект чисто визуальный
-local function bend_platform(self, row, col)
+-- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
+-- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
+local function bend_platform(self, row, col, dir)
     local url = platform_url(row, col)
     if go.get(url, "position") then
-        msg.post(url, "bend")
+        msg.post(url, "bend", { dir = dir or 1 })
+    end
+end
+
+-- уведомить платформу о приземлении мяча (нужно расходуемым платформам)
+local function land_platform(self, row, col)
+    local url = platform_url(row, col)
+    if go.get(url, "position") then
+        msg.post(url, "land")
     end
 end
 
@@ -354,9 +362,11 @@ function on_message(self, message_id, message, sender)
         local row = vmath.clamp(math.floor(contact_y / CELL_H + 1e-6), 0, COLS - 1)
         local side = message.normal.y > 0.0 and "сверху" or "снизу"
         print(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
-        -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает
+        -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает;
+        -- платформа при этом упруго прогибается вверх (удар снизу)
         if message.normal.y <= 0.0 then
             self.rising = false
+            bend_platform(self, row, self.col, -1)
             self.squash = 1.0
             apply_squash(self)
             return
@@ -371,6 +381,7 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
+        land_platform(self, row, self.col)
         go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
         -- приземление после смены траектории высокого прыжка: обычный отскок,

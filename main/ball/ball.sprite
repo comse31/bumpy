@@ -1,4 +1,4 @@
-tile_set: "/main/platform.atlas"
-default_animation: "platform"
+tile_set: "/main/ball/ball.atlas"
+default_animation: "ball"
 material: "/builtins/materials/sprite.material"
 blend_mode: BLEND_MODE_ALPHA
