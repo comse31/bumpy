@@ -49,7 +49,7 @@ instances {
 }
 instances {
   id: "p1_5"
-  prototype: "/main/platforms/default/platform.go"
+  prototype: "/main/platforms/spike/platform.go"
   position {
     x: 720.0
     y: 20.0

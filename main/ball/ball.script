@@ -84,6 +84,27 @@ local function is_sticky(row, col)
     return sticky and sticky > 0 or false
 end
 
+-- шипы (опасная платформа): свойство spike у скрипта платформы;
+-- при контакте мяча с шипами мяч лопается и игра прекращается;
+-- компонент есть только у прототипа шипов (в отличие от sticky, который
+-- присутствует во всех прототипах), поэтому go.get оборачиваем в pcall
+local function is_spike(row, col)
+    local url = platform_url(row, col)
+    if not pcall(go.get, url, "position") then return false end
+    local ok, spike = pcall(go.get, url .. "#spike", "spike")
+    return ok and spike and spike > 0 or false
+end
+
+-- лопнуть мяч: остановить физику, скрыть визуал, прекратить игру
+local function pop_ball(self)
+    self.game_over = true
+    go.set("#collision_object", "linear_velocity", vmath.vector3())
+    -- у спрайта нет свойства visible; скрываем его сообщением disable
+    -- (Sprite поддерживает enable/disable); ball_visual — дочерний инстанс мяча
+    msg.post("ball_visual#sprite", "disable")
+    print("game over: ball popped on spikes")
+end
+
 -- URL вертикальной перегородки на границе между колонками b-1 и b (b = 1..5): /w{row+1}_{b}
 local function wall_url(row, b)
     return "/w" .. (row + 1) .. "_" .. b
@@ -499,6 +520,11 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
+        -- шипы: контакт лопает мяч, игра прекращается
+        if is_spike(row, self.col) then
+            pop_ball(self)
+            return
+        end
         land_platform(self, row, self.col)
         -- липкая (закрашенная) платформа: после прыжка на неё шар «прилипает» —
         -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу
