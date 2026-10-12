@@ -257,4 +257,36 @@ instances {
     z: 0.0625
   }
 }
+instances {
+  id: "g1_2"
+  prototype: "/main/goodies/drop.go"
+  position {
+    x: 240.0
+    y: 53.33
+  }
+}
+instances {
+  id: "g2_3"
+  prototype: "/main/goodies/drop.go"
+  position {
+    x: 400.0
+    y: 160.0
+  }
+}
+instances {
+  id: "g3_4"
+  prototype: "/main/goodies/drop.go"
+  position {
+    x: 560.0
+    y: 266.67
+  }
+}
+instances {
+  id: "g5_5"
+  prototype: "/main/goodies/drop.go"
+  position {
+    x: 720.0
+    y: 480.0
+  }
+}
 scale_along_z: 0

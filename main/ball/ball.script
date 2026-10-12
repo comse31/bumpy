@@ -108,6 +108,26 @@ local function is_burning(row, col)
     return ok and burning and burning > 0 or false
 end
 
+-- goodies (собираемые объекты): находятся в центре игровой ячейки и собираются
+-- мячиком при приземлении на платформу этой ячейки; URL — /g{row+1}_{col+1}
+local function goodie_url(row, col)
+    return "/g" .. (row + 1) .. "_" .. (col + 1)
+end
+
+-- собрать goodies в ячейке: если объект существует и ещё не собран — отправить
+-- ему "collect" (он скроет себя и пометит collected = 1) и увеличить внутренний
+-- счётчик мяча (карман); возвращает true, если goodies был собран
+local function collect_goodie(self, row, col)
+    local url = goodie_url(row, col)
+    if not pcall(go.get, url, "position") then return false end
+    local ok, collected = pcall(go.get, url .. "#goodie", "collected")
+    if not ok or (collected and collected > 0) then return false end
+    msg.post(url, "collect")
+    self.pocket = self.pocket + 1
+    print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
+    return true
+end
+
 -- лопнуть мяч: остановить физику, скрыть визуал, прекратить игру
 local function pop_ball(self)
     self.game_over = true
@@ -340,6 +360,8 @@ function init(self)
     self.sticky_locked = false
     self.hj_row = nil
     self.row = 0
+    -- внутренний счётчик (карман): количество собранных goodies
+    self.pocket = 0
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
@@ -594,6 +616,9 @@ function on_message(self, message_id, message, sender)
             return
         end
         land_platform(self, row, self.col)
+        -- goodies в центре ячейки: собираются при приземлении на платформу этой
+        -- ячейки — увеличивается внутренний счётчик (карман)
+        collect_goodie(self, row, self.col)
         -- липкая (закрашенная) платформа: после прыжка на неё шар «прилипает» —
         -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу
         self.sticky_locked = is_sticky(row, self.col)
