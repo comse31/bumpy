@@ -3,6 +3,10 @@ components {
   component: "/main/platforms/burning/platform.mesh"
 }
 components {
+  id: "mesh_default"
+  component: "/main/platforms/default/platform.mesh"
+}
+components {
   id: "collision_object"
   component: "/main/platforms/platform.collisionobject"
 }

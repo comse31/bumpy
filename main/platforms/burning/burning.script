@@ -1,4 +1,25 @@
 -- горящая (опасная) платформа: контакт мяча с ней разрушает мяч — игра прекращается;
 -- компонент есть у всех платформ (burning = 0), у горящих — burning = 1;
--- ball.script читает свойство по URL платформы в момент приземления
+-- ball.script читает свойство по URL платформы в момент приземления.
+-- Если в кармане мяча есть капля, он гасит платформу сообщением "extinguish":
+-- burning = 0 и платформа визуально превращается в default (меняется видимость
+-- мешей: горящий скрывается, обычный появляется) — платформа становится безопасной
 go.property("burning", 0)
+
+function init(self)
+    -- меш с текстурой default скрыт до гашения платформы
+    msg.post("#mesh_default", "disable")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("extinguish") then
+        if self.burning and self.burning > 0 then
+            go.set("#burning", "burning", 0)
+            -- превращаем в обычную платформу: отключаем горящий меш и включаем
+            -- меш с текстурой default (смена текстуры меша на лету невозможна)
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_default", "enable")
+            print("BURNING platform extinguished by a drop from the pocket")
+        end
+    end
+end

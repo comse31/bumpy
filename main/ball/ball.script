@@ -83,14 +83,15 @@ end
 local function is_sticky(row, col)
     local url = platform_url(row, col)
     if not pcall(go.get, url, "position") then return false end
-    local sticky = go.get(url .. "#sticky", "sticky")
-    return sticky and sticky > 0 or false
+    -- компонент #sticky есть не у всех прототипов (нет, например, у горящих),
+    -- поэтому go.get оборачиваем в pcall
+    local ok, sticky = pcall(go.get, url .. "#sticky", "sticky")
+    return ok and sticky and sticky > 0 or false
 end
 
 -- шипы (опасная платформа): свойство spike у скрипта платформы;
 -- при контакте мяча с шипами мяч лопается и игра прекращается;
--- компонент есть только у прототипа шипов (в отличие от sticky, который
--- присутствует во всех прототипах), поэтому go.get оборачиваем в pcall
+-- компонент есть только у прототипа шипов, поэтому go.get оборачиваем в pcall
 local function is_spike(row, col)
     local url = platform_url(row, col)
     if not pcall(go.get, url, "position") then return false end
@@ -125,6 +126,18 @@ local function collect_goodie(self, row, col)
     msg.post(url, "collect")
     self.pocket = self.pocket + 1
     print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
+    return true
+end
+
+-- погасить горящую платформу каплей из кармана: платформа становится обычной
+-- (burning = 0, текстура default), игра продолжается; возвращает true, если
+-- гашение произошло (капля потрачена)
+local function extinguish_burning(self, row, col)
+    local url = platform_url(row, col)
+    if not pcall(go.get, url, "position") then return false end
+    msg.post(url, "extinguish")
+    self.pocket = self.pocket - 1
+    print(string.format("POCKET -1 total=%d cell=(%d, %d): burning platform extinguished", self.pocket, col, row))
     return true
 end
 
@@ -610,10 +623,19 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
-        -- шипы или горящая платформа: контакт разрушает мяч, игра прекращается
-        if is_spike(row, self.col) or is_burning(row, self.col) then
+        -- шипы: контакт всегда разрушает мяч, игра прекращается
+        if is_spike(row, self.col) then
             pop_ball(self)
             return
+        end
+        -- горящая платформа: если в кармане есть капля — мяч гасит её
+        -- (платформа превращается в default, капля тратится, игра продолжается);
+        -- без капли контакт разрушает мяч и игра прекращается
+        if is_burning(row, self.col) then
+            if not extinguish_burning(self, row, self.col) then
+                pop_ball(self)
+                return
+            end
         end
         land_platform(self, row, self.col)
         -- goodies в центре ячейки: собираются при приземлении на платформу этой
