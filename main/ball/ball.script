@@ -42,6 +42,11 @@ local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
 local MOVE_DURATION = 0.25
+-- масштаб применяется к визуалу в его локальных осях: мяч переворачивается на
+-- 180° во время прыжка, поэтому в момент удара о перегородку визуал повёрнут
+-- на 90° и локальная ось Y совпадает с мировой X — сплющивание выглядит
+-- горизонтальным; при приземлении поворот кратен 180°, оси совпадают и
+-- сплющивание вертикальное. Одна формула работает для обоих случаев
 local function apply_squash(self)
     local sx = 1.0 + SQUASH_AMOUNT * self.squash
     local sy = 1.0 - SQUASH_AMOUNT * self.squash
@@ -63,8 +68,9 @@ end
 -- отрицательный угол вокруг Z опускает правый конец (наклон вправо),
 -- положительный — поднимает его (наклон влево)
 local function slope_direction(row, col)
-    local rot = go.get(platform_url(row, col), "rotation")
-    if not rot then return 0 end
+    -- go.get бросает исключение, если инстанс не существует (пустая ячейка)
+    local ok, rot = pcall(go.get, platform_url(row, col), "rotation")
+    if not ok or not rot then return 0 end
     if math.abs(rot.z) < 0.01 then return 0 end
     return rot.z > 0 and -1 or 1
 end
@@ -73,16 +79,35 @@ end
 -- на ней высокий прыжок невозможен — шар «прилипает» к платформе
 local function is_sticky(row, col)
     local url = platform_url(row, col)
-    if not go.get(url, "position") then return false end
+    if not pcall(go.get, url, "position") then return false end
     local sticky = go.get(url .. "#sticky", "sticky")
     return sticky and sticky > 0 or false
+end
+
+-- URL вертикальной перегородки на границе между колонками b-1 и b (b = 1..5): /w{row+1}_{b}
+local function wall_url(row, b)
+    return "/w" .. (row + 1) .. "_" .. b
+end
+
+-- есть ли перегородка на границе справа от колонки col (между col и col+1)?
+-- go.get бросает исключение, если инстанс не существует, поэтому проверяем через pcall
+local function has_wall_right(row, col)
+    local ok = pcall(go.get, wall_url(row, col + 1), "position")
+    return ok
+end
+
+-- есть ли перегородка на границе слева от колонки col (между col-1 и col)?
+local function has_wall_left(row, col)
+    local ok = pcall(go.get, wall_url(row, col), "position")
+    return ok
 end
 
 -- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
 -- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
 local function bend_platform(self, row, col, dir)
     local url = platform_url(row, col)
-    if go.get(url, "position") then
+    -- go.get бросает исключение, если инстанс не существует
+    if pcall(go.get, url, "position") then
         msg.post(url, "bend", { dir = dir or 1 })
     end
 end
@@ -90,7 +115,7 @@ end
 -- уведомить платформу о приземлении мяча (нужно расходуемым платформам)
 local function land_platform(self, row, col)
     local url = platform_url(row, col)
-    if go.get(url, "position") then
+    if pcall(go.get, url, "position") then
         msg.post(url, "land")
     end
 end
@@ -148,11 +173,49 @@ local function landing_time(self, vy)
     return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
 end
 
+-- толщина перегородки (совпадает с мешем и коллизией в wall.buffer/wall.collisionobject)
+local WALL_THICKNESS = 20.0
+
+-- отскок от перегородки: мяч прыгает в сторону перегородки, касается её в верхней
+-- точке дуги и возвращается в центр своей колонки; X — линейно во времени
+-- (туда и обратно), Y — физическая парабола до приземления на свою платформу
+local function bounce_off_wall(self, direction)
+    local col = self.col
+    -- X перегородки на границе: справа от col — (col+1)*CELL_W, слева — col*CELL_W
+    local wall_x = (direction > 0 and (col + 1) or col) * CELL_W
+    self.bounce_x_start = go.get_position().x
+    -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT, поэтому
+    -- до грани перегородки дотягивается сжатый край (RADIUS * (1 - SQUASH_AMOUNT))
+    self.bounce_x_wall = wall_x - direction * (RADIUS * (1.0 - SQUASH_AMOUNT) + WALL_THICKNESS / 2.0)
+    self.bounce_x_end = column_center(col)
+    local vy = hop_velocity(self)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    self.bounce_duration = landing_time(self, vy)
+    self.bounce_t = self.bounce_duration
+    self.next_touch_time = self.time + self.bounce_duration
+    -- сплющивание по X (горизонтальное) включается в момент касания перегородки
+    self.bounce_squash_pending = true
+    -- мяч переворачивается на 180° в сторону прыжка за время отскока
+    self.rot_from = self.rot
+    self.rot_to = self.rot - direction * math.pi
+    self.rot_duration = self.bounce_duration
+    self.rot_t = self.bounce_duration
+end
+
 -- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
 -- X линейно во времени, а высота — физическая парабола, поэтому мяч летит по дуге;
 -- смещение за пределы поля равносильно падению вниз (конец игры)
 local function hop_and_move(self, direction)
     local old_col = self.col
+    -- вертикальная перегородка на границе ячеек: прыжок сквозь неё невозможен —
+    -- мяч прыгает в её сторону, отскакивает и возвращается на свою платформу
+    local blocked = (direction > 0 and has_wall_right(self.row, old_col))
+        or (direction < 0 and has_wall_left(self.row, old_col))
+    if blocked then
+        print(string.format("WALL bounce dir=%d col=%d row=%d", direction, old_col, self.row))
+        bounce_off_wall(self, direction)
+        return false
+    end
     self.col = self.col + direction
     print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
     local vy = hop_velocity(self)
@@ -177,6 +240,7 @@ function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
     self.squash = 0.0
+    self.squash_axis = "y"
     self.move_t = 0.0
     self.move_duration = MOVE_DURATION
     self.rot = 0.0
@@ -194,6 +258,9 @@ function init(self)
     self.pending_dir = 0
     self.pending_time = 0.0
     self.pending_jump = false
+    self.bounce_t = 0.0
+    self.bounce_duration = MOVE_DURATION
+    self.bounce_squash_pending = false
     self.press_used = false
     self.left_held = false
     self.right_held = false
@@ -263,11 +330,11 @@ function update(self, dt)
     if dir ~= 0 and not self.press_used and not self.high_jump then
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD then
-            -- клавиша удерживается сразу после касания: подскок и смещение сейчас
-            if hop_and_move(self, dir) then
-                self.press_used = true
-                self.pending_dir = 0
-            end
+            -- клавиша удерживается сразу после касания: подскок и смещение сейчас;
+            -- нажатие тратится даже если перегородка отбила прыжок (отскок обратно)
+            hop_and_move(self, dir)
+            self.press_used = true
+            self.pending_dir = 0
         else
             local until_next = math.huge
             if self.next_touch_time then
@@ -298,6 +365,7 @@ function update(self, dt)
             self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
             self.press_used = true
             self.squash = 1.0
+            self.squash_axis = "y"
             apply_squash(self)
         else
             local until_next = math.huge
@@ -324,6 +392,32 @@ function update(self, dt)
             local velocity = go.get("#collision_object", "linear_velocity")
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, velocity.y, 0.0))
         end
+    end
+
+    -- отскок от перегородки: X линейно — до касания перегородки (в верхней точке
+    -- дуги) и обратно в центр колонки; Y остаётся физической параболой
+    if self.bounce_t > 0.0 then
+        self.bounce_t = math.max(0.0, self.bounce_t - dt)
+        local k = self.bounce_t / self.bounce_duration -- 1 (старт) -> 0 (приземление)
+        -- момент касания перегородки (k = 0.5): сплющивание по X в момент удара
+        if self.bounce_squash_pending and k <= 0.5 then
+            self.bounce_squash_pending = false
+            self.squash = 1.0
+            self.squash_axis = "x"
+            apply_squash(self)
+        end
+        local x
+        if k >= 0.5 then
+            -- первая половина: от старта к перегородке
+            local u = (1.0 - k) * 2.0
+            x = self.bounce_x_start + (self.bounce_x_wall - self.bounce_x_start) * u
+        else
+            -- вторая половина: от перегородки обратно в центр колонки
+            local u = (0.5 - k) * 2.0
+            x = self.bounce_x_wall + (self.bounce_x_end - self.bounce_x_wall) * u
+        end
+        local pos = go.get_position()
+        go.set_position(vmath.vector3(x, pos.y, pos.z))
     end
 
     -- поворот мяча на 180° в сторону прыжка во время смещения между платформами
@@ -391,6 +485,7 @@ function on_message(self, message_id, message, sender)
             self.rising = false
             bend_platform(self, row, self.col, -1)
             self.squash = 1.0
+            self.squash_axis = "y"
             apply_squash(self)
             return
         end
@@ -429,6 +524,7 @@ function on_message(self, message_id, message, sender)
                 self.press_used = false
             end
             self.squash = 1.0
+            self.squash_axis = "y"
             apply_squash(self)
             return
         end
@@ -472,6 +568,7 @@ function on_message(self, message_id, message, sender)
         end
         self.pending_jump = false
         self.squash = 1.0
+        self.squash_axis = "y"
         apply_squash(self)
     end
 end
