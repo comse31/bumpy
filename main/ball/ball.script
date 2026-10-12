@@ -25,7 +25,10 @@ local PERIOD = 60.0 / BPM
 local HEIGHT = 1.5 * SIZE
 local GRAVITY = 8.0 * HEIGHT / (PERIOD * PERIOD)
 local JUMP_SPEED = GRAVITY * PERIOD * 0.5
--- высокий прыжок (Space/Up): высота = высота игровой ячейки + высота обычного прыжка
+-- высокий прыжок (Space/Up): начальный импульс как при прыжке на один этаж;
+-- первый уровень подъёма замедляется гравитацией, выше скорость становится
+-- постоянной (JUMP_SPEED) — мяч летит до платформы сверху или верхнего края
+-- игрового поля и может запрыгнуть на любой «этаж»
 local HIGH_JUMP_HEIGHT = CELL_H + HEIGHT
 local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
 
@@ -95,6 +98,16 @@ local function is_spike(row, col)
     return ok and spike and spike > 0 or false
 end
 
+-- горящая (опасная) платформа: свойство burning у скрипта платформы;
+-- при контакте мяча с ней мяч разрушается и игра прекращается;
+-- компонент есть только у прототипа горящих платформ, поэтому go.get в pcall
+local function is_burning(row, col)
+    local url = platform_url(row, col)
+    if not pcall(go.get, url, "position") then return false end
+    local ok, burning = pcall(go.get, url .. "#burning", "burning")
+    return ok and burning and burning > 0 or false
+end
+
 -- лопнуть мяч: остановить физику, скрыть визуал, прекратить игру
 local function pop_ball(self)
     self.game_over = true
@@ -102,7 +115,7 @@ local function pop_ball(self)
     -- у спрайта нет свойства visible; скрываем его сообщением disable
     -- (Sprite поддерживает enable/disable); ball_visual — дочерний инстанс мяча
     msg.post("ball_visual#sprite", "disable")
-    print("game over: ball popped on spikes")
+    print("game over: ball destroyed on a dangerous platform")
 end
 
 -- URL вертикальной перегородки на границе между колонками b-1 и b (b = 1..5): /w{row+1}_{b}
@@ -192,6 +205,42 @@ end
 local function landing_time(self, vy)
     local h = height_above_ground(self)
     return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
+end
+
+-- оценка времени до следующего контакта во время высокого прыжка: первый уровень —
+-- гравитационное замедление (парабола), выше — постоянная скорость JUMP_SPEED до
+-- ближайшей платформы сверху в колонке (или верхнего края поля) + падение под
+-- гравитацией на платформу текущего ряда
+local function high_jump_touch_time(self)
+    local pos = go.get_position()
+    local vel = go.get("#collision_object", "linear_velocity")
+    -- Y центра мяча в момент удара о препятствие: нижняя грань ближайшей
+    -- платформы выше в колонке или верхний край поля
+    local stop_y = SCREEN_H - RADIUS
+    for r = self.row + 1, COLS - 1 do
+        local url = platform_url(r, self.col)
+        if pcall(go.get, url, "position") then
+            local py = go.get(url, "position").y
+            stop_y = math.min(stop_y, py - PLATFORM_H / 2.0 - RADIUS)
+            break
+        end
+    end
+    -- высота перехода на постоянную скорость: центр мяча на уровне отскока ряда выше
+    local level_y = self.row + 1 < COLS and BOUNCE_Y[self.row + 1] or math.huge
+    local t = 0.0
+    if pos.y < level_y then
+        -- параболический подъём до первого уровня (или до препятствия, если оно ниже)
+        local rise_to = math.min(level_y, stop_y)
+        if pos.y < rise_to then
+            local dy = rise_to - pos.y
+            t = (vel.y - math.sqrt(math.max(0.0, vel.y * vel.y - 2.0 * GRAVITY * dy))) / GRAVITY
+        end
+    end
+    -- постоянная скорость до препятствия
+    t = t + math.max(0.0, (stop_y - math.max(pos.y, level_y)) / JUMP_SPEED)
+    -- падение под гравитацией на платформу текущего ряда
+    local fall_h = math.max(0.0, stop_y - BOUNCE_Y[self.row])
+    return t + math.sqrt(2.0 * fall_h / GRAVITY)
 end
 
 -- толщина перегородки (совпадает с мешем и коллизией в wall.buffer/wall.collisionobject)
@@ -313,6 +362,24 @@ function update(self, dt)
         return
     end
 
+    -- высокий прыжок: первый уровень — гравитационное замедление (как при прыжке
+    -- на один этаж), выше — постоянная скорость обычного отскока; подъём
+    -- прекращается при ударе о платформу снизу или верхний край поля
+    if self.high_jump then
+        local level_y = self.row + 1 < COLS and BOUNCE_Y[self.row + 1] or math.huge
+        if position.y >= level_y then
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+        end
+        -- верхний край поля: подъём прекращается, мяч начинает падать
+        if position.y + RADIUS >= SCREEN_H then
+            self.high_jump = false
+            self.rising = false
+            go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+            print("CEILING: high jump stopped at the top edge of the field")
+        end
+    end
+
     -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
     self.contact_processed = false
 
@@ -383,7 +450,7 @@ function update(self, dt)
             self.high_jump = true
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
-            self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
+            self.next_touch_time = self.time + high_jump_touch_time(self)
             self.press_used = true
             self.squash = 1.0
             self.squash_axis = "y"
@@ -504,6 +571,7 @@ function on_message(self, message_id, message, sender)
         -- платформа при этом упруго прогибается вверх (удар снизу)
         if message.normal.y <= 0.0 then
             self.rising = false
+            self.high_jump = false
             bend_platform(self, row, self.col, -1)
             self.squash = 1.0
             self.squash_axis = "y"
@@ -520,8 +588,8 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
-        -- шипы: контакт лопает мяч, игра прекращается
-        if is_spike(row, self.col) then
+        -- шипы или горящая платформа: контакт разрушает мяч, игра прекращается
+        if is_spike(row, self.col) or is_burning(row, self.col) then
             pop_ball(self)
             return
         end
@@ -580,14 +648,16 @@ function on_message(self, message_id, message, sender)
                 self.press_used = true
             end
         elseif (self.jump_held or self.pending_jump) and not self.sticky_locked then
-            -- высокий прыжок: в 2 раза выше обычного; во время полёта можно запрыгнуть на соседнюю ячейку
+            -- высокий прыжок: постоянное движение вверх до платформы снизу или
+            -- верхнего края поля; во время полёта можно запрыгнуть на соседнюю
+            -- ячейку любого ряда
             bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
-            self.next_touch_time = self.time + landing_time(self, HIGH_JUMP_SPEED)
+            self.next_touch_time = self.time + high_jump_touch_time(self)
         else
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
             self.next_touch_time = self.time + PERIOD
