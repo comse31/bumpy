@@ -1,4 +1,4 @@
-tile_set: "/main/goodies/drop.atlas"
+tile_set: "/main/goodies/key/key.atlas"
 default_animation: "idle"
 material: "/builtins/materials/sprite.material"
 blend_mode: BLEND_MODE_ALPHA

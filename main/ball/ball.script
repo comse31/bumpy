@@ -116,16 +116,25 @@ local function goodie_url(row, col)
 end
 
 -- собрать goodies в ячейке: если объект существует и ещё не собран — отправить
--- ему "collect" (он скроет себя и пометит collected = 1) и увеличить внутренний
--- счётчик мяча (карман); возвращает true, если goodies был собран
+-- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
+-- внутренний счётчик мяча: капли — pocket, ключи — key_pocket; возвращает true,
+-- если goodies был собран
 local function collect_goodie(self, row, col)
     local url = goodie_url(row, col)
     if not pcall(go.get, url, "position") then return false end
     local ok, collected = pcall(go.get, url .. "#goodie", "collected")
     if not ok or (collected and collected > 0) then return false end
     msg.post(url, "collect")
-    self.pocket = self.pocket + 1
-    print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
+    -- тип goodies (kind): 0 — капля (drop, по умолчанию в goodie.script),
+    -- 1 — ключик (переопределено в key.go); счётчики раздельные
+    local kind_ok, kind = pcall(go.get, url .. "#goodie", "kind")
+    if kind_ok and kind == 1 then
+        self.key_pocket = self.key_pocket + 1
+        print(string.format("KEYS +%d total=%d cell=(%d, %d)", 1, self.key_pocket, col, row))
+    else
+        self.pocket = self.pocket + 1
+        print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
+    end
     return true
 end
 
@@ -373,8 +382,10 @@ function init(self)
     self.sticky_locked = false
     self.hj_row = nil
     self.row = 0
-    -- внутренний счётчик (карман): количество собранных goodies
+    -- внутренние счётчики (карманы): количество собранных капель и ключей —
+    -- раздельные, каждый тип goodies собирается в свой счётчик
     self.pocket = 0
+    self.key_pocket = 0
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")

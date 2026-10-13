@@ -1,11 +1,11 @@
 images {
-  image: "/main/goodies/drop.png"
+  image: "/main/goodies/key/key.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 animations {
   id: "idle"
   images {
-    image: "/main/goodies/drop.png"
+    image: "/main/goodies/key/key.png"
   }
 }
 margin: 0
