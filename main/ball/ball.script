@@ -127,9 +127,13 @@ local function collect_goodie(self, row, col)
     if not ok or (collected and collected > 0) then return false end
     msg.post(url, "collect")
     -- тип goodies (kind): 0 — капля (drop, по умолчанию в goodie.script),
-    -- 1 — ключик (переопределено в key.go); счётчики раздельные
+    -- 1 — ключик (переопределено в key.go), 2 — молоток (hammer.go);
+    -- счётчики раздельные
     local kind_ok, kind = pcall(go.get, url .. "#goodie", "kind")
-    if kind_ok and kind == 1 then
+    if kind_ok and kind == 2 then
+        self.hammer_pocket = self.hammer_pocket + 1
+        print(string.format("HAMMERS +%d total=%d cell=(%d, %d)", 1, self.hammer_pocket, col, row))
+    elseif kind_ok and kind == 1 then
         self.key_pocket = self.key_pocket + 1
         print(string.format("KEYS +%d total=%d cell=(%d, %d)", 1, self.key_pocket, col, row))
     else
@@ -137,7 +141,11 @@ local function collect_goodie(self, row, col)
         print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
     end
     -- уведомить HUD-карман: предмет перелетает в полосу над игровым полем
-    msg.post("/pocket", "add", { kind = (kind_ok and kind == 1) and 1 or 0, x = pos.x, y = pos.y })
+    local hud_kind = 0
+    if kind_ok then
+        if kind == 2 then hud_kind = 2 elseif kind == 1 then hud_kind = 1 end
+    end
+    msg.post("/pocket", "add", { kind = hud_kind, x = pos.x, y = pos.y })
     return true
 end
 
@@ -419,10 +427,11 @@ function init(self)
     self.sticky_locked = false
     self.hj_row = nil
     self.row = 0
-    -- внутренние счётчики (карманы): количество собранных капель и ключей —
-    -- раздельные, каждый тип goodies собирается в свой счётчик
+    -- внутренние счётчики (карманы): количество собранных капель, ключей и
+    -- молотков — раздельные, каждый тип goodies собирается в свой счётчик
     self.pocket = 0
     self.key_pocket = 0
+    self.hammer_pocket = 0
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
