@@ -1,3 +1,0 @@
-material: "/main/walls/wall.material"
-vertices: "/main/walls/wall.buffer"
-primitive_type: PRIMITIVE_TRIANGLES

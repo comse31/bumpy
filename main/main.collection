@@ -217,7 +217,7 @@ instances {
 }
 instances {
   id: "w2_3"
-  prototype: "/main/walls/wall.go"
+  prototype: "/main/walls/indestructible/indestructible.go"
   position {
     x: 480.0
     y: 160.0
@@ -225,7 +225,7 @@ instances {
 }
 instances {
   id: "w3_3"
-  prototype: "/main/walls/wall.go"
+  prototype: "/main/walls/indestructible/indestructible.go"
   position {
     x: 480.0
     y: 266.67
