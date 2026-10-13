@@ -19,6 +19,9 @@ function on_message(self, message_id, message, sender)
             -- меш с текстурой default (смена текстуры меша на лету невозможна)
             msg.post("#mesh", "disable")
             msg.post("#mesh_default", "enable")
+            -- прогиб (батут) теперь должен применяться к видимому мешу default,
+            -- иначе гашеная платформа не будет прогибаться как default
+            go.set("#bend", "mesh_url", "#mesh_default")
             print("BURNING platform extinguished by a drop from the pocket")
         end
     end

@@ -11,6 +11,10 @@ components {
   component: "/main/platforms/platform.collisionobject"
 }
 components {
+  id: "bend"
+  component: "/main/platforms/platform.script"
+}
+components {
   id: "burning"
   component: "/main/platforms/burning/burning.script"
   properties {
