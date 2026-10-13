@@ -225,7 +225,7 @@ instances {
 }
 instances {
   id: "w3_3"
-  prototype: "/main/walls/indestructible/indestructible.go"
+  prototype: "/main/walls/destructible/destructible.go"
   position {
     x: 480.0
     y: 266.67
@@ -282,19 +282,27 @@ instances {
   }
 }
 instances {
-  id: "g5_5"
-  prototype: "/main/goodies/drop/drop.go"
-  position {
-    x: 720.0
-    y: 480.0
-  }
-}
-instances {
   id: "g4_6"
   prototype: "/main/goodies/key/key.go"
   position {
     x: 880.0
     y: 373.33
+  }
+}
+instances {
+  id: "g2_6"
+  prototype: "/main/goodies/key/key.go"
+  position {
+    x: 880.0
+    y: 160.0
+  }
+}
+instances {
+  id: "g3_6"
+  prototype: "/main/goodies/key/key.go"
+  position {
+    x: 880.0
+    y: 266.67
   }
 }
 scale_along_z: 0

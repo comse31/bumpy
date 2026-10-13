@@ -165,17 +165,41 @@ local function wall_url(row, b)
     return "/w" .. (row + 1) .. "_" .. b
 end
 
+-- разрушена ли перегородка (только у destructible есть компонент #destructible;
+-- после разрушения коллизия отключена и мяч проходит насквозь)
+local function is_wall_destroyed(row, b)
+    local ok, destroyed = pcall(go.get, wall_url(row, b) .. "#destructible", "destroyed")
+    return ok and destroyed > 0
+end
+
 -- есть ли перегородка на границе справа от колонки col (между col и col+1)?
 -- go.get бросает исключение, если инстанс не существует, поэтому проверяем через pcall
 local function has_wall_right(row, col)
-    local ok = pcall(go.get, wall_url(row, col + 1), "position")
-    return ok
+    local url = wall_url(row, col + 1)
+    if not pcall(go.get, url, "position") then return false end
+    return not is_wall_destroyed(row, col + 1)
 end
 
 -- есть ли перегородка на границе слева от колонки col (между col-1 и col)?
 local function has_wall_left(row, col)
-    local ok = pcall(go.get, wall_url(row, col), "position")
-    return ok
+    local url = wall_url(row, col)
+    if not pcall(go.get, url, "position") then return false end
+    return not is_wall_destroyed(row, col)
+end
+
+-- удар по разрушаемой перегородке: вид меняется только если в кармане есть
+-- ключик — расходим один ключ и шлём "hit" (стена сама ведёт прочность и вид);
+-- без ключа отскок обычный, стена не повреждается
+local function hit_destructible_wall(self, direction)
+    local b = direction > 0 and self.col + 1 or self.col
+    local url = wall_url(self.row, b)
+    -- только у разрушаемой перегородки есть компонент #destructible
+    if not pcall(go.get, url .. "#destructible", "destroyed") then return end
+    if self.key_pocket > 0 then
+        self.key_pocket = self.key_pocket - 1
+        msg.post(url, "hit")
+        print(string.format("KEYS -1 total=%d: hit destructible wall %s", self.key_pocket, url))
+    end
 end
 
 -- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
@@ -325,6 +349,10 @@ local function hop_and_move(self, direction)
         or (direction < 0 and has_wall_left(self.row, old_col))
     if blocked then
         print(string.format("WALL bounce dir=%d col=%d row=%d", direction, old_col, self.row))
+        -- удар наносится в момент касания перегородки (середина дуги), а не в
+        -- начале прыжка — флаг снимается в update при k <= 0.5
+        self.bounce_hit_pending = true
+        self.bounce_hit_dir = direction
         bounce_off_wall(self, direction)
         return false
     end
@@ -373,6 +401,8 @@ function init(self)
     self.bounce_t = 0.0
     self.bounce_duration = MOVE_DURATION
     self.bounce_squash_pending = false
+    self.bounce_hit_pending = false
+    self.bounce_hit_dir = 0
     self.press_used = false
     self.left_held = false
     self.right_held = false
@@ -539,6 +569,12 @@ function update(self, dt)
             self.squash = 1.0
             self.squash_axis = "x"
             apply_squash(self)
+        end
+        -- удар по разрушаемой перегородке наносится именно в момент касания,
+        -- а не в начале отскока — вид меняется после удара
+        if self.bounce_hit_pending and k <= 0.5 then
+            self.bounce_hit_pending = false
+            hit_destructible_wall(self, self.bounce_hit_dir)
         end
         local x
         if k >= 0.5 then
