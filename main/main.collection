@@ -232,6 +232,14 @@ instances {
   }
 }
 instances {
+  id: "b3_1"
+  prototype: "/main/walls/block/block.go"
+  position {
+    x: 80.0
+    y: 266.67
+  }
+}
+instances {
   id: "ball_visual"
   prototype: "/main/ball/ball_visual.go"
   position {
