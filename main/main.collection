@@ -305,4 +305,93 @@ instances {
     y: 266.67
   }
 }
+# --- pocket HUD (non-game strip above the field, y = 640..720) ---
+instances {
+  id: "pocket"
+  prototype: "/main/pocket/pocket.go"
+}
+instances {
+  id: "pi_d1"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d2"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d3"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d4"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d5"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d6"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k1"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k2"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k3"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k4"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k5"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k6"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
 scale_along_z: 0

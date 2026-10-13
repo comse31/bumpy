@@ -1,0 +1,121 @@
+-- Pocket manager: HUD strip above the game field (y = 640..720).
+-- The strip is purely presentational: it takes part in neither game-cell
+-- math nor ball jump-height calculations.
+--
+-- Protocol (from /ball):
+--   "add"    {kind = 0|1, x = number, y = number} -- goodie collected at (x, y)
+--   "remove" {kind = 0|1}                          -- goodie consumed
+-- kind: 0 = drop, 1 = key (same numbering as goodies).
+--
+-- Items fly to the left part of the strip and are grouped by type:
+-- drops first (leftmost), keys right after them.
+
+local MARGIN_X = 40     -- left margin inside the strip
+local SPACING  = 16     -- distance between items of one group (scaled sprites overlap slightly)
+local KEY_GAP  = 12     -- extra gap between the drop group and the key group
+local POCKET_Y = 680    -- vertical center of the strip (field top is y=640)
+
+-- Pool ids must match the instance ids in main/main.collection.
+local DROP_POOL = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
+local KEY_POOL  = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+
+function init(self)
+    self.drops = {} -- ordered list of occupied drop item ids
+    self.keys  = {} -- ordered list of occupied key item ids
+    self.occupied = {}
+    for _, id in ipairs(DROP_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(KEY_POOL) do
+        msg.post(id, "hide")
+    end
+end
+
+-- X coordinate of the i-th drop (1-based), given the current drop count.
+local function drop_x(i)
+    return MARGIN_X + (i - 1) * SPACING
+end
+
+-- X coordinate of the j-th key (1-based); the key group starts after
+-- the drop group plus a gap, so it follows drops dynamically.
+local function key_x(j, drop_count)
+    local base = MARGIN_X
+    if drop_count > 0 then
+        base = base + (drop_count - 1) * SPACING + SPACING + KEY_GAP
+    end
+    return base + (j - 1) * SPACING
+end
+
+-- Instant (non-animated) shift of the key group to its current slots.
+-- Adding a drop pushes the key group right; already-settled items must
+-- not animate on add, so they snap to the new positions instead.
+local function snap_keys(self)
+    for j, id in ipairs(self.keys) do
+        msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
+    end
+end
+
+-- Snap all occupied items instantly to their grouped slots. Used on
+-- removal: the consumed item disappears and the rest compact in place
+-- with no animation.
+local function snap_all(self)
+    for i, id in ipairs(self.drops) do
+        msg.post(id, "snap", { to = vmath.vector3(drop_x(i), POCKET_Y, 0) })
+    end
+    for j, id in ipairs(self.keys) do
+        msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
+    end
+end
+
+local function add(self, kind, x, y)
+    if kind == 1 then
+        for _, id in ipairs(KEY_POOL) do
+            if not self.occupied[id] then
+                table.insert(self.keys, id)
+                self.occupied[id] = true
+                local j = #self.keys
+                msg.post(id, "fly", {
+                    from = vmath.vector3(x, y, 0),
+                    to   = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0),
+                })
+                -- Adding a key shifts nothing: drops are untouched and the
+                -- new key is appended after the existing ones. No relayout.
+                return
+            end
+        end
+    else
+        for _, id in ipairs(DROP_POOL) do
+            if not self.occupied[id] then
+                table.insert(self.drops, id)
+                self.occupied[id] = true
+                local i = #self.drops
+                msg.post(id, "fly", {
+                    from = vmath.vector3(x, y, 0),
+                    to   = vmath.vector3(drop_x(i), POCKET_Y, 0),
+                })
+                snap_keys(self) -- the key group shifts right; snap, no animation
+                return
+            end
+        end
+    end
+end
+
+local function remove(self, kind)
+    local list = (kind == 1) and self.keys or self.drops
+    if #list == 0 then
+        return
+    end
+    local id = list[1] -- take the leftmost item of the group
+    table.remove(list, 1)
+    self.occupied[id] = false
+    msg.post(id, "hide")
+    snap_all(self) -- remaining items compact instantly, no animation
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("add") then
+        add(self, message.kind or 0, message.x or 0, message.y or 0)
+    elseif message_id == hash("remove") then
+        remove(self, message.kind or 0)
+    end
+end

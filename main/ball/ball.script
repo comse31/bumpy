@@ -121,7 +121,8 @@ end
 -- если goodies был собран
 local function collect_goodie(self, row, col)
     local url = goodie_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
+    local pos_ok, pos = pcall(go.get, url, "position")
+    if not pos_ok then return false end
     local ok, collected = pcall(go.get, url .. "#goodie", "collected")
     if not ok or (collected and collected > 0) then return false end
     msg.post(url, "collect")
@@ -135,6 +136,8 @@ local function collect_goodie(self, row, col)
         self.pocket = self.pocket + 1
         print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
     end
+    -- уведомить HUD-карман: предмет перелетает в полосу над игровым полем
+    msg.post("/pocket", "add", { kind = (kind_ok and kind == 1) and 1 or 0, x = pos.x, y = pos.y })
     return true
 end
 
@@ -147,6 +150,8 @@ local function extinguish_burning(self, row, col)
     msg.post(url, "extinguish")
     self.pocket = self.pocket - 1
     print(string.format("POCKET -1 total=%d cell=(%d, %d): burning platform extinguished", self.pocket, col, row))
+    -- капля потрачена — убрать её из HUD-кармана
+    msg.post("/pocket", "remove", { kind = 0 })
     return true
 end
 
@@ -199,6 +204,8 @@ local function hit_destructible_wall(self, direction)
         self.key_pocket = self.key_pocket - 1
         msg.post(url, "hit")
         print(string.format("KEYS -1 total=%d: hit destructible wall %s", self.key_pocket, url))
+        -- ключ потрачен — убрать его из HUD-кармана
+        msg.post("/pocket", "remove", { kind = 1 })
     end
 end
 
