@@ -1,0 +1,243 @@
+-- Загрузчик уровней: генерирует уровень из метаданных (main/levels.json)
+-- вместо статически прописанных экземпляров в main.collection.
+--
+-- Метаданные уровней лежат в main/levels.json (генерируются
+-- tools/extract_levels.py из BUMPY.TAP). Файл подключён как custom_resources
+-- в game.project и читается в рантайме через sys.load_resource + json.decode.
+-- Для каждого уровня есть сетка слоя lo (платформы), слоя hi (фон) и сетка
+-- объектов (goodies), стартовая ячейка, счётчик выхода (timer) и финишная
+-- ячейка (timer_cell).
+--
+-- Платформы/предметы/выход создаются через factory-компоненты этого объекта,
+-- id экземпляров складываются в общий реестр main/level/level_state.lua,
+-- откуда их читает ball.script.
+--
+-- ВАЖНО: соответствие кодов слоя lo оригинальной игры прототипам платформ
+-- пока НЕ подтверждено (см. origin/LEVELS.md). Таблица PLATFORM_BY_CODE ниже —
+-- рабочая гипотеза; коды без сопоставления создаются как обычная платформа,
+-- чтобы сохранить геометрию уровня.
+--
+-- В метаданных нет данных о вертикальных перегородках, поэтому стены пока не
+-- генерируются: state.walls остаётся пустым, а логика стен в ball.script не
+-- срабатывает. Это осознанное ограничение до появления источника данных.
+
+local state = require("main.level.level_state")
+
+local COLS = 6
+local ROWS = 6
+local CELL_W = 960.0 / COLS
+local CELL_H = 640.0 / COLS
+local PLATFORM_Y_BASE = 20.0 -- центр платформы нижнего ряда
+-- прототипы платформ имеют меш/коллизию 960x80, а игровая платформа — 140x20,
+-- поэтому при спавне им нужен масштаб (раньше он задавался в main.collection)
+local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
+
+local LEVELS_PATH = "/main/levels.json"
+
+go.property("level", 1)
+
+-- код слоя lo (0..12) -> id factory-компонента.
+-- 0 — пусто (платформа не создаётся).
+local PLATFORM_BY_CODE = {
+    [1] = "#platform_default",
+    [2] = "#platform_sloped_right",
+    [3] = "#platform_sloped_left",
+    [4] = "#platform_shrinkable",
+    [5] = "#platform_sticky",
+    [6] = "#platform_spike",
+    [7] = "#platform_burning",
+    [8] = "#platform_default",
+    [9] = "#platform_default",
+    [10] = "#platform_burning",
+    [12] = "#platform_default",
+}
+
+-- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie).
+-- 1 — капля (kind 0), 2 — ключ (kind 1), коды >= 5 — собираемые объекты,
+-- открывающие выход (kind 2, отдельный спрайт-ромб). 3/4 (молоток/жизнь) и
+-- остальные не реализованы и пропускаются.
+local function goodie_factory(code)
+    if code == 1 then return "#goodie_drop", 0 end
+    if code == 2 then return "#goodie_key", 1 end
+    if code >= 5 then return "#goodie_collectible", 2 end
+    return nil
+end
+
+-- строка метаданных (0 — верх) -> строка экрана (0 — низ), как в ball.script
+local function screen_row(grid_row)
+    return (ROWS - 1) - grid_row
+end
+
+local function cell_center_x(col)
+    return (col + 0.5) * CELL_W
+end
+
+local function platform_y(row)
+    return PLATFORM_Y_BASE + row * CELL_H
+end
+
+local function grid_of(cell)
+    return math.floor(cell / COLS), cell % COLS
+end
+
+-- ключи таблицы-множества, отсортированные, через запятую (для отладочного вывода)
+local function sorted_keys(set)
+    local keys = {}
+    for k in pairs(set) do
+        keys[#keys + 1] = k
+    end
+    table.sort(keys)
+    return table.concat(keys, ",")
+end
+
+local function delete_all(store)
+    for _, row in pairs(store) do
+        for _, id in pairs(row) do
+            if id then
+                go.delete(id)
+            end
+        end
+    end
+end
+
+local function spawn_platform(row, col, code)
+    local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
+    local id = factory.create(factory_id,
+        vmath.vector3(cell_center_x(col), platform_y(row), 0.0),
+        nil, nil, PLATFORM_SCALE)
+    state.platforms[row] = state.platforms[row] or {}
+    state.platforms[row][col] = id
+    return id
+end
+
+local function spawn_goodie(row, col, code)
+    local factory_id, kind = goodie_factory(code)
+    if not factory_id then
+        return nil
+    end
+    -- предмет в центре игровой ячейки: над платформой на половину высоты ячейки
+    local y = platform_y(row) + CELL_H / 2.0
+    local id = factory.create(factory_id,
+        vmath.vector3(cell_center_x(col), y, 0.0), nil, { kind = kind })
+    state.goodies[row] = state.goodies[row] or {}
+    state.goodies[row][col] = id
+    return id
+end
+
+-- выход в финишной ячейке: скрыт, пока мяч не собрал timer объектов
+local function spawn_exit(cell)
+    local gr, gc = grid_of(cell)
+    local row = screen_row(gr)
+    local y = platform_y(row) + CELL_H / 2.0
+    return factory.create("#exit", vmath.vector3(cell_center_x(gc), y, 0.0))
+end
+
+-- прочитать и декодировать main/levels.json (custom resource)
+local function load_model()
+    local data, err = sys.load_resource(LEVELS_PATH)
+    if not data then
+        print("level.script: cannot load " .. LEVELS_PATH .. ": " .. tostring(err))
+        return nil
+    end
+    local ok, model = pcall(json.decode, data)
+    if not ok or not model then
+        print("level.script: cannot decode " .. LEVELS_PATH .. ": " .. tostring(model))
+        return nil
+    end
+    return model
+end
+
+-- сгенерировать уровень self.level: очистить предыдущий и создать объекты заново
+local function load(self)
+    delete_all(state.platforms)
+    delete_all(state.walls)
+    delete_all(state.goodies)
+    if state.exit_id then
+        go.delete(state.exit_id)
+    end
+    state.reset()
+    state.exit_id = nil
+
+    local model = self.model
+    local index = vmath.clamp(self.level, 1, model.level_count)
+    local lvl = model.levels[index]
+    if not lvl then
+        print("level.script: level " .. tostring(self.level) .. " not found")
+        return
+    end
+    state.index = index
+    state.start_cell = lvl.start_cell
+    state.exit_cell = lvl.timer_cell
+    state.timer = lvl.timer
+
+    local platforms, goodies = 0, 0
+    local unknown_lo, unknown_obj = {}, {}
+    -- сетки в levels.json — вложенные 6x6 (grid_lo[gr+1][gc+1], gr=0 — верх)
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 1 do
+            local code = lvl.grid_lo[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not PLATFORM_BY_CODE[code] then
+                    unknown_lo[code] = true
+                end
+                spawn_platform(screen_row(gr), gc, code)
+                platforms = platforms + 1
+            end
+        end
+    end
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 1 do
+            local code = lvl.objects[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not goodie_factory(code) then
+                    unknown_obj[code] = true
+                end
+                if spawn_goodie(screen_row(gr), gc, code) then
+                    goodies = goodies + 1
+                end
+            end
+        end
+    end
+
+    state.exit_id = spawn_exit(lvl.timer_cell)
+    -- если собирать нечего — выход открыт сразу
+    if state.timer <= 0 then
+        msg.post(state.exit_id, "open")
+    end
+
+    print(string.format("LEVEL %d loaded (theme %d): %d platforms, %d goodies, start=%d exit=%d timer=%d",
+        index, lvl.theme, platforms, goodies, lvl.start_cell, lvl.timer_cell, lvl.timer))
+    -- нераспознанные коды слоя lo / объектов: сопоставление пока не подтверждено
+    -- (см. origin/LEVELS.md), поэтому коды без прототипа создаются как обычная
+    -- платформа, а объекты пропускаются; выводим их, чтобы пробел был заметен
+    if next(unknown_lo) then
+        print("level.script: unmapped grid_lo codes -> default platform: " .. sorted_keys(unknown_lo))
+    end
+    if next(unknown_obj) then
+        print("level.script: unmapped object codes (skipped): " .. sorted_keys(unknown_obj))
+    end
+
+    -- стартовая ячейка шара: сообщаем явно, чтобы не зависеть от порядка init
+    msg.post("/ball", "level_start", { cell = lvl.start_cell })
+end
+
+function init(self)
+    self.model = load_model()
+    if not self.model then
+        return
+    end
+    load(self)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("level_complete") then
+        -- следующий уровень по кругу (после последнего — снова первый)
+        self.level = (self.level % self.model.level_count) + 1
+        load(self)
+    elseif message_id == hash("reload_level") then
+        if message and message.level then
+            self.level = message.level
+        end
+        load(self)
+    end
+end

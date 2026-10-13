@@ -1,3 +1,6 @@
+-- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
+local state = require("main.level.level_state")
+
 local SIZE = 32.0
 local BPM = 80.0
 
@@ -61,9 +64,33 @@ local function column_center(col)
     return (col + 0.5) * CELL_W
 end
 
--- URL платформы в ячейке (row/col — индексы с нуля): /p{row+1}_{col+1}
-local function platform_url(row, col)
-    return "/p" .. (row + 1) .. "_" .. (col + 1)
+-- поставить шар в стартовую ячейку уровня: индекс ячейки 0..35, строка 0 —
+-- верх экрана; приводим к экранной строке (0 — низ) и центру колонки.
+-- Вызывается из init (значение по умолчанию) и по сообщению "level_start"
+-- от level.script, поэтому порядок инициализации не важен
+local function start_at(self, cell)
+    local col = cell % COLS
+    local row = (COLS - 1) - math.floor(cell / COLS)
+    self.col = col
+    self.row = row
+    self.ground_y = BOUNCE_Y[row]
+    go.set_position(vmath.vector3(column_center(col), BOUNCE_Y[row], go.get_position().z))
+end
+
+-- ячейка (row, col) по мировой позиции мяча: row 0 — низ экрана.
+-- Нужна для сбора предметов по фактической ячейке мяча, в том числе в ячейках
+-- без платформы, которые мяч пролетает при прыжке/падении
+local function cell_at(position)
+    local col = vmath.clamp(math.floor(position.x / CELL_W), 0, COLS - 1)
+    local row = vmath.clamp(math.floor((position.y - PLATFORM_Y_BASE) / CELL_H + 1e-6), 0, COLS - 1)
+    return row, col
+end
+
+-- id платформы в ячейке (row/col — индексы с нуля, row 0 — нижний ряд).
+-- Уровень создаётся level.script из метаданных, поэтому вместо жёстких URL
+-- "/p1_1" экземпляры берутся из общего реестра main/level/level_state.lua
+local function platform_id(row, col)
+    return state.platform_id(row, col)
 end
 
 -- направление наклона платформы: 1 = вправо, -1 = влево, 0 = плоская.
@@ -71,21 +98,21 @@ end
 -- отрицательный угол вокруг Z опускает правый конец (наклон вправо),
 -- положительный — поднимает его (наклон влево)
 local function slope_direction(row, col)
-    -- go.get бросает исключение, если инстанс не существует (пустая ячейка)
-    local ok, rot = pcall(go.get, platform_url(row, col), "rotation")
-    if not ok or not rot then return 0 end
-    if math.abs(rot.z) < 0.01 then return 0 end
+    local id = platform_id(row, col)
+    if not id then return 0 end
+    local rot = go.get(id, "rotation")
+    if not rot or math.abs(rot.z) < 0.01 then return 0 end
     return rot.z > 0 and -1 or 1
 end
 
 -- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
 -- на ней высокий прыжок невозможен — шар «прилипает» к платформе
 local function is_sticky(row, col)
-    local url = platform_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
+    local id = platform_id(row, col)
+    if not id then return false end
     -- компонент #sticky есть не у всех прототипов (нет, например, у горящих),
     -- поэтому go.get оборачиваем в pcall
-    local ok, sticky = pcall(go.get, url .. "#sticky", "sticky")
+    local ok, sticky = pcall(go.get, state.component(id, "sticky"), "sticky")
     return ok and sticky and sticky > 0 or false
 end
 
@@ -93,9 +120,9 @@ end
 -- при контакте мяча с шипами мяч лопается и игра прекращается;
 -- компонент есть только у прототипа шипов, поэтому go.get оборачиваем в pcall
 local function is_spike(row, col)
-    local url = platform_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
-    local ok, spike = pcall(go.get, url .. "#spike", "spike")
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, spike = pcall(go.get, state.component(id, "spike"), "spike")
     return ok and spike and spike > 0 or false
 end
 
@@ -103,32 +130,65 @@ end
 -- при контакте мяча с ней мяч разрушается и игра прекращается;
 -- компонент есть только у прототипа горящих платформ, поэтому go.get в pcall
 local function is_burning(row, col)
-    local url = platform_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
-    local ok, burning = pcall(go.get, url .. "#burning", "burning")
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, burning = pcall(go.get, state.component(id, "burning"), "burning")
     return ok and burning and burning > 0 or false
 end
 
 -- goodies (собираемые объекты): находятся в центре игровой ячейки и собираются
--- мячиком при приземлении на платформу этой ячейки; URL — /g{row+1}_{col+1}
-local function goodie_url(row, col)
-    return "/g" .. (row + 1) .. "_" .. (col + 1)
+-- мячиком при приземлении на платформу этой ячейки; id берётся из реестра
+local function goodie_id(row, col)
+    return state.goodie_id(row, col)
+end
+
+-- достиг ли мяч финишной ячейки уровня (выхода)
+local function is_exit_cell(row, col)
+    local exit = state.exit_cell
+    local ec = exit % COLS
+    local er = (COLS - 1) - math.floor(exit / COLS)
+    return row == er and col == ec
+end
+
+-- открыть выход уровня: вызывается, когда собрано timer объектов
+local function open_exit(self)
+    if self.exit_open then return end
+    self.exit_open = true
+    if state.exit_id then
+        msg.post(state.exit_id, "open")
+    end
+    print("EXIT open: cell=" .. tostring(state.exit_cell))
 end
 
 -- собрать goodies в ячейке: если объект существует и ещё не собран — отправить
 -- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
--- внутренний счётчик мяча: капли — pocket, ключи — key_pocket; возвращает true,
+-- счётчик мяча: капли — pocket, ключи — key_pocket, собираемые для выхода —
+-- collectibles (kind 2, открывают выход при наборе timer); возвращает true,
 -- если goodies был собран
 local function collect_goodie(self, row, col)
-    local url = goodie_url(row, col)
-    local pos_ok, pos = pcall(go.get, url, "position")
-    if not pos_ok then return false end
-    local ok, collected = pcall(go.get, url .. "#goodie", "collected")
+    local id = goodie_id(row, col)
+    if not id then return false end
+    -- локальная защита от повторного сбора: сбор идёт покадрово по ячейке мяча,
+    -- а флаг collected у самого объекта выставляется только при обработке
+    -- сообщения "collect" и может отставать на кадр
+    if self.collected[id] then return false end
+    local comp = state.component(id, "goodie")
+    local ok, collected = pcall(go.get, comp, "collected")
     if not ok or (collected and collected > 0) then return false end
-    msg.post(url, "collect")
-    -- тип goodies (kind): 0 — капля (drop, по умолчанию в goodie.script),
-    -- 1 — ключик (переопределено в key.go); счётчики раздельные
-    local kind_ok, kind = pcall(go.get, url .. "#goodie", "kind")
+    self.collected[id] = true
+    local pos = go.get(id, "position")
+    msg.post(id, "collect")
+    -- тип goodies (kind): 0 — капля (drop), 1 — ключ (key), 2 — собираемый
+    -- объект, открывающий выход (спрайт пока капли); счётчики раздельные
+    local kind_ok, kind = pcall(go.get, comp, "kind")
+    if kind_ok and kind == 2 then
+        self.collectibles = self.collectibles + 1
+        print(string.format("COLLECT %d/%d cell=(%d, %d)", self.collectibles, state.timer, col, row))
+        if state.timer > 0 and self.collectibles >= state.timer then
+            open_exit(self)
+        end
+        return true
+    end
     if kind_ok and kind == 1 then
         self.key_pocket = self.key_pocket + 1
         print(string.format("KEYS +%d total=%d cell=(%d, %d)", 1, self.key_pocket, col, row))
@@ -145,9 +205,9 @@ end
 -- (burning = 0, текстура default), игра продолжается; возвращает true, если
 -- гашение произошло (капля потрачена)
 local function extinguish_burning(self, row, col)
-    local url = platform_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
-    msg.post(url, "extinguish")
+    local id = platform_id(row, col)
+    if not id then return false end
+    msg.post(id, "extinguish")
     self.pocket = self.pocket - 1
     print(string.format("POCKET -1 total=%d cell=(%d, %d): burning platform extinguished", self.pocket, col, row))
     -- капля потрачена — убрать её из HUD-кармана
@@ -165,31 +225,23 @@ local function pop_ball(self)
     print("game over: ball destroyed on a dangerous platform")
 end
 
--- URL вертикальной перегородки на границе между колонками b-1 и b (b = 1..5): /w{row+1}_{b}
-local function wall_url(row, b)
-    return "/w" .. (row + 1) .. "_" .. b
-end
-
--- разрушена ли перегородка (только у destructible есть компонент #destructible;
--- после разрушения коллизия отключена и мяч проходит насквозь)
+-- перегородка в ячейке: id из реестра уровня; граница между колонками b-1 и b
+-- (b = 1..5), строка row — экранная (0 — низ)
 local function is_wall_destroyed(row, b)
-    local ok, destroyed = pcall(go.get, wall_url(row, b) .. "#destructible", "destroyed")
-    return ok and destroyed > 0
+    local id = state.wall_id(row, b)
+    if not id then return false end
+    local ok, destroyed = pcall(go.get, state.component(id, "destructible"), "destroyed")
+    return ok and destroyed and destroyed > 0
 end
 
 -- есть ли перегородка на границе справа от колонки col (между col и col+1)?
--- go.get бросает исключение, если инстанс не существует, поэтому проверяем через pcall
 local function has_wall_right(row, col)
-    local url = wall_url(row, col + 1)
-    if not pcall(go.get, url, "position") then return false end
-    return not is_wall_destroyed(row, col + 1)
+    return state.wall_id(row, col + 1) ~= nil and not is_wall_destroyed(row, col + 1)
 end
 
 -- есть ли перегородка на границе слева от колонки col (между col-1 и col)?
 local function has_wall_left(row, col)
-    local url = wall_url(row, col)
-    if not pcall(go.get, url, "position") then return false end
-    return not is_wall_destroyed(row, col)
+    return state.wall_id(row, col) ~= nil and not is_wall_destroyed(row, col)
 end
 
 -- удар по разрушаемой перегородке: вид меняется только если в кармане есть
@@ -197,13 +249,13 @@ end
 -- без ключа отскок обычный, стена не повреждается
 local function hit_destructible_wall(self, direction)
     local b = direction > 0 and self.col + 1 or self.col
-    local url = wall_url(self.row, b)
+    local id = state.wall_id(self.row, b)
     -- только у разрушаемой перегородки есть компонент #destructible
-    if not pcall(go.get, url .. "#destructible", "destroyed") then return end
+    if not id or not pcall(go.get, state.component(id, "destructible"), "destroyed") then return end
     if self.key_pocket > 0 then
         self.key_pocket = self.key_pocket - 1
-        msg.post(url, "hit")
-        print(string.format("KEYS -1 total=%d: hit destructible wall %s", self.key_pocket, url))
+        msg.post(id, "hit")
+        print(string.format("KEYS -1 total=%d: hit destructible wall", self.key_pocket))
         -- ключ потрачен — убрать его из HUD-кармана
         msg.post("/pocket", "remove", { kind = 1 })
     end
@@ -212,18 +264,17 @@ end
 -- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
 -- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
 local function bend_platform(self, row, col, dir)
-    local url = platform_url(row, col)
-    -- go.get бросает исключение, если инстанс не существует
-    if pcall(go.get, url, "position") then
-        msg.post(url, "bend", { dir = dir or 1 })
+    local id = platform_id(row, col)
+    if id then
+        msg.post(id, "bend", { dir = dir or 1 })
     end
 end
 
 -- уведомить платформу о приземлении мяча (нужно расходуемым платформам)
 local function land_platform(self, row, col)
-    local url = platform_url(row, col)
-    if pcall(go.get, url, "position") then
-        msg.post(url, "land")
+    local id = platform_id(row, col)
+    if id then
+        msg.post(id, "land")
     end
 end
 
@@ -291,9 +342,9 @@ local function high_jump_touch_time(self)
     -- платформы выше в колонке или верхний край поля
     local stop_y = SCREEN_H - RADIUS
     for r = self.row + 1, COLS - 1 do
-        local url = platform_url(r, self.col)
-        if pcall(go.get, url, "position") then
-            local py = go.get(url, "position").y
+        local id = platform_id(r, self.col)
+        if id then
+            local py = go.get(id, "position").y
             stop_y = math.min(stop_y, py - PLATFORM_H / 2.0 - RADIUS)
             break
         end
@@ -395,7 +446,6 @@ function init(self)
     self.rot_to = 0.0
     self.rot_t = 0.0
     self.rot_duration = MOVE_DURATION
-    self.col = vmath.clamp(math.floor(go.get_position().x / CELL_W), 0, COLS - 1)
     self.game_over = false
     self.time = 0.0
     self.touch_time = -math.huge
@@ -418,11 +468,18 @@ function init(self)
     self.high_jump = false
     self.sticky_locked = false
     self.hj_row = nil
-    self.row = 0
+    -- стартовая ячейка по умолчанию (уровень 1); level.script уточнит её
+    -- сообщением "level_start" после генерации уровня
+    start_at(self, state.start_cell)
     -- внутренние счётчики (карманы): количество собранных капель и ключей —
-    -- раздельные, каждый тип goodies собирается в свой счётчик
+    -- раздельные, каждый тип goodies собирается в свой счётчик; collectibles —
+    -- собираемые для выхода, exit_open/level_complete — состояние перехода уровня
     self.pocket = 0
     self.key_pocket = 0
+    self.collectibles = 0
+    self.exit_open = false
+    self.level_complete = false
+    self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
@@ -609,6 +666,13 @@ function update(self, dt)
         self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
         apply_squash(self)
     end
+
+    -- сбор предметов по фактической ячейке мяча: срабатывает и при приземлении,
+    -- и при пролёте ячейки без платформы (иначе такие предметы недостижимы)
+    if not self.game_over then
+        local crow, ccol = cell_at(go.get_position())
+        collect_goodie(self, crow, ccol)
+    end
 end
 
 function on_input(self, action_id, action)
@@ -635,6 +699,32 @@ function on_input(self, action_id, action)
 end
 
 function on_message(self, message_id, message, sender)
+    -- level.script сообщает стартовую ячейку сгенерированного уровня
+    if message_id == hash("level_start") then
+        start_at(self, (message and message.cell) or 0)
+        -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
+        -- если собирать нечего — выход уже открыт level.script'ом
+        self.collectibles = 0
+        self.level_complete = false
+        self.exit_open = state.timer <= 0
+        self.collected = {}
+        -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
+        self.move_t = 0.0
+        self.bounce_t = 0.0
+        self.high_jump = false
+        self.rising = false
+        self.rising_moved = false
+        self.press_used = false
+        self.pending_dir = 0
+        self.pending_jump = false
+        self.sticky_locked = false
+        self.squash = 0.0
+        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+        if self.visual then
+            apply_squash(self)
+        end
+        return
+    end
     if message_id == hash("contact_point_response") then
         -- contact_point_response может приходить несколько раз за кадр (несколько точек контакта);
         -- обрабатываем только первый контакт в кадре
@@ -692,9 +782,16 @@ function on_message(self, message_id, message, sender)
             end
         end
         land_platform(self, row, self.col)
-        -- goodies в центре ячейки: собираются при приземлении на платформу этой
-        -- ячейки — увеличивается внутренний счётчик (карман)
-        collect_goodie(self, row, self.col)
+        -- предметы в ячейке собираются в update по фактической позиции мяча
+        -- (collect_goodie вызывается там), чтобы были достижимы предметы и в
+        -- ячейках без платформы; здесь только проверка выхода
+        -- открытый выход: мяч достиг финишной ячейки → следующий уровень
+        if self.exit_open and not self.level_complete and is_exit_cell(row, self.col) then
+            self.level_complete = true
+            print(string.format("LEVEL COMPLETE cell=(%d, %d)", self.col, row))
+            msg.post("/level", "level_complete")
+            return
+        end
         -- липкая (закрашенная) платформа: после прыжка на неё шар «прилипает» —
         -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу
         self.sticky_locked = is_sticky(row, self.col)

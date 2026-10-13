@@ -4,6 +4,9 @@ main_collection = /main/main.collectionc
 [script]
 shared_state = 1
 
+[collection]
+max_instances = 512
+
 [display]
 width = 960
 height = 720
@@ -21,4 +24,5 @@ scale_mode = stretch
 
 [project]
 title = bumpy
+custom_resources = /main/levels.json
 

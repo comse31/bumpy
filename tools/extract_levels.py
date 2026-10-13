@@ -18,6 +18,7 @@ import sys
 DEFAULT_TAP = os.path.join(
     os.path.dirname(__file__), "..", "origin", "Bumpy.tap (1)", "BUMPY.TAP"
 )
+DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "..", "main", "levels.json")
 
 CODE_BASE = 25000          # RANDOMIZE USR target / LOAD "" CODE 25000
 LEVEL_TABLE = 35825        # LD HL,35825 in the loader at 53097
@@ -176,7 +177,7 @@ def main():
     ap.add_argument("tap", nargs="?", default=DEFAULT_TAP,
                     help="path to BUMPY.TAP")
     ap.add_argument("-o", "--output", default=None,
-                    help="write JSON here (default: origin/levels.json)")
+                    help="write JSON here (default: main/levels.json)")
     ap.add_argument("--text", action="store_true",
                     help="print a human readable dump instead of JSON")
     args = ap.parse_args()
@@ -187,7 +188,7 @@ def main():
         return
     out = args.output
     if out is None:
-        out = os.path.join(os.path.dirname(args.tap), "levels.json")
+        out = DEFAULT_OUTPUT
     with open(out, "w") as fh:
         json.dump(model, fh, indent=1)
         fh.write("\n")
