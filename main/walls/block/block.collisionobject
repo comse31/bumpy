@@ -15,7 +15,7 @@ embedded_collision_shape {
     index: 0
     count: 3
   }
-  data: 76.0
+  data: 70.0
   data: 50.0
   data: 1.0
 }

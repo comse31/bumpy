@@ -336,20 +336,133 @@ local function has_wall_left(row, col)
     return state.wall_id(row, col) ~= nil and not is_wall_destroyed(row, col)
 end
 
--- «стена» (блок): занимает почти всю игровую ячейку и никогда не располагается
--- совместно с другими объектами; полуразмеры совпадают с мешем и коллизией в
--- block.buffer/block.collisionobject
-local BLOCK_HALF_W = 76.0
-local BLOCK_HALF_H = 50.0
+-- «стена» (блок, кирпичная кладка): шириной в игровую ячейку (полуширина 70 —
+-- не задевает границы, где могли бы стоять перегородки); по высоте кладка
+-- занимает всю ячейку (level.script растягивает меш 140x100 на высоту ряда,
+-- поэтому мировая высота блока равна CELL_H). Кладка разбивается снизу серией
+-- ударов мяча (block.script ведёт число разбитых рядов)
+local BLOCK_HALF_W = 70.0
+-- мировая высота кладки целиком (для расчёта поднятой разбитыми рядами грани)
+local BLOCK_HEIGHT = CELL_H
 
--- URL стены (блока) в ячейке (row/col — индексы с нуля): /b{row+1}_{col+1}
-local function block_url(row, col)
-    return "/b" .. (row + 1) .. "_" .. (col + 1)
+-- состояние кирпичной стены в ячейке. Блок создаётся фабрикой #platform_block и
+-- лежит в реестре платформ, а его состояние хранит компонент #block (у обычных
+-- платформ его нет, поэтому go.get оборачиваем в pcall). Возвращает
+-- id, число разбитых снизу рядов и признак разрушения; nil, если блока нет
+local function block_state(row, col)
+    local id = platform_id(row, col)
+    if not id then return nil end
+    local comp = state.component(id, "block")
+    local ok, broken = pcall(go.get, comp, "broken")
+    if not ok then return nil end
+    local _, destroyed = pcall(go.get, comp, "destroyed")
+    return id, broken or 0, destroyed or 0
 end
 
--- есть ли стена (блок) в ячейке? go.get бросает исключение, если инстанс не существует
+-- есть ли целая (не разрушенная) кирпичная стена в ячейке?
 local function has_block(row, col)
-    return pcall(go.get, block_url(row, col), "position")
+    local _, _, destroyed = block_state(row, col)
+    return destroyed == 0
+end
+
+-- стоит ли мяч на верхней грани кирпичной стены: кладка занимает всю ячейку
+-- row, поэтому приземлившись на её верх мяч оказывается на уровне ряда row+1.
+-- Верхняя грань блока лежит ровно на поверхности платформы ряда выше, поэтому
+-- мяч на кладке ведёт себя как на липкой платформе (высокий прыжок недоступен)
+local function is_block_top(row, col)
+    return row > 0 and has_block(row - 1, col)
+end
+
+-- мировая Y нижней грани оставшейся кладки. Кладка занимает всю ячейку: её
+-- низ лежит на верхней грани платформы своего ряда (platform_y(row) +
+-- PLATFORM_H/2), а верхний край совпадает с верхней гранью платформы ряда выше;
+-- каждый разбитый снизу ряд поднимает нижнюю грань на 1/rows высоты кладки.
+-- nil, если блока нет или он разрушен
+local function block_bottom_face(row, col)
+    local id, broken, destroyed = block_state(row, col)
+    if not id or destroyed > 0 then return nil end
+    local ok, rows = pcall(go.get, state.component(id, "block"), "rows")
+    rows = (ok and rows and rows > 0) and rows or 8
+    local bottom = PLATFORM_Y_BASE + row * CELL_H + PLATFORM_H / 2.0
+    return bottom + (broken / rows) * BLOCK_HEIGHT
+end
+
+-- удар мяча снизу по кирпичной стене: каждый удар сносит один ряд кладки, а
+-- самый первый удар по стене расходует один молоток из кармана (без молотка
+-- кладку не разбить). Молоток берётся один раз на стену — повторные удары по
+-- той же стене молотков не тратят; стена сама ведёт число разбитых рядов и вид
+local function hit_block_from_below(self, row, col)
+    local id, _, destroyed = block_state(row, col)
+    if not id or destroyed > 0 then return end
+    -- защита от двойного сноса ряда в одном кадре: удар может прийти и из
+    -- скриптовой проверки потолка, и из контакта с верхней гранью кладки (#top)
+    if self.block_hit_id == id and self.time - (self.block_hit_time or -math.huge) < 0.1 then
+        return
+    end
+    self.block_hit_id = id
+    self.block_hit_time = self.time
+    if self.hammer_wall_id ~= id then
+        if self.hammer_pocket <= 0 then
+            print(string.format("BLOCK hit from below: no hammers, wall intact cell=(%d, %d)", col, row))
+            return
+        end
+        self.hammer_pocket = self.hammer_pocket - 1
+        self.hammer_wall_id = id
+        -- молоток потрачен — убрать его из HUD-кармана
+        msg.post("/pocket", "remove", { kind = 2 })
+        print(string.format("HAMMERS -1 total=%d: brick wall hit from below", self.hammer_pocket))
+    end
+    msg.post(id, "hit")
+end
+
+-- приземление мяча на верх кирпичной стены. Кладка занимает всю ячейку, её
+-- верх совпадает с поверхностью платформы ряда выше. Физики у кладки нет,
+-- поэтому приземление проверяется скриптово: если мяч падает в колонке с
+-- кладкой и его центр достиг уровня ряда выше — он приземляется на верх кладки
+-- и «прилипает» (как на липкую платформу: высокий прыжок становится недоступен)
+local function land_on_block_top(self)
+    -- только при свободном падении (без смещения/отскока/высокого прыжка)
+    if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return false
+    end
+    -- защита от повторного срабатывания в одном кадре/на месте
+    if self.time - (self.block_top_time or -math.huge) < 0.1 then
+        return false
+    end
+    if go.get("#collision_object", "linear_velocity").y > 0.0 then
+        return false
+    end
+    local pos = go.get_position()
+    local crow = vmath.clamp(math.floor((pos.y - PLATFORM_Y_BASE) / CELL_H + 1e-6), 0, COLS - 1)
+    -- если в этой ячейке есть настоящая платформа — приземление обрабатывает
+    -- обычная физика, скриптовый «верх кладки» не нужен
+    if platform_id(crow, self.col) then
+        return false
+    end
+    -- кладка в ряду ниже: её верх — уровень текущего ряда crow
+    if crow < 1 or not has_block(crow - 1, self.col) then
+        return false
+    end
+    local land_y = BOUNCE_Y[crow]
+    if pos.y > land_y or pos.y <= land_y - CELL_H then
+        return false
+    end
+    -- приземление на верх кладки: центр мяча — на уровне ряда выше
+    self.row = crow
+    self.ground_y = land_y
+    self.touch_time = self.time
+    self.last_contact_time = self.time
+    self.sticky_locked = true
+    self.press_used = false
+    self.block_top_time = self.time
+    go.set_position(vmath.vector3(column_center(self.col), land_y, pos.z))
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+    self.hero.settle(self)
+    self.squash = 1.0
+    self.squash_axis = "y"
+    self.hero.apply_squash(self)
+    print(string.format("BLOCK top landing cell=(%d, %d)", self.col, crow))
+    return true
 end
 
 -- удар по разрушаемой перегородке: вид меняется только если в кармане есть
@@ -451,15 +564,18 @@ local function high_jump_touch_time(self)
     -- платформы выше в колонке, нижняя грань стены (блока) или верхний край поля
     local stop_y = SCREEN_H - RADIUS
     for r = self.row + 1, COLS - 1 do
+        -- кирпичная кладка (создаётся фабрикой #platform_block, лежит в реестре
+        -- платформ) проверяется ПЕРВОЙ: у неё нет меша платформы, и иначе она
+        -- была бы ошибочно принята за платформу ряда
+        local block_bottom = block_bottom_face(r, self.col)
+        if block_bottom then
+            stop_y = math.min(stop_y, block_bottom - RADIUS)
+            break
+        end
         local id = platform_id(r, self.col)
         if id then
             local py = go.get(id, "position").y
             stop_y = math.min(stop_y, py - PLATFORM_H / 2.0 - RADIUS)
-            break
-        end
-        -- стена (блок) в ячейке выше: мяч упирается в её нижнюю грань
-        if has_block(r, self.col) then
-            stop_y = math.min(stop_y, (r + 0.5) * CELL_H - BLOCK_HALF_H - RADIUS)
             break
         end
     end
@@ -512,15 +628,14 @@ end
 -- в верхней точке дуги и возвращается в центр своей колонки; X — линейно во времени
 -- (туда и обратно), Y — физическая парабола до приземления на свою платформу
 local function bounce_off_block(self, direction)
-    local col = self.col
-    -- X боковой грани блока: справа от col — (col+1)*CELL_W - BLOCK_HALF_W,
-    -- слева — col*CELL_W + BLOCK_HALF_W
-    local face_x = direction > 0 and (col + 1) * CELL_W - BLOCK_HALF_W or col * CELL_W + BLOCK_HALF_W
+    -- блок стоит в соседней колонке col+direction по центру её ячейки, поэтому
+    -- его боковая грань — центр той ячейки ∓ полуширина кладки
+    local face_x = column_center(self.col + direction) - direction * BLOCK_HALF_W
     self.bounce_x_start = go.get_position().x
     -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT, поэтому
     -- до грани блока дотягивается сжатый край (RADIUS * (1 - SQUASH_AMOUNT))
     self.bounce_x_wall = face_x - direction * RADIUS * (1.0 - SQUASH_AMOUNT)
-    self.bounce_x_end = column_center(col)
+    self.bounce_x_end = column_center(self.col)
     local vy = hop_velocity(self)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
     self.bounce_duration = landing_time(self, vy)
@@ -606,6 +721,14 @@ function init(self)
     self.bounce_hit_pending = false
     self.bounce_hit_dir = 0
     self.press_used = false
+    -- id кирпичной стены, за удар по которой уже потрачен молоток (молоток
+    -- расходуется один раз на стену, дальнейшие удары по ней молотков не тратят)
+    self.hammer_wall_id = nil
+    -- id стены и время последнего сноса ряда: защита от двойного сноса в кадре
+    self.block_hit_id = nil
+    self.block_hit_time = -math.huge
+    -- время последнего приземления на верх кладки (защита от повторов)
+    self.block_top_time = -math.huge
     self.left_held = false
     self.right_held = false
     self.jump_held = false
@@ -682,14 +805,18 @@ function update(self, dt)
         -- поэтому проверка скриптовая)
         if self.high_jump then
             for r = self.row + 1, COLS - 1 do
-                if has_block(r, self.col) then
-                    local block_bottom = (r + 0.5) * CELL_H - BLOCK_HALF_H
+                local block_bottom = block_bottom_face(r, self.col)
+                if block_bottom then
                     if position.y + RADIUS >= block_bottom then
                         self.high_jump = false
                         self.rising = false
                         go.set_position(vmath.vector3(position.x, block_bottom - RADIUS, position.z))
                         go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-                        print(string.format("CEILING: high jump stopped at the bottom of block %s", block_url(r, self.col)))
+                        -- удар мяча снизу по кирпичной кладке: сносит один ряд,
+                        -- а самый первый удар по стене расходует один молоток
+                        -- (без молотка кладка остаётся целой)
+                        hit_block_from_below(self, r, self.col)
+                        print(string.format("CEILING: high jump hit the bottom of block cell=(%d, %d)", self.col, r))
                     end
                     break
                 end
@@ -836,6 +963,10 @@ function update(self, dt)
         go.set_position(vmath.vector3(x, pos.y, pos.z))
     end
 
+    -- приземление на верх кирпичной стены (физики у кладки нет — проверка
+    -- скриптовая): мяч встаёт на кладку и «прилипает», как на липкую платформу
+    land_on_block_top(self)
+
     -- затухание «удара» — общая величина self.squash для визуала героев
     if self.squash > 0.0 then
         self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
@@ -919,6 +1050,12 @@ function on_message(self, message_id, message, sender)
         self.pending_dir = 0
         self.pending_jump = false
         self.sticky_locked = false
+        -- сбросить привязку «молоток потрачен на стену»: после пересборки
+        -- уровня у стен новые id, и молоток снова тратится на первый удар
+        self.hammer_wall_id = nil
+        self.block_hit_id = nil
+        self.block_hit_time = -math.huge
+        self.block_top_time = -math.huge
         self.squash = 0.0
         go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
         -- сбросить деформации визуала и вернуть визуал активного героя
@@ -1004,8 +1141,10 @@ function on_message(self, message_id, message, sender)
             return
         end
         -- липкая (закрашенная) платформа: после прыжка на неё шар «прилипает» —
-        -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу
-        self.sticky_locked = is_sticky(row, self.col)
+        -- высокий прыжок недоступен, пока мяч не приземлится на другую платформу.
+        -- Верх кирпичной стены ведёт себя так же: приземлившись на кладку (её
+        -- верх совпадает с рядом выше), мяч «прилипает» — высокий прыжок нельзя
+        self.sticky_locked = is_sticky(row, self.col) or is_block_top(row, self.col)
         go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
         -- приземление после смены траектории высокого прыжка: дополнительное

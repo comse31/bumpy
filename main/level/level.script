@@ -14,7 +14,8 @@
 --
 -- Соответствие кодов слоя lo оригинальной игры прототипам частично
 -- подтверждено по геймплею (см. origin/LEVELS.md): 2 — shrinkable,
--- 3 — уменьшенная на одно значение shrinkable, 7 — наклонная вправо
+-- 3 — уменьшенная на одно значение shrinkable, 4 — shrinkable с двумя
+-- уменьшениями, 6 — наклонная влево (sloped left), 7 — наклонная вправо
 -- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block).
 -- Остальные коды в таблице PLATFORM_BY_CODE ниже — рабочая гипотеза; коды
 -- без сопоставления создаются как обычная платформа, чтобы сохранить
@@ -34,6 +35,7 @@ local ROWS = 6
 local CELL_W = 960.0 / COLS
 local CELL_H = 640.0 / COLS
 local PLATFORM_Y_BASE = 20.0 -- центр платформы нижнего ряда
+local PLATFORM_H = 20.0 -- высота игровой платформы (см. PLATFORM_SCALE ниже)
 -- прототипы платформ имеют меш/коллизию 960x80, а игровая платформа — 140x20,
 -- поэтому при спавне им нужен масштаб (раньше он задавался в main.collection)
 local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
@@ -46,15 +48,16 @@ go.property("level", 1)
 -- 0 — пусто (платформа не создаётся).
 -- Подтверждено по геймплею: 2 — сжимающаяся (shrinkable) платформа,
 -- 3 — та же, но уже уменьшенная на одно значение (предварительно
--- повреждённая, см. PLATFORM_DATA), 7 — наклонная вправо (sloped right),
--- 8 — горящая (burning), 10 — кирпичная стена (block).
+-- повреждённая, см. PLATFORM_DATA), 4 — сжимающаяся с двумя уменьшениями
+-- (durability 2), 6 — наклонная влево (sloped left), 7 — наклонная вправо
+-- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block).
 local PLATFORM_BY_CODE = {
     [1] = "#platform_default",
     [2] = "#platform_shrinkable",
     [3] = "#platform_shrinkable",
     [4] = "#platform_shrinkable",
     [5] = "#platform_sticky",
-    [6] = "#platform_spike",
+    [6] = "#platform_sloped_left",
     [7] = "#platform_sloped_right",
     [8] = "#platform_burning",
     [9] = "#platform_default",
@@ -80,10 +83,12 @@ local WALL_DURABILITY = {
     [2] = 2, -- один удар получен
 }
 
--- factory-данные для предварительно повреждённых платформ (коды lo):
--- число уже полученных ударов (первое касание мяча не уменьшает их)
+-- factory-данные для платформ с нестандартной прочностью (коды lo):
+-- initial_hits — сколько уменьшений платформа уже получила (первое касание
+-- мяча не уменьшает её); durability — сколько уменьшений она выдерживает
 local PLATFORM_DATA = {
     [3] = { initial_hits = 1 }, -- shrinkable, уменьшенная на одно значение
+    [4] = { durability = 2 }, -- shrinkable с двумя уменьшениями
 }
 
 -- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie).
@@ -136,9 +141,14 @@ local function delete_all(store)
     end
 end
 
--- блок (кирпичная стена, код 10): занимает всю ячейку; родной размер меша
--- блока 152x100 (коллизия — половина: 76x50), поэтому свой масштаб
-local BLOCK_SCALE = vmath.vector3(CELL_W / 152.0, CELL_H / 100.0, 1.0)
+-- блок (кирпичная стена, код 10): родной меш 140x100 — ширина ровно в игровую
+-- ячейку (не задевает границы, где могли бы стоять перегородки), по высоте
+-- растягивается на высоту ряда (CELL_H). Масштаб по X = 1 (140 px как есть)
+local BLOCK_HEIGHT = 100.0
+local BLOCK_SCALE = vmath.vector3(1.0, CELL_H / BLOCK_HEIGHT, 1.0)
+-- верхний край кладки совпадает с поверхностью платформы ряда ВЫШЕ (row+1):
+-- центр блока = platform_y(row) + CELL_H + PLATFORM_H/2 - CELL_H/2
+local BLOCK_Y_OFFSET = CELL_H / 2.0 + PLATFORM_H / 2.0
 
 -- родной размер меша перегородки 20x70 (локальные y -15..55, центр y=20):
 -- толщина совпадает с WALL_THICKNESS в ball.script, поэтому X не масштабируем,
@@ -150,8 +160,8 @@ local function spawn_platform(row, col, code)
     local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
     local pos, scale
     if factory_id == "#platform_block" then
-        -- стена занимает всю ячейку: центр ячейки (как у предметов)
-        pos = vmath.vector3(cell_center_x(col), platform_y(row) + CELL_H / 2.0, 0.0)
+        -- кладка шириной в ячейку; верх её на уровне верхней грани платформы ряда
+        pos = vmath.vector3(cell_center_x(col), platform_y(row) + BLOCK_Y_OFFSET, 0.0)
         scale = BLOCK_SCALE
     else
         pos = vmath.vector3(cell_center_x(col), platform_y(row), 0.0)

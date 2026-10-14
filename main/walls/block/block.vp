@@ -4,6 +4,9 @@ in highp vec4 position;
 in mediump vec2 texcoord0;
 
 out mediump vec2 var_texcoord0;
+// локальная координата Y вершины (mesh блока: -50..50) — нужна фрагментному
+// шейдеру, чтобы отсечь разбитые снизу ряды кладки (срез по Y)
+out highp float var_local_y;
 
 uniform vs_uniforms
 {
@@ -15,4 +18,5 @@ void main()
 {
     gl_Position = mtx_proj * (mtx_worldview * position);
     var_texcoord0 = texcoord0;
+    var_local_y = position.y;
 }
