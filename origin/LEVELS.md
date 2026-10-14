@@ -157,7 +157,7 @@ BASIC сводится к:
 ## Извлечение
 
 ```
-python3 tools/extract_levels.py            # -> origin/Bumpy.tap (1)/levels.json
+python3 tools/extract_levels.py            # -> main/levels.json
 python3 tools/extract_levels.py --text     # человекочитаемый дамп
 ```
 
