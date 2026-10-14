@@ -45,9 +45,21 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "platform_block"
+  type: "factory"
+  data: "prototype: \"/main/walls/block/block.go\"\n"
+  ""
+}
+embedded_components {
   id: "goodie_drop"
   type: "factory"
   data: "prototype: \"/main/goodies/drop/drop.go\"\n"
+  ""
+}
+embedded_components {
+  id: "goodie_hammer"
+  type: "factory"
+  data: "prototype: \"/main/goodies/hammer/hammer.go\"\n"
   ""
 }
 embedded_components {
