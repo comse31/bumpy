@@ -55,6 +55,11 @@ function M.hop_height(self)
     return self.env.hop_height
 end
 
+-- длительность бокового шага мячика: без изменений
+function M.step_scale(self)
+    return 1.0
+end
+
 -- приземление без команды игрока: мяч автоматически отскакивает
 function M.settle(self)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, self.env.jump_speed, 0.0))

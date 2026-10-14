@@ -17,11 +17,23 @@ local SPRING_STRETCH = 0.45   -- растяжение на максимальн�
 local SPRING_COMPRESS = 0.6   -- сжатие в момент удара (self.squash == 1)
 
 -- геометрия пружинки
-local SLINKY_RINGS = { "si_1", "si_2", "si_3", "si_4", "si_5", "si_6", "si_7" }
+local SLINKY_RINGS = {
+    "si_1", "si_2", "si_3", "si_4", "si_5", "si_6", "si_7",
+    "si_8", "si_9", "si_10", "si_11", "si_12", "si_13", "si_14",
+}
 local SLINKY_LEN = 34.0        -- длина пружины в покое (мировые единицы)
+-- масштаб кольца: X (ширина витка) в 1.5 раза больше базового (0.1), Y без
+-- изменений — пружинка становится шире, но её высота не меняется
+local SLINKY_RING_W = 0.15
+local SLINKY_RING_H = 0.10
+-- шаг вбок на 20% медленнее (множитель длительности переката)
+local SLINKY_STEP_SCALE = 1.2
 local SLINKY_STEP_LIFT = 10.0  -- подъём при шаге: Slinky почти не отрывается от опоры
 local SLINKY_BEND = 16.0       -- выгиб в дугу при отскоке от перегородки
-local SLINKY_ARC_H = 12.0      -- высота дуги переката (центр движется «по радиусу»)
+-- высота дуги переката (центр движется «по радиусу»): при ходе в одну ячейку
+-- (160 px) подъём 40 px даёт радиус дуги ~100 px — выраженный круглый перекат,
+-- а не плоское скольжение; верхнее кольцо при этом не задевает платформу сверху
+local SLINKY_ARC_H = 40.0
 
 -- волна переката: верхнее кольцо стартует первым и заканчивает раньше нижнего;
 -- FLOW_DURATION + FLOW_STAGGER = 1.0 — последнее (нижнее) кольцо финиширует в
@@ -137,6 +149,8 @@ function M.setup(self, env)
     self.rings = {}
     for i = 1, #SLINKY_RINGS do
         self.rings[i] = go.get_id(SLINKY_RINGS[i])
+        -- ширина витка: пружинка в 1.5 раза шире, высота кольца не меняется
+        go.set(self.rings[i], "scale", vmath.vector3(SLINKY_RING_W, SLINKY_RING_H, 1.0))
     end
     self.slinky_scale = 1.0
     self.slinky_vel = 0.0
@@ -209,6 +223,11 @@ end
 
 function M.hop_height(self)
     return SLINKY_STEP_LIFT
+end
+
+-- длительность бокового шага: Slinky перекатывается на 20% медленнее
+function M.step_scale(self)
+    return SLINKY_STEP_SCALE
 end
 
 -- приземление без команды: Slinky не отскакивает, а встаёт и стоит (покачиваясь).

@@ -111,6 +111,97 @@ instances {
   }
 }
 instances {
+  id: "si_8"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_9"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_10"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_11"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_12"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_13"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_14"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
   id: "ball"
   prototype: "/main/ball/ball.go"
   position {

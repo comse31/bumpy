@@ -14,6 +14,8 @@ local SCREEN_H = 640.0
 local CELL_W = SCREEN_W / COLS
 local CELL_H = SCREEN_H / COLS
 local RADIUS = SIZE / 2.0
+-- предмет (goodies) — спрайт 32x32, как и мяч; сбор идёт только при касании
+local GOODIE_HALF = 16.0
 
 -- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
 local PLATFORM_H = 20.0
@@ -183,7 +185,20 @@ end
 -- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
 -- счётчик мяча: капли — pocket, ключи — key_pocket, собираемые для выхода —
 -- collectibles (kind 2, открывают выход при наборе timer); возвращает true,
--- если goodies был собран
+-- если goodies был собран. Предмет берётся только при фактическом касании:
+-- одной ячейки с мячом недостаточно (иначе берётся «не касаясь»).
+local function goodie_touched(id)
+    -- круг мяча (RADIUS) против квадрата спрайта предмета (GOODIE_HALF):
+    -- ближайшая к центру мяча точка квадрата
+    local gpos = go.get(id, "position")
+    local bpos = go.get_position()
+    local cx = vmath.clamp(bpos.x, gpos.x - GOODIE_HALF, gpos.x + GOODIE_HALF)
+    local cy = vmath.clamp(bpos.y, gpos.y - GOODIE_HALF, gpos.y + GOODIE_HALF)
+    local dx = bpos.x - cx
+    local dy = bpos.y - cy
+    return dx * dx + dy * dy <= RADIUS * RADIUS
+end
+
 local function collect_goodie(self, row, col)
     local id = goodie_id(row, col)
     if not id then return false end
@@ -194,6 +209,8 @@ local function collect_goodie(self, row, col)
     local comp = state.component(id, "goodie")
     local ok, collected = pcall(go.get, comp, "collected")
     if not ok or (collected and collected > 0) then return false end
+    -- сбор только по касанию: пока мяч не дотянулся до спрайта предмета — не берём
+    if not goodie_touched(id) then return false end
     self.collected[id] = true
     local pos = go.get(id, "position")
     msg.post(id, "collect")
@@ -496,7 +513,10 @@ local function hop_and_move(self, direction)
     end
     self.col = self.col + direction
     print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
-    local vy = hop_velocity(self)
+    -- масштаб длительности шага задаёт герой (Slinky перекатывается медленнее):
+    -- вертикальный импульс растягивается во времени, поэтому X-смещение и
+    -- приземление остаются синхронными
+    local vy = hop_velocity(self) * self.hero.step_scale(self)
     local t_land = landing_time(self, vy)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
     move(self, direction, move_duration_for(t_land))
@@ -769,8 +789,9 @@ function update(self, dt)
     -- у Slinky — пружина (растяжение/сжатие) и раскладка колец
     self.hero.update(self, dt)
 
-    -- сбор предметов по фактической ячейке мяча: срабатывает и при приземлении,
-    -- и при пролёте ячейки без платформы (иначе такие предметы недостижимы)
+    -- сбор предметов по фактической ячейке мяча: кандидат — предмет в той же
+    -- ячейке (в том числе при пролёте ячейки без платформы), но берётся он
+    -- только при фактическом касании мяча (см. goodie_touched)
     if not self.game_over then
         local crow, ccol = cell_at(go.get_position())
         collect_goodie(self, crow, ccol)
