@@ -5,19 +5,42 @@
 -- Protocol (from /ball):
 --   "add"    {kind = 0|1, x = number, y = number} -- goodie collected at (x, y)
 --   "remove" {kind = 0|1}                          -- goodie consumed
+--   "set_lives" {count = number}                   -- lives changed (default LIVES)
 -- kind: 0 = drop, 1 = key (same numbering as goodies).
 --
 -- Items fly to the left part of the strip and are grouped by type:
--- drops first (leftmost), keys right after them.
+-- drops first (leftmost), keys right after them. The life balls sit on
+-- the right end of the same strip, one per remaining life.
 
-local MARGIN_X = 40     -- left margin inside the strip
+local MARGIN_X = 40     -- margin at both ends of the strip
 local SPACING  = 16     -- distance between items of one group (scaled sprites overlap slightly)
 local KEY_GAP  = 12     -- extra gap between the drop group and the key group
 local POCKET_Y = 680    -- vertical center of the strip (field top is y=640)
+local SCREEN_W = 960    -- display width (game.project), for right alignment
+local LIVES    = 3      -- default number of lives shown
 
 -- Pool ids must match the instance ids in main/main.collection.
 local DROP_POOL = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
 local KEY_POOL  = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3" }
+
+-- X coordinate of the i-th life ball (1-based, left to right); the group
+-- is pinned to the right edge of the strip.
+local function life_x(i)
+    return SCREEN_W - MARGIN_X - (i - 1) * SPACING
+end
+
+-- Show/hide the right-aligned life balls for the given count. Called from
+-- init with the default and later whenever a life is gained or lost.
+local function set_lives(self, count)
+    for i, id in ipairs(LIFE_POOL) do
+        if i <= count then
+            msg.post(id, "show", { to = vmath.vector3(life_x(i), POCKET_Y, 0) })
+        else
+            msg.post(id, "hide")
+        end
+    end
+end
 
 function init(self)
     self.drops = {} -- ordered list of occupied drop item ids
@@ -29,6 +52,7 @@ function init(self)
     for _, id in ipairs(KEY_POOL) do
         msg.post(id, "hide")
     end
+    set_lives(self, LIVES) -- show the default life balls on the right
 end
 
 -- X coordinate of the i-th drop (1-based), given the current drop count.
@@ -117,5 +141,7 @@ function on_message(self, message_id, message)
         add(self, message.kind or 0, message.x or 0, message.y or 0)
     elseif message_id == hash("remove") then
         remove(self, message.kind or 0)
+    elseif message_id == hash("set_lives") then
+        set_lives(self, math.max(0, message.count or LIVES))
     end
 end

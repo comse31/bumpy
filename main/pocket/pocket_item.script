@@ -53,8 +53,20 @@ function update(self, dt)
     end
 end
 
+-- Instant placement without flight (used by the life balls): show the
+-- sprite at the given position at the settled scale.
+local function show_at(self, pos)
+    self.flying = false
+    self.t = 1
+    go.set_position(pos)
+    go.set_scale(vmath.vector3(SCALE, SCALE, 1))
+    msg.post("#sprite", "enable")
+end
+
 function on_message(self, message_id, message)
-    if message_id == hash("fly") then
+    if message_id == hash("show") then
+        show_at(self, message.to or vmath.vector3())
+    elseif message_id == hash("fly") then
         self.from = message.from or vmath.vector3()
         self.to = message.to or vmath.vector3()
         self.arc = clamp_arc(self.from, self.to)

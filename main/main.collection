@@ -394,4 +394,25 @@ instances {
     y: 680.0
   }
 }
+instances {
+  id: "pi_l1"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l2"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l3"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
 scale_along_z: 0
