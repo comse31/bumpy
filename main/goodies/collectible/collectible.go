@@ -8,7 +8,7 @@ components {
   properties {
     id: "kind"
     type: PROPERTY_TYPE_NUMBER
-    value: "2"
+    value: "3"
   }
   properties {
     id: "collected"

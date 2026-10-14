@@ -3,25 +3,50 @@
 -- math nor ball jump-height calculations.
 --
 -- Protocol (from /ball):
---   "add"    {kind = 0|1, x = number, y = number} -- goodie collected at (x, y)
---   "remove" {kind = 0|1}                          -- goodie consumed
--- kind: 0 = drop, 1 = key (same numbering as goodies).
+--   "add"    {kind = 0|1|2, x = number, y = number} -- goodie collected at (x, y)
+--   "remove" {kind = 0|1|2}
+--   "set_lives" {count = number}                   -- lives changed (default LIVES)-- goodie consumed
+-- kind: 0 = drop, 1 = key, 2 = hammer (same numbering as goodies).
 --
 -- Items fly to the left part of the strip and are grouped by type:
--- drops first (leftmost), keys right after them.
+-- drops first (leftmost), keys right after them, hammers last.
+-- the right end of the same strip, one per remaining life.
 
-local MARGIN_X = 40     -- left margin inside the strip
+local MARGIN_X = 40     -- margin at both ends of the strip
 local SPACING  = 16     -- distance between items of one group (scaled sprites overlap slightly)
-local KEY_GAP  = 12     -- extra gap between the drop group and the key group
+local GROUP_GAP = 12    -- extra gap between groups (drops | keys | hammers)
 local POCKET_Y = 680    -- vertical center of the strip (field top is y=640)
+local SCREEN_W = 960    -- display width (game.project), for right alignment
+local LIVES    = 3      -- default number of lives shown
 
 -- Pool ids must match the instance ids in main/main.collection.
-local DROP_POOL = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
-local KEY_POOL  = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+local DROP_POOL   = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
+local KEY_POOL    = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+local HAMMER_POOL = { "pi_h1", "pi_h2", "pi_h3", "pi_h4", "pi_h5", "pi_h6" }
+local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3" }
+
+-- X coordinate of the i-th life ball (1-based, left to right); the group
+-- is pinned to the right edge of the strip.
+local function life_x(i)
+    return SCREEN_W - MARGIN_X - (i - 1) * SPACING
+end
+
+-- Show/hide the right-aligned life balls for the given count. Called from
+-- init with the default and later whenever a life is gained or lost.
+local function set_lives(self, count)
+    for i, id in ipairs(LIFE_POOL) do
+        if i <= count then
+            msg.post(id, "show", { to = vmath.vector3(life_x(i), POCKET_Y, 0) })
+        else
+            msg.post(id, "hide")
+        end
+    end
+end
 
 function init(self)
-    self.drops = {} -- ordered list of occupied drop item ids
-    self.keys  = {} -- ordered list of occupied key item ids
+    self.drops   = {} -- ordered list of occupied drop item ids
+    self.keys    = {} -- ordered list of occupied key item ids
+    self.hammers = {} -- ordered list of occupied hammer item ids
     self.occupied = {}
     for _, id in ipairs(DROP_POOL) do
         msg.post(id, "hide")
@@ -29,6 +54,10 @@ function init(self)
     for _, id in ipairs(KEY_POOL) do
         msg.post(id, "hide")
     end
+    for _, id in ipairs(HAMMER_POOL) do
+        msg.post(id, "hide")
+    end
+    set_lives(self, LIVES) -- show the default life balls on the right
 end
 
 -- X coordinate of the i-th drop (1-based), given the current drop count.
@@ -41,18 +70,42 @@ end
 local function key_x(j, drop_count)
     local base = MARGIN_X
     if drop_count > 0 then
-        base = base + (drop_count - 1) * SPACING + SPACING + KEY_GAP
+        base = base + (drop_count - 1) * SPACING + SPACING + GROUP_GAP
     end
     return base + (j - 1) * SPACING
 end
 
--- Instant (non-animated) shift of the key group to its current slots.
--- Adding a drop pushes the key group right; already-settled items must
+-- X coordinate of the k-th hammer (1-based); the hammer group starts after
+-- the key group plus a gap, so it follows keys dynamically.
+local function hammer_x(k, drop_count, key_count)
+    local base = MARGIN_X
+    if drop_count > 0 then
+        base = base + (drop_count - 1) * SPACING + SPACING + GROUP_GAP
+    end
+    if key_count > 0 then
+        base = base + (key_count - 1) * SPACING + SPACING + GROUP_GAP
+    end
+    return base + (k - 1) * SPACING
+end
+
+-- Instant (non-animated) shift of the hammer group to its current slots.
+-- Adding a key pushes the hammer group right; settled hammers snap instead
+-- of animating. The newly added key is still flying and must not be touched,
+-- so it is excluded here (unlike snap_keys_and_hammers).
+local function snap_hammers(self)
+    for k, id in ipairs(self.hammers) do
+        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
+end
+
+-- Instant (non-animated) shift of the key and hammer groups to their current
+-- slots. Adding a drop pushes both groups right; already-settled items must
 -- not animate on add, so they snap to the new positions instead.
-local function snap_keys(self)
+local function snap_keys_and_hammers(self)
     for j, id in ipairs(self.keys) do
         msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
     end
+    snap_hammers(self)
 end
 
 -- Snap all occupied items instantly to their grouped slots. Used on
@@ -65,10 +118,28 @@ local function snap_all(self)
     for j, id in ipairs(self.keys) do
         msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
     end
+    for k, id in ipairs(self.hammers) do
+        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
 end
 
 local function add(self, kind, x, y)
-    if kind == 1 then
+    if kind == 2 then
+        for _, id in ipairs(HAMMER_POOL) do
+            if not self.occupied[id] then
+                table.insert(self.hammers, id)
+                self.occupied[id] = true
+                local k = #self.hammers
+                msg.post(id, "fly", {
+                    from = vmath.vector3(x, y, 0),
+                    to   = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0),
+                })
+                -- Adding a hammer shifts nothing: drops and keys are untouched
+                -- and the new hammer is appended after the existing ones.
+                return
+            end
+        end
+    elseif kind == 1 then
         for _, id in ipairs(KEY_POOL) do
             if not self.occupied[id] then
                 table.insert(self.keys, id)
@@ -78,8 +149,9 @@ local function add(self, kind, x, y)
                     from = vmath.vector3(x, y, 0),
                     to   = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0),
                 })
-                -- Adding a key shifts nothing: drops are untouched and the
-                -- new key is appended after the existing ones. No relayout.
+                -- The hammer group shifts right behind the new key; snap it,
+                -- no animation (the key itself is still flying).
+                snap_hammers(self)
                 return
             end
         end
@@ -93,7 +165,7 @@ local function add(self, kind, x, y)
                     from = vmath.vector3(x, y, 0),
                     to   = vmath.vector3(drop_x(i), POCKET_Y, 0),
                 })
-                snap_keys(self) -- the key group shifts right; snap, no animation
+                snap_keys_and_hammers(self) -- the key/hammer groups shift right; snap, no animation
                 return
             end
         end
@@ -101,7 +173,7 @@ local function add(self, kind, x, y)
 end
 
 local function remove(self, kind)
-    local list = (kind == 1) and self.keys or self.drops
+    local list = (kind == 2) and self.hammers or ((kind == 1) and self.keys or self.drops)
     if #list == 0 then
         return
     end
@@ -117,5 +189,7 @@ function on_message(self, message_id, message)
         add(self, message.kind or 0, message.x or 0, message.y or 0)
     elseif message_id == hash("remove") then
         remove(self, message.kind or 0)
+    elseif message_id == hash("set_lives") then
+        set_lives(self, math.max(0, message.count or LIVES))
     end
 end

@@ -212,4 +212,67 @@ instances {
     y: 680.0
   }
 }
+instances {
+  id: "pi_h1"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h2"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h3"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h4"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h5"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h6"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l1"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l2"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l3"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
 scale_along_z: 0
