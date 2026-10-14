@@ -232,6 +232,14 @@ instances {
   }
 }
 instances {
+  id: "b3_1"
+  prototype: "/main/walls/block/block.go"
+  position {
+    x: 80.0
+    y: 266.67
+  }
+}
+instances {
   id: "ball_visual"
   prototype: "/main/ball/ball_visual.go"
   position {
@@ -303,6 +311,14 @@ instances {
   position {
     x: 880.0
     y: 266.67
+  }
+}
+instances {
+  id: "g5_6"
+  prototype: "/main/goodies/hammer/hammer.go"
+  position {
+    x: 880.0
+    y: 480.0
   }
 }
 # --- pocket HUD (non-game strip above the field, y = 640..720) ---
@@ -390,6 +406,48 @@ instances {
 instances {
   id: "pi_k6"
   prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h1"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h2"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h3"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h4"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h5"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h6"
+  prototype: "/main/pocket/pocket_hammer.go"
   position {
     y: 680.0
   }

@@ -127,9 +127,13 @@ local function collect_goodie(self, row, col)
     if not ok or (collected and collected > 0) then return false end
     msg.post(url, "collect")
     -- тип goodies (kind): 0 — капля (drop, по умолчанию в goodie.script),
-    -- 1 — ключик (переопределено в key.go); счётчики раздельные
+    -- 1 — ключик (переопределено в key.go), 2 — молоток (hammer.go);
+    -- счётчики раздельные
     local kind_ok, kind = pcall(go.get, url .. "#goodie", "kind")
-    if kind_ok and kind == 1 then
+    if kind_ok and kind == 2 then
+        self.hammer_pocket = self.hammer_pocket + 1
+        print(string.format("HAMMERS +%d total=%d cell=(%d, %d)", 1, self.hammer_pocket, col, row))
+    elseif kind_ok and kind == 1 then
         self.key_pocket = self.key_pocket + 1
         print(string.format("KEYS +%d total=%d cell=(%d, %d)", 1, self.key_pocket, col, row))
     else
@@ -137,7 +141,11 @@ local function collect_goodie(self, row, col)
         print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
     end
     -- уведомить HUD-карман: предмет перелетает в полосу над игровым полем
-    msg.post("/pocket", "add", { kind = (kind_ok and kind == 1) and 1 or 0, x = pos.x, y = pos.y })
+    local hud_kind = 0
+    if kind_ok then
+        if kind == 2 then hud_kind = 2 elseif kind == 1 then hud_kind = 1 end
+    end
+    msg.post("/pocket", "add", { kind = hud_kind, x = pos.x, y = pos.y })
     return true
 end
 
@@ -190,6 +198,22 @@ local function has_wall_left(row, col)
     local url = wall_url(row, col)
     if not pcall(go.get, url, "position") then return false end
     return not is_wall_destroyed(row, col)
+end
+
+-- «стена» (блок): занимает почти всю игровую ячейку и никогда не располагается
+-- совместно с другими объектами; полуразмеры совпадают с мешем и коллизией в
+-- block.buffer/block.collisionobject
+local BLOCK_HALF_W = 76.0
+local BLOCK_HALF_H = 50.0
+
+-- URL стены (блока) в ячейке (row/col — индексы с нуля): /b{row+1}_{col+1}
+local function block_url(row, col)
+    return "/b" .. (row + 1) .. "_" .. (col + 1)
+end
+
+-- есть ли стена (блок) в ячейке? go.get бросает исключение, если инстанс не существует
+local function has_block(row, col)
+    return pcall(go.get, block_url(row, col), "position")
 end
 
 -- удар по разрушаемой перегородке: вид меняется только если в кармане есть
@@ -288,13 +312,18 @@ local function high_jump_touch_time(self)
     local pos = go.get_position()
     local vel = go.get("#collision_object", "linear_velocity")
     -- Y центра мяча в момент удара о препятствие: нижняя грань ближайшей
-    -- платформы выше в колонке или верхний край поля
+    -- платформы выше в колонке, нижняя грань стены (блока) или верхний край поля
     local stop_y = SCREEN_H - RADIUS
     for r = self.row + 1, COLS - 1 do
         local url = platform_url(r, self.col)
         if pcall(go.get, url, "position") then
             local py = go.get(url, "position").y
             stop_y = math.min(stop_y, py - PLATFORM_H / 2.0 - RADIUS)
+            break
+        end
+        -- стена (блок) в ячейке выше: мяч упирается в её нижнюю грань
+        if has_block(r, self.col) then
+            stop_y = math.min(stop_y, (r + 0.5) * CELL_H - BLOCK_HALF_H - RADIUS)
             break
         end
     end
@@ -345,6 +374,33 @@ local function bounce_off_wall(self, direction)
     self.rot_t = self.bounce_duration
 end
 
+-- отскок от стены (блока): мяч прыгает в сторону блока, касается его боковой грани
+-- в верхней точке дуги и возвращается в центр своей колонки; X — линейно во времени
+-- (туда и обратно), Y — физическая парабола до приземления на свою платформу
+local function bounce_off_block(self, direction)
+    local col = self.col
+    -- X боковой грани блока: справа от col — (col+1)*CELL_W - BLOCK_HALF_W,
+    -- слева — col*CELL_W + BLOCK_HALF_W
+    local face_x = direction > 0 and (col + 1) * CELL_W - BLOCK_HALF_W or col * CELL_W + BLOCK_HALF_W
+    self.bounce_x_start = go.get_position().x
+    -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT, поэтому
+    -- до грани блока дотягивается сжатый край (RADIUS * (1 - SQUASH_AMOUNT))
+    self.bounce_x_wall = face_x - direction * RADIUS * (1.0 - SQUASH_AMOUNT)
+    self.bounce_x_end = column_center(col)
+    local vy = hop_velocity(self)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    self.bounce_duration = landing_time(self, vy)
+    self.bounce_t = self.bounce_duration
+    self.next_touch_time = self.time + self.bounce_duration
+    -- сплющивание по X (горизонтальное) включается в момент касания блока
+    self.bounce_squash_pending = true
+    -- мяч переворачивается на 180° в сторону прыжка за время отскока
+    self.rot_from = self.rot
+    self.rot_to = self.rot - direction * math.pi
+    self.rot_duration = self.bounce_duration
+    self.rot_t = self.bounce_duration
+end
+
 -- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
 -- X линейно во времени, а высота — физическая парабола, поэтому мяч летит по дуге;
 -- смещение за пределы поля равносильно падению вниз (конец игры)
@@ -361,6 +417,13 @@ local function hop_and_move(self, direction)
         self.bounce_hit_pending = true
         self.bounce_hit_dir = direction
         bounce_off_wall(self, direction)
+        return false
+    end
+    -- стена (блок) в целевой ячейке: прыжок сквозь неё невозможен — мяч прыгает
+    -- в её сторону, отскакивает от боковой грани и возвращается на свою платформу
+    if has_block(self.row, old_col + direction) then
+        print(string.format("BLOCK bounce dir=%d col=%d row=%d", direction, old_col, self.row))
+        bounce_off_block(self, direction)
         return false
     end
     self.col = self.col + direction
@@ -419,10 +482,11 @@ function init(self)
     self.sticky_locked = false
     self.hj_row = nil
     self.row = 0
-    -- внутренние счётчики (карманы): количество собранных капель и ключей —
-    -- раздельные, каждый тип goodies собирается в свой счётчик
+    -- внутренние счётчики (карманы): количество собранных капель, ключей и
+    -- молотков — раздельные, каждый тип goodies собирается в свой счётчик
     self.pocket = 0
     self.key_pocket = 0
+    self.hammer_pocket = 0
     self.rising_moved = false
     self.contact_processed = false
     self.visual = go.get_id("ball_visual")
@@ -460,6 +524,24 @@ function update(self, dt)
             go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
             print("CEILING: high jump stopped at the top edge of the field")
+        end
+        -- стена (блок) выше в колонке: мяч упирается в её нижнюю грань — подъём
+        -- прекращается, мяч начинает падать (коллизия с блоком не настроена,
+        -- поэтому проверка скриптовая)
+        if self.high_jump then
+            for r = self.row + 1, COLS - 1 do
+                if has_block(r, self.col) then
+                    local block_bottom = (r + 0.5) * CELL_H - BLOCK_HALF_H
+                    if position.y + RADIUS >= block_bottom then
+                        self.high_jump = false
+                        self.rising = false
+                        go.set_position(vmath.vector3(position.x, block_bottom - RADIUS, position.z))
+                        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+                        print(string.format("CEILING: high jump stopped at the bottom of block %s", block_url(r, self.col)))
+                    end
+                    break
+                end
+            end
         end
     end
 
