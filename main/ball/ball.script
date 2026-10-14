@@ -1,5 +1,8 @@
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
+-- герои: вся специфика мячика и Slinky вынесена в отдельные модули
+local hero_ball = require("main.ball.hero_ball")
+local hero_slinky = require("main.ball.hero_slinky")
 
 local SIZE = 32.0
 local BPM = 80.0
@@ -42,21 +45,37 @@ local THRESHOLD = THRESHOLD_MS / 1000.0
 -- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
 -- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
 local CONTACT_DEDUP = 0.1
+-- короткое окно после начала действия (шаг/отскок/прыжок), в котором контакты
+-- игнорируются: иначе «залипший» контакт того же кадра снова усаживает Slinky на
+-- платформу и следующий кадр запускает ещё один шаг — прыжок через платформу
+local CONTACT_GUARD = 0.05
 
+-- затухание «удара»: общая величина состояния self.squash, герои читают её в
+-- своём update (мяч — сплющивание, Slinky — сжатие пружины)
 local SQUASH_DURATION = 0.15
+-- величина сплющивания мяча; нужна также в геометрии удара о перегородку
 local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
 local MOVE_DURATION = 0.25
--- масштаб применяется к визуалу в его локальных осях: мяч переворачивается на
--- 180° во время прыжка, поэтому в момент удара о перегородку визуал повёрнут
--- на 90° и локальная ось Y совпадает с мировой X — сплющивание выглядит
--- горизонтальным; при приземлении поворот кратен 180°, оси совпадают и
--- сплющивание вертикальное. Одна формула работает для обоих случаев
-local function apply_squash(self)
-    local sx = 1.0 + SQUASH_AMOUNT * self.squash
-    local sy = 1.0 - SQUASH_AMOUNT * self.squash
-    go.set(self.visual, "scale", vmath.vector3(sx, sy, 1.0))
+
+-- общие значения, которые нужны героям; передаются им в setup
+local ENV = {
+    jump_speed = JUMP_SPEED,
+    period = PERIOD,
+    hop_height = HEIGHT,
+    squash_amount = SQUASH_AMOUNT,
+}
+
+-- переключение героя по клавише T: мячик <-> Slinky. Общий код знает только
+-- интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
+local function toggle_character(self)
+    self.hero.deactivate(self)
+    self.character = self.character == "ball" and "slinky" or "ball"
+    self.hero = self.character == "ball" and hero_ball or hero_slinky
+    self.hero.reset(self)
+    self.hero.activate(self)
+    print("CHARACTER: " .. self.character)
 end
 
 -- центр колонки (платформы) по X
@@ -219,9 +238,9 @@ end
 local function pop_ball(self)
     self.game_over = true
     go.set("#collision_object", "linear_velocity", vmath.vector3())
-    -- у спрайта нет свойства visible; скрываем его сообщением disable
-    -- (Sprite поддерживает enable/disable); ball_visual — дочерний инстанс мяча
-    msg.post("ball_visual#sprite", "disable")
+    -- скрыть визуал активного героя (у спрайта нет свойства visible,
+    -- скрываем сообщением disable)
+    self.hero.deactivate(self)
     print("game over: ball destroyed on a dangerous platform")
 end
 
@@ -278,6 +297,9 @@ local function land_platform(self, row, col)
     end
 end
 
+-- поведение при приземлении без команды игрока делегируется герою:
+-- мяч автоматически отскакивает, Slinky встаёт на платформу и стоит
+
 -- длительность смещения равна времени до приземления: мяч достигает
 -- центра целевой платформы ровно в момент касания (нижняя точка траектории)
 local function move_duration_for(t_land)
@@ -294,11 +316,9 @@ local function move(self, direction, duration)
     self.move_to = column_center(self.col)
     self.move_duration = duration or MOVE_DURATION
     self.move_t = self.move_duration
-    -- мяч переворачивается на 180° в сторону прыжка за время смещения
-    self.rot_from = self.rot
-    self.rot_to = self.rot - direction * math.pi
-    self.rot_duration = self.move_duration
-    self.rot_t = self.move_duration
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky запоминает сторону переката
+    self.hero.on_action(self, direction, self.move_duration)
 end
 
 -- высота мяча над землей (реальная позиция мяча)
@@ -309,10 +329,10 @@ local function height_above_ground(self)
     return math.max(0.0, go.get_position().y - self.ground_y)
 end
 
--- высота подскока при перемещении между платформами: обычная высота отскока,
--- чтобы боковой прыжок был такой же естественной параболой, как вертикальный
+-- высота подскока при смещении между платформами задаётся героем: мяч прыгает
+-- на обычную высоту, Slinky «переступает» (минимальный подъём)
 local function hop_height(self)
-    return HEIGHT
+    return self.hero.hop_height(self)
 end
 
 -- вертикальная скорость, чтобы достичь вершины подскока из текущей высоты
@@ -389,11 +409,9 @@ local function bounce_off_wall(self, direction)
     self.next_touch_time = self.time + self.bounce_duration
     -- сплющивание по X (горизонтальное) включается в момент касания перегородки
     self.bounce_squash_pending = true
-    -- мяч переворачивается на 180° в сторону прыжка за время отскока
-    self.rot_from = self.rot
-    self.rot_to = self.rot - direction * math.pi
-    self.rot_duration = self.bounce_duration
-    self.rot_t = self.bounce_duration
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
+    self.hero.on_action(self, direction, self.bounce_duration)
 end
 
 -- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
@@ -441,11 +459,7 @@ function init(self)
     self.squash_axis = "y"
     self.move_t = 0.0
     self.move_duration = MOVE_DURATION
-    self.rot = 0.0
-    self.rot_from = 0.0
-    self.rot_to = 0.0
-    self.rot_t = 0.0
-    self.rot_duration = MOVE_DURATION
+    self.action_time = -math.huge
     self.game_over = false
     self.time = 0.0
     self.touch_time = -math.huge
@@ -482,9 +496,15 @@ function init(self)
     self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
     self.rising_moved = false
     self.contact_processed = false
-    self.visual = go.get_id("ball_visual")
-    go.set_parent(self.visual, go.get_id(), true)
-
+    -- герои: мячик (по умолчанию) и Slinky; активный выбирается клавишей T.
+    -- Оба инициализируются сразу, чтобы можно было переключаться в любой момент
+    hero_ball.setup(self, ENV)
+    hero_slinky.setup(self, ENV)
+    self.character = "ball"
+    self.hero = hero_ball
+    self.hero.reset(self)
+    self.hero.activate(self)
+    hero_slinky.deactivate(self)
 end
 
 function update(self, dt)
@@ -553,11 +573,14 @@ function update(self, dt)
         end
     end
 
-    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг касания
+    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
+    -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
+    -- момент, пока он находится в покое
     local dir = held_direction(self)
+    local from_rest = self.hero.allow_from_rest(self)
     if dir ~= 0 and not self.press_used and not self.high_jump then
         local since_touch = self.time - self.touch_time
-        if since_touch <= THRESHOLD then
+        if since_touch <= THRESHOLD or from_rest then
             -- клавиша удерживается сразу после касания: подскок и смещение сейчас;
             -- нажатие тратится даже если перегородка отбила прыжок (отскок обратно)
             hop_and_move(self, dir)
@@ -582,19 +605,21 @@ function update(self, dt)
     -- на липкой платформе высокий прыжок невозможен (шар «прилипает»)
     if self.jump_held and not self.press_used and not self.high_jump and not self.sticky_locked then
         local since_touch = self.time - self.touch_time
-        if since_touch <= THRESHOLD then
+        if since_touch <= THRESHOLD or from_rest then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас
             bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            self.action_time = self.time
+            self.hero.on_action(self, nil, nil)
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
             self.next_touch_time = self.time + high_jump_touch_time(self)
             self.press_used = true
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
         else
             local until_next = math.huge
             if self.next_touch_time then
@@ -632,7 +657,7 @@ function update(self, dt)
             self.bounce_squash_pending = false
             self.squash = 1.0
             self.squash_axis = "x"
-            apply_squash(self)
+            self.hero.apply_squash(self)
         end
         -- удар по разрушаемой перегородке наносится именно в момент касания,
         -- а не в начале отскока — вид меняется после удара
@@ -654,18 +679,14 @@ function update(self, dt)
         go.set_position(vmath.vector3(x, pos.y, pos.z))
     end
 
-    -- поворот мяча на 180° в сторону прыжка во время смещения между платформами
-    if self.rot_t > 0.0 then
-        self.rot_t = math.max(0.0, self.rot_t - dt)
-        local k = 1.0 - self.rot_t / self.rot_duration
-        self.rot = self.rot_from + (self.rot_to - self.rot_from) * k
-        go.set(self.visual, "rotation", vmath.quat_rotation_z(self.rot))
-    end
-
+    -- затухание «удара» — общая величина self.squash для визуала героев
     if self.squash > 0.0 then
         self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
-        apply_squash(self)
     end
+
+    -- анимация визуала героя: у мяча — сплющивание и переворот,
+    -- у Slinky — пружина (растяжение/сжатие) и раскладка колец
+    self.hero.update(self, dt)
 
     -- сбор предметов по фактической ячейке мяча: срабатывает и при приземлении,
     -- и при пролёте ячейки без платформы (иначе такие предметы недостижимы)
@@ -695,6 +716,11 @@ function on_input(self, action_id, action)
         elseif action.released then
             self.left_held = false
         end
+    elseif action_id == hash("switch") then
+        -- T: переключить персонажа между мячиком и Slinky
+        if action.pressed then
+            toggle_character(self)
+        end
     end
 end
 
@@ -720,9 +746,9 @@ function on_message(self, message_id, message, sender)
         self.sticky_locked = false
         self.squash = 0.0
         go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-        if self.visual then
-            apply_squash(self)
-        end
+        -- сбросить деформации визуала и вернуть визуал активного героя
+        self.hero.reset(self)
+        self.hero.activate(self)
         return
     end
     if message_id == hash("contact_point_response") then
@@ -738,7 +764,17 @@ function on_message(self, message_id, message, sender)
         if self.time - self.last_contact_time < CONTACT_DEDUP then
             return
         end
+        -- только что начали действие: контакт этого кадра ещё «до отрыва», не
+        -- считаем его приземлением (иначе мгновенно повторный шаг через платформу)
+        if self.time - (self.action_time or -math.huge) < CONTACT_GUARD then
+            return
+        end
         self.last_contact_time = self.time
+        -- Slinky уже стоит на платформе: пока он в покое, повторные контакты
+        -- игнорируем (иначе каждые CONTACT_DEDUP секунд он бы «приземлялся» заново)
+        if self.hero.ignore_contacts(self) then
+            return
+        end
         -- отладка: момент касания мяча платформы; координаты игровой ячейки (от левого нижнего угла)
         local pos = go.get_position()
         -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
@@ -754,7 +790,7 @@ function on_message(self, message_id, message, sender)
             bend_platform(self, row, self.col, -1)
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
             return
         end
         -- приземление точно в центр платформы; пока смещение идёт,
@@ -809,15 +845,14 @@ function on_message(self, message_id, message, sender)
                 hop_and_move(self, slope_dir)
                 self.press_used = true
             else
-                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-                self.next_touch_time = self.time + PERIOD
+                self.hero.settle(self)
                 -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
                 -- остаётся true и следующий высокий прыжок становится невозможен
                 self.press_used = false
             end
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
             return
         end
         local direction = 0
@@ -838,8 +873,7 @@ function on_message(self, message_id, message, sender)
             else
                 -- наклон в сторону края экрана: обычный вертикальный отскок,
                 -- дальше мяч улетит за край и упадёт (конец игры)
-                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-                self.next_touch_time = self.time + PERIOD
+                self.hero.settle(self)
             end
         elseif direction ~= 0 then
             if hop_and_move(self, direction) then
@@ -853,16 +887,17 @@ function on_message(self, message_id, message, sender)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            self.action_time = self.time
+            self.hero.on_action(self, nil, nil)
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
             self.next_touch_time = self.time + high_jump_touch_time(self)
         else
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-            self.next_touch_time = self.time + PERIOD
+            self.hero.settle(self)
         end
         self.pending_jump = false
         self.squash = 1.0
         self.squash_axis = "y"
-        apply_squash(self)
+        self.hero.apply_squash(self)
     end
 end
