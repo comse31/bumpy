@@ -218,8 +218,13 @@ local function load_model()
     return model
 end
 
--- сгенерировать уровень self.level: очистить предыдущий и создать объекты заново
-local function load(self)
+-- удалить объекты текущего уровня и очистить реестр.
+-- go.delete() отложен до конца кадра, поэтому меши/спрайты освобождаются из
+-- общего пула (mesh.max_count / sprite.max_count) не сразу. Если создать новый
+-- уровень в том же кадре, старые и новые объекты учитываются одновременно, и
+-- при плотном уровне пул переполняется — часть мешей уже не добавляется.
+-- Поэтому очистка и генерация разнесены по разным кадрам (см. load ниже).
+local function clear_level()
     delete_all(state.platforms)
     delete_all(state.walls)
     delete_all(state.goodies)
@@ -228,7 +233,10 @@ local function load(self)
     end
     state.reset()
     state.exit_id = nil
+end
 
+-- сгенерировать уровень self.level: создать объекты в очищенной сцене
+local function build_level(self)
     local model = self.model
     local index = vmath.clamp(self.level, 1, model.level_count)
     local lvl = model.levels[index]
@@ -310,15 +318,35 @@ local function load(self)
     msg.post("/ball", "level_start", { cell = lvl.start_cell })
 end
 
+-- переход на уровень self.level: старый уровень удаляется сейчас (меши
+-- освобождаются в конце кадра), а новый строится на следующем кадре, когда пул
+-- уже свободен
+local function load(self)
+    clear_level()
+    self.pending = true
+end
+
 function init(self)
     self.model = load_model()
     if not self.model then
         return
     end
-    load(self)
+    self.pending = false
+    -- при старте удалять нечего — строим сразу
+    build_level(self)
+end
+
+function update(self, dt)
+    if self.pending then
+        self.pending = false
+        build_level(self)
+    end
 end
 
 function on_message(self, message_id, message, sender)
+    if not self.model then
+        return
+    end
     if message_id == hash("level_complete") then
         -- следующий уровень по кругу (после последнего — снова первый)
         self.level = (self.level % self.model.level_count) + 1
