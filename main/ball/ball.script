@@ -17,6 +17,10 @@ local RADIUS = SIZE / 2.0
 -- предмет (goodies) — спрайт 32x32, как и мяч; сбор идёт только при касании
 local GOODIE_HALF = 16.0
 
+-- число жизней на старте; теряется при контакте с шипами/горящей платформой
+-- или при падении за пределы поля, HUD-карман рисует их сердечками
+local START_LIVES = 3
+
 -- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
 local PLATFORM_H = 20.0
 local PLATFORM_Y_BASE = 20.0
@@ -258,14 +262,59 @@ local function extinguish_burning(self, row, col)
     return true
 end
 
--- лопнуть мяч: остановить физику, скрыть визуал, прекратить игру
-local function pop_ball(self)
+-- потеря жизни: остановить мяч, скрыть визуал героя, вычесть жизнь и обновить
+-- HUD-карман. Если жизни остались — перезапустить текущий уровень (level.script
+-- пришлёт level_start, и мяч вернётся в стартовую ячейку); иначе игра окончена.
+local function lose_life(self, cause)
+    if self.game_over then
+        return
+    end
     self.game_over = true
     go.set("#collision_object", "linear_velocity", vmath.vector3())
     -- скрыть визуал активного героя (у спрайта нет свойства visible,
     -- скрываем сообщением disable)
     self.hero.deactivate(self)
-    print("game over: ball destroyed on a dangerous platform")
+    self.lives = self.lives - 1
+    msg.post("/pocket", "set_lives", { count = math.max(0, self.lives) })
+    if self.lives > 0 then
+        -- предметы в кармане откатываются к состоянию на старте текущего уровня:
+        -- собранное на этом уровне не сохраняется, но накопленное между
+        -- уровнями остаётся (см. снимок в level_start)
+        self.pocket = self.start_pocket
+        self.key_pocket = self.start_keys
+        self.hammer_pocket = self.start_hammers
+        msg.post("/pocket", "set_items", {
+            drops = self.pocket,
+            keys = self.key_pocket,
+            hammers = self.hammer_pocket,
+        })
+        print(string.format("LIFE LOST (%s): %d left, reload level %d",
+            cause or "?", self.lives, state.index))
+        msg.post("/level", "reload_level", { level = state.index })
+    else
+        -- жизни кончились: показать плашку GAME OVER, уровень не перезапускаем
+        msg.post("/game_over", "show")
+        print(string.format("GAME OVER (%s): no lives left", cause or "?"))
+    end
+end
+
+-- новая игра после GAME OVER: полные жизни и пустой карман, плашка скрывается,
+-- уровень 1 пересобирается (level_start снимет game_over и вернёт мяч на старт)
+local function restart_game(self)
+    self.lives = START_LIVES
+    self.pocket = 0
+    self.key_pocket = 0
+    self.hammer_pocket = 0
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
+    self.collected = {}
+    self.restart_pending = true
+    msg.post("/pocket", "set_lives", { count = self.lives })
+    msg.post("/pocket", "set_items", { drops = 0, keys = 0, hammers = 0 })
+    msg.post("/game_over", "hide")
+    print("RESTART: new game from level 1")
+    msg.post("/level", "reload_level", { level = 1 })
 end
 
 -- перегородка в ячейке: id из реестра уровня; граница между колонками b-1 и b
@@ -573,9 +622,15 @@ function init(self)
     self.pocket = 0
     self.key_pocket = 0
     self.hammer_pocket = 0
+    -- снимок кармана на старте уровня: к нему карман откатывается при смерти
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
     self.collectibles = 0
     self.exit_open = false
     self.level_complete = false
+    self.lives = START_LIVES -- жизни: теряются при смерти, перезапускают уровень
+    self.restart_pending = false -- GAME OVER: нажатие запросило новую игру
     self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
     self.rising_moved = false
     self.contact_processed = false
@@ -588,17 +643,18 @@ function init(self)
     self.hero.reset(self)
     self.hero.activate(self)
     hero_slinky.deactivate(self)
+    -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
+    msg.post("/pocket", "set_lives", { count = self.lives })
 end
 
 function update(self, dt)
     self.time = self.time + dt
 
-    -- выход за пределы поля (вниз или по бокам) равносилен падению вниз: конец игры
+    -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
+    -- теряется жизнь, уровень перезапускается
     local position = go.get_position()
     if not self.game_over and (position.y < -SIZE or position.x < -SIZE or position.x > SCREEN_W + SIZE) then
-        self.game_over = true
-        go.set("#collision_object", "linear_velocity", vmath.vector3())
-        print("game over: ball left the screen")
+        lose_life(self, "ball left the screen")
         return
     end
     if self.game_over then
@@ -799,6 +855,14 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
+    -- начинает новую игру; ждём, пока уровень 1 пересоберётся
+    if self.game_over then
+        if action.pressed and not self.restart_pending then
+            restart_game(self)
+        end
+        return
+    end
     -- отслеживаем только состояние клавиш: нажата / отжата
     if action_id == hash("jump") then
         if action.pressed or action.repeated then
@@ -831,11 +895,20 @@ function on_message(self, message_id, message, sender)
     if message_id == hash("level_start") then
         start_at(self, (message and message.cell) or 0)
         -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
-        -- если собирать нечего — выход уже открыт level.script'ом
+        -- если собирать нечего — выход уже открыт level.script'ом.
+        -- game_over снимается: после потери жизни уровень перезапускается,
+        -- после GAME OVER — начинается новая игра
+        self.game_over = false
+        self.restart_pending = false
         self.collectibles = 0
         self.level_complete = false
         self.exit_open = state.timer <= 0
         self.collected = {}
+        -- снимок кармана на старте уровня: предметы сохраняются между уровнями,
+        -- но при смерти откатываются к этому состоянию
+        self.start_pocket = self.pocket
+        self.start_keys = self.key_pocket
+        self.start_hammers = self.hammer_pocket
         -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
         self.move_t = 0.0
         self.bounce_t = 0.0
@@ -905,9 +978,9 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
-        -- шипы: контакт всегда разрушает мяч, игра прекращается
+        -- шипы: контакт всегда разрушает мяч — теряется жизнь
         if is_spike(row, self.col) then
-            pop_ball(self)
+            lose_life(self, "spikes")
             return
         end
         -- горящая платформа: если в кармане есть капля — мяч гасит её
@@ -915,7 +988,7 @@ function on_message(self, message_id, message, sender)
         -- без капли контакт разрушает мяч и игра прекращается
         if is_burning(row, self.col) then
             if not extinguish_burning(self, row, self.col) then
-                pop_ball(self)
+                lose_life(self, "burning platform")
                 return
             end
         end

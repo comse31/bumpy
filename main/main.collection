@@ -366,4 +366,14 @@ instances {
     y: 680.0
   }
 }
+# --- GAME OVER: плашка по центру поля, поверх всех объектов (z ближе к камере) ---
+instances {
+  id: "game_over"
+  prototype: "/main/ui/game_over.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.9
+  }
+}
 scale_along_z: 0
