@@ -25,13 +25,13 @@ local KEY_POOL    = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
 local HAMMER_POOL = { "pi_h1", "pi_h2", "pi_h3", "pi_h4", "pi_h5", "pi_h6" }
 local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3" }
 
--- X coordinate of the i-th life ball (1-based, left to right); the group
+-- X coordinate of the i-th life heart (1-based, left to right); the group
 -- is pinned to the right edge of the strip.
 local function life_x(i)
     return SCREEN_W - MARGIN_X - (i - 1) * SPACING
 end
 
--- Show/hide the right-aligned life balls for the given count. Called from
+-- Show/hide the right-aligned life hearts for the given count. Called from
 -- init with the default and later whenever a life is gained or lost.
 local function set_lives(self, count)
     for i, id in ipairs(LIFE_POOL) do
@@ -57,7 +57,7 @@ function init(self)
     for _, id in ipairs(HAMMER_POOL) do
         msg.post(id, "hide")
     end
-    set_lives(self, LIVES) -- show the default life balls on the right
+    set_lives(self, LIVES) -- show the default life hearts on the right
 end
 
 -- X coordinate of the i-th drop (1-based), given the current drop count.
@@ -184,6 +184,46 @@ local function remove(self, kind)
     snap_all(self) -- remaining items compact instantly, no animation
 end
 
+-- Instant rebuild of the strip from explicit counts. Used when the ball rolls
+-- the pocket back after losing a life: items collected on the failed attempt
+-- disappear, the rest are placed without animation.
+local function set_items(self, drops, keys, hammers)
+    for _, id in ipairs(DROP_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(KEY_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(HAMMER_POOL) do
+        msg.post(id, "hide")
+    end
+    self.drops = {}
+    self.keys = {}
+    self.hammers = {}
+    self.occupied = {}
+    local nd = math.min(drops, #DROP_POOL)
+    local nk = math.min(keys, #KEY_POOL)
+    local nh = math.min(hammers, #HAMMER_POOL)
+    for i = 1, nd do
+        local id = DROP_POOL[i]
+        self.drops[i] = id
+        self.occupied[id] = true
+        msg.post(id, "show", { to = vmath.vector3(drop_x(i), POCKET_Y, 0) })
+    end
+    for j = 1, nk do
+        local id = KEY_POOL[j]
+        self.keys[j] = id
+        self.occupied[id] = true
+        msg.post(id, "show", { to = vmath.vector3(key_x(j, nd), POCKET_Y, 0) })
+    end
+    for k = 1, nh do
+        local id = HAMMER_POOL[k]
+        self.hammers[k] = id
+        self.occupied[id] = true
+        msg.post(id, "show", { to = vmath.vector3(hammer_x(k, nd, nk), POCKET_Y, 0) })
+    end
+end
+
 function on_message(self, message_id, message)
     if message_id == hash("add") then
         add(self, message.kind or 0, message.x or 0, message.y or 0)
@@ -191,5 +231,7 @@ function on_message(self, message_id, message)
         remove(self, message.kind or 0)
     elseif message_id == hash("set_lives") then
         set_lives(self, math.max(0, message.count or LIVES))
+    elseif message_id == hash("set_items") then
+        set_items(self, message.drops or 0, message.keys or 0, message.hammers or 0)
     end
 end

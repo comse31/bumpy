@@ -1,6 +1,6 @@
 components {
   id: "sprite"
-  component: "/main/pocket/ball.sprite"
+  component: "/main/pocket/heart.sprite"
 }
 components {
   id: "item"

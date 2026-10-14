@@ -1,5 +1,8 @@
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
+-- герои: вся специфика мячика и Slinky вынесена в отдельные модули
+local hero_ball = require("main.ball.hero_ball")
+local hero_slinky = require("main.ball.hero_slinky")
 
 local SIZE = 32.0
 local BPM = 80.0
@@ -11,6 +14,12 @@ local SCREEN_H = 640.0
 local CELL_W = SCREEN_W / COLS
 local CELL_H = SCREEN_H / COLS
 local RADIUS = SIZE / 2.0
+-- предмет (goodies) — спрайт 32x32, как и мяч; сбор идёт только при касании
+local GOODIE_HALF = 16.0
+
+-- число жизней на старте; теряется при контакте с шипами/горящей платформой
+-- или при падении за пределы поля, HUD-карман рисует их сердечками
+local START_LIVES = 3
 
 -- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
 local PLATFORM_H = 20.0
@@ -42,21 +51,37 @@ local THRESHOLD = THRESHOLD_MS / 1000.0
 -- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
 -- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
 local CONTACT_DEDUP = 0.1
+-- короткое окно после начала действия (шаг/отскок/прыжок), в котором контакты
+-- игнорируются: иначе «залипший» контакт того же кадра снова усаживает Slinky на
+-- платформу и следующий кадр запускает ещё один шаг — прыжок через платформу
+local CONTACT_GUARD = 0.05
 
+-- затухание «удара»: общая величина состояния self.squash, герои читают её в
+-- своём update (мяч — сплющивание, Slinky — сжатие пружины)
 local SQUASH_DURATION = 0.15
+-- величина сплющивания мяча; нужна также в геометрии удара о перегородку
 local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
 local MOVE_DURATION = 0.25
--- масштаб применяется к визуалу в его локальных осях: мяч переворачивается на
--- 180° во время прыжка, поэтому в момент удара о перегородку визуал повёрнут
--- на 90° и локальная ось Y совпадает с мировой X — сплющивание выглядит
--- горизонтальным; при приземлении поворот кратен 180°, оси совпадают и
--- сплющивание вертикальное. Одна формула работает для обоих случаев
-local function apply_squash(self)
-    local sx = 1.0 + SQUASH_AMOUNT * self.squash
-    local sy = 1.0 - SQUASH_AMOUNT * self.squash
-    go.set(self.visual, "scale", vmath.vector3(sx, sy, 1.0))
+
+-- общие значения, которые нужны героям; передаются им в setup
+local ENV = {
+    jump_speed = JUMP_SPEED,
+    period = PERIOD,
+    hop_height = HEIGHT,
+    squash_amount = SQUASH_AMOUNT,
+}
+
+-- переключение героя по клавише T: мячик <-> Slinky. Общий код знает только
+-- интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
+local function toggle_character(self)
+    self.hero.deactivate(self)
+    self.character = self.character == "ball" and "slinky" or "ball"
+    self.hero = self.character == "ball" and hero_ball or hero_slinky
+    self.hero.reset(self)
+    self.hero.activate(self)
+    print("CHARACTER: " .. self.character)
 end
 
 -- центр колонки (платформы) по X
@@ -164,7 +189,20 @@ end
 -- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
 -- счётчик мяча: капли — pocket, ключи — key_pocket, собираемые для выхода —
 -- collectibles (kind 2, открывают выход при наборе timer); возвращает true,
--- если goodies был собран
+-- если goodies был собран. Предмет берётся только при фактическом касании:
+-- одной ячейки с мячом недостаточно (иначе берётся «не касаясь»).
+local function goodie_touched(id)
+    -- круг мяча (RADIUS) против квадрата спрайта предмета (GOODIE_HALF):
+    -- ближайшая к центру мяча точка квадрата
+    local gpos = go.get(id, "position")
+    local bpos = go.get_position()
+    local cx = vmath.clamp(bpos.x, gpos.x - GOODIE_HALF, gpos.x + GOODIE_HALF)
+    local cy = vmath.clamp(bpos.y, gpos.y - GOODIE_HALF, gpos.y + GOODIE_HALF)
+    local dx = bpos.x - cx
+    local dy = bpos.y - cy
+    return dx * dx + dy * dy <= RADIUS * RADIUS
+end
+
 local function collect_goodie(self, row, col)
     local id = goodie_id(row, col)
     if not id then return false end
@@ -175,6 +213,8 @@ local function collect_goodie(self, row, col)
     local comp = state.component(id, "goodie")
     local ok, collected = pcall(go.get, comp, "collected")
     if not ok or (collected and collected > 0) then return false end
+    -- сбор только по касанию: пока мяч не дотянулся до спрайта предмета — не берём
+    if not goodie_touched(id) then return false end
     self.collected[id] = true
     local pos = go.get(id, "position")
     msg.post(id, "collect")
@@ -222,14 +262,59 @@ local function extinguish_burning(self, row, col)
     return true
 end
 
--- лопнуть мяч: остановить физику, скрыть визуал, прекратить игру
-local function pop_ball(self)
+-- потеря жизни: остановить мяч, скрыть визуал героя, вычесть жизнь и обновить
+-- HUD-карман. Если жизни остались — перезапустить текущий уровень (level.script
+-- пришлёт level_start, и мяч вернётся в стартовую ячейку); иначе игра окончена.
+local function lose_life(self, cause)
+    if self.game_over then
+        return
+    end
     self.game_over = true
     go.set("#collision_object", "linear_velocity", vmath.vector3())
-    -- у спрайта нет свойства visible; скрываем его сообщением disable
-    -- (Sprite поддерживает enable/disable); ball_visual — дочерний инстанс мяча
-    msg.post("ball_visual#sprite", "disable")
-    print("game over: ball destroyed on a dangerous platform")
+    -- скрыть визуал активного героя (у спрайта нет свойства visible,
+    -- скрываем сообщением disable)
+    self.hero.deactivate(self)
+    self.lives = self.lives - 1
+    msg.post("/pocket", "set_lives", { count = math.max(0, self.lives) })
+    if self.lives > 0 then
+        -- предметы в кармане откатываются к состоянию на старте текущего уровня:
+        -- собранное на этом уровне не сохраняется, но накопленное между
+        -- уровнями остаётся (см. снимок в level_start)
+        self.pocket = self.start_pocket
+        self.key_pocket = self.start_keys
+        self.hammer_pocket = self.start_hammers
+        msg.post("/pocket", "set_items", {
+            drops = self.pocket,
+            keys = self.key_pocket,
+            hammers = self.hammer_pocket,
+        })
+        print(string.format("LIFE LOST (%s): %d left, reload level %d",
+            cause or "?", self.lives, state.index))
+        msg.post("/level", "reload_level", { level = state.index })
+    else
+        -- жизни кончились: показать плашку GAME OVER, уровень не перезапускаем
+        msg.post("/game_over", "show")
+        print(string.format("GAME OVER (%s): no lives left", cause or "?"))
+    end
+end
+
+-- новая игра после GAME OVER: полные жизни и пустой карман, плашка скрывается,
+-- уровень 1 пересобирается (level_start снимет game_over и вернёт мяч на старт)
+local function restart_game(self)
+    self.lives = START_LIVES
+    self.pocket = 0
+    self.key_pocket = 0
+    self.hammer_pocket = 0
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
+    self.collected = {}
+    self.restart_pending = true
+    msg.post("/pocket", "set_lives", { count = self.lives })
+    msg.post("/pocket", "set_items", { drops = 0, keys = 0, hammers = 0 })
+    msg.post("/game_over", "hide")
+    print("RESTART: new game from level 1")
+    msg.post("/level", "reload_level", { level = 1 })
 end
 
 -- перегородка в ячейке: id из реестра уровня; граница между колонками b-1 и b
@@ -301,6 +386,9 @@ local function land_platform(self, row, col)
     end
 end
 
+-- поведение при приземлении без команды игрока делегируется герою:
+-- мяч автоматически отскакивает, Slinky встаёт на платформу и стоит
+
 -- длительность смещения равна времени до приземления: мяч достигает
 -- центра целевой платформы ровно в момент касания (нижняя точка траектории)
 local function move_duration_for(t_land)
@@ -317,11 +405,9 @@ local function move(self, direction, duration)
     self.move_to = column_center(self.col)
     self.move_duration = duration or MOVE_DURATION
     self.move_t = self.move_duration
-    -- мяч переворачивается на 180° в сторону прыжка за время смещения
-    self.rot_from = self.rot
-    self.rot_to = self.rot - direction * math.pi
-    self.rot_duration = self.move_duration
-    self.rot_t = self.move_duration
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky запоминает сторону переката
+    self.hero.on_action(self, direction, self.move_duration)
 end
 
 -- высота мяча над землей (реальная позиция мяча)
@@ -332,10 +418,10 @@ local function height_above_ground(self)
     return math.max(0.0, go.get_position().y - self.ground_y)
 end
 
--- высота подскока при перемещении между платформами: обычная высота отскока,
--- чтобы боковой прыжок был такой же естественной параболой, как вертикальный
+-- высота подскока при смещении между платформами задаётся героем: мяч прыгает
+-- на обычную высоту, Slinky «переступает» (минимальный подъём)
 local function hop_height(self)
-    return HEIGHT
+    return self.hero.hop_height(self)
 end
 
 -- вертикальная скорость, чтобы достичь вершины подскока из текущей высоты
@@ -417,11 +503,9 @@ local function bounce_off_wall(self, direction)
     self.next_touch_time = self.time + self.bounce_duration
     -- сплющивание по X (горизонтальное) включается в момент касания перегородки
     self.bounce_squash_pending = true
-    -- мяч переворачивается на 180° в сторону прыжка за время отскока
-    self.rot_from = self.rot
-    self.rot_to = self.rot - direction * math.pi
-    self.rot_duration = self.bounce_duration
-    self.rot_t = self.bounce_duration
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
+    self.hero.on_action(self, direction, self.bounce_duration)
 end
 
 -- отскок от стены (блока): мяч прыгает в сторону блока, касается его боковой грани
@@ -478,7 +562,10 @@ local function hop_and_move(self, direction)
     end
     self.col = self.col + direction
     print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
-    local vy = hop_velocity(self)
+    -- масштаб длительности шага задаёт герой (Slinky перекатывается медленнее):
+    -- вертикальный импульс растягивается во времени, поэтому X-смещение и
+    -- приземление остаются синхронными
+    local vy = hop_velocity(self) * self.hero.step_scale(self)
     local t_land = landing_time(self, vy)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
     move(self, direction, move_duration_for(t_land))
@@ -503,11 +590,7 @@ function init(self)
     self.squash_axis = "y"
     self.move_t = 0.0
     self.move_duration = MOVE_DURATION
-    self.rot = 0.0
-    self.rot_from = 0.0
-    self.rot_to = 0.0
-    self.rot_t = 0.0
-    self.rot_duration = MOVE_DURATION
+    self.action_time = -math.huge
     self.game_over = false
     self.time = 0.0
     self.touch_time = -math.huge
@@ -539,26 +622,39 @@ function init(self)
     self.pocket = 0
     self.key_pocket = 0
     self.hammer_pocket = 0
+    -- снимок кармана на старте уровня: к нему карман откатывается при смерти
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
     self.collectibles = 0
     self.exit_open = false
     self.level_complete = false
+    self.lives = START_LIVES -- жизни: теряются при смерти, перезапускают уровень
+    self.restart_pending = false -- GAME OVER: нажатие запросило новую игру
     self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
     self.rising_moved = false
     self.contact_processed = false
-    self.visual = go.get_id("ball_visual")
-    go.set_parent(self.visual, go.get_id(), true)
-
+    -- герои: мячик (по умолчанию) и Slinky; активный выбирается клавишей T.
+    -- Оба инициализируются сразу, чтобы можно было переключаться в любой момент
+    hero_ball.setup(self, ENV)
+    hero_slinky.setup(self, ENV)
+    self.character = "ball"
+    self.hero = hero_ball
+    self.hero.reset(self)
+    self.hero.activate(self)
+    hero_slinky.deactivate(self)
+    -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
+    msg.post("/pocket", "set_lives", { count = self.lives })
 end
 
 function update(self, dt)
     self.time = self.time + dt
 
-    -- выход за пределы поля (вниз или по бокам) равносилен падению вниз: конец игры
+    -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
+    -- теряется жизнь, уровень перезапускается
     local position = go.get_position()
     if not self.game_over and (position.y < -SIZE or position.x < -SIZE or position.x > SCREEN_W + SIZE) then
-        self.game_over = true
-        go.set("#collision_object", "linear_velocity", vmath.vector3())
-        print("game over: ball left the screen")
+        lose_life(self, "ball left the screen")
         return
     end
     if self.game_over then
@@ -634,11 +730,14 @@ function update(self, dt)
         end
     end
 
-    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг касания
+    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
+    -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
+    -- момент, пока он находится в покое
     local dir = held_direction(self)
+    local from_rest = self.hero.allow_from_rest(self)
     if dir ~= 0 and not self.press_used and not self.high_jump then
         local since_touch = self.time - self.touch_time
-        if since_touch <= THRESHOLD then
+        if since_touch <= THRESHOLD or from_rest then
             -- клавиша удерживается сразу после касания: подскок и смещение сейчас;
             -- нажатие тратится даже если перегородка отбила прыжок (отскок обратно)
             hop_and_move(self, dir)
@@ -663,19 +762,21 @@ function update(self, dt)
     -- на липкой платформе высокий прыжок невозможен (шар «прилипает»)
     if self.jump_held and not self.press_used and not self.high_jump and not self.sticky_locked then
         local since_touch = self.time - self.touch_time
-        if since_touch <= THRESHOLD then
+        if since_touch <= THRESHOLD or from_rest then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас
             bend_platform(self, self.row, self.col)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            self.action_time = self.time
+            self.hero.on_action(self, nil, nil)
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
             self.next_touch_time = self.time + high_jump_touch_time(self)
             self.press_used = true
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
         else
             local until_next = math.huge
             if self.next_touch_time then
@@ -713,7 +814,7 @@ function update(self, dt)
             self.bounce_squash_pending = false
             self.squash = 1.0
             self.squash_axis = "x"
-            apply_squash(self)
+            self.hero.apply_squash(self)
         end
         -- удар по разрушаемой перегородке наносится именно в момент касания,
         -- а не в начале отскока — вид меняется после удара
@@ -735,21 +836,18 @@ function update(self, dt)
         go.set_position(vmath.vector3(x, pos.y, pos.z))
     end
 
-    -- поворот мяча на 180° в сторону прыжка во время смещения между платформами
-    if self.rot_t > 0.0 then
-        self.rot_t = math.max(0.0, self.rot_t - dt)
-        local k = 1.0 - self.rot_t / self.rot_duration
-        self.rot = self.rot_from + (self.rot_to - self.rot_from) * k
-        go.set(self.visual, "rotation", vmath.quat_rotation_z(self.rot))
-    end
-
+    -- затухание «удара» — общая величина self.squash для визуала героев
     if self.squash > 0.0 then
         self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
-        apply_squash(self)
     end
 
-    -- сбор предметов по фактической ячейке мяча: срабатывает и при приземлении,
-    -- и при пролёте ячейки без платформы (иначе такие предметы недостижимы)
+    -- анимация визуала героя: у мяча — сплющивание и переворот,
+    -- у Slinky — пружина (растяжение/сжатие) и раскладка колец
+    self.hero.update(self, dt)
+
+    -- сбор предметов по фактической ячейке мяча: кандидат — предмет в той же
+    -- ячейке (в том числе при пролёте ячейки без платформы), но берётся он
+    -- только при фактическом касании мяча (см. goodie_touched)
     if not self.game_over then
         local crow, ccol = cell_at(go.get_position())
         collect_goodie(self, crow, ccol)
@@ -757,6 +855,14 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
+    -- начинает новую игру; ждём, пока уровень 1 пересоберётся
+    if self.game_over then
+        if action.pressed and not self.restart_pending then
+            restart_game(self)
+        end
+        return
+    end
     -- отслеживаем только состояние клавиш: нажата / отжата
     if action_id == hash("jump") then
         if action.pressed or action.repeated then
@@ -776,6 +882,11 @@ function on_input(self, action_id, action)
         elseif action.released then
             self.left_held = false
         end
+    elseif action_id == hash("switch") then
+        -- T: переключить персонажа между мячиком и Slinky
+        if action.pressed then
+            toggle_character(self)
+        end
     end
 end
 
@@ -784,11 +895,20 @@ function on_message(self, message_id, message, sender)
     if message_id == hash("level_start") then
         start_at(self, (message and message.cell) or 0)
         -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
-        -- если собирать нечего — выход уже открыт level.script'ом
+        -- если собирать нечего — выход уже открыт level.script'ом.
+        -- game_over снимается: после потери жизни уровень перезапускается,
+        -- после GAME OVER — начинается новая игра
+        self.game_over = false
+        self.restart_pending = false
         self.collectibles = 0
         self.level_complete = false
         self.exit_open = state.timer <= 0
         self.collected = {}
+        -- снимок кармана на старте уровня: предметы сохраняются между уровнями,
+        -- но при смерти откатываются к этому состоянию
+        self.start_pocket = self.pocket
+        self.start_keys = self.key_pocket
+        self.start_hammers = self.hammer_pocket
         -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
         self.move_t = 0.0
         self.bounce_t = 0.0
@@ -801,9 +921,9 @@ function on_message(self, message_id, message, sender)
         self.sticky_locked = false
         self.squash = 0.0
         go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-        if self.visual then
-            apply_squash(self)
-        end
+        -- сбросить деформации визуала и вернуть визуал активного героя
+        self.hero.reset(self)
+        self.hero.activate(self)
         return
     end
     if message_id == hash("contact_point_response") then
@@ -819,7 +939,17 @@ function on_message(self, message_id, message, sender)
         if self.time - self.last_contact_time < CONTACT_DEDUP then
             return
         end
+        -- только что начали действие: контакт этого кадра ещё «до отрыва», не
+        -- считаем его приземлением (иначе мгновенно повторный шаг через платформу)
+        if self.time - (self.action_time or -math.huge) < CONTACT_GUARD then
+            return
+        end
         self.last_contact_time = self.time
+        -- Slinky уже стоит на платформе: пока он в покое, повторные контакты
+        -- игнорируем (иначе каждые CONTACT_DEDUP секунд он бы «приземлялся» заново)
+        if self.hero.ignore_contacts(self) then
+            return
+        end
         -- отладка: момент касания мяча платформы; координаты игровой ячейки (от левого нижнего угла)
         local pos = go.get_position()
         -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
@@ -835,7 +965,7 @@ function on_message(self, message_id, message, sender)
             bend_platform(self, row, self.col, -1)
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
             return
         end
         -- приземление точно в центр платформы; пока смещение идёт,
@@ -848,9 +978,9 @@ function on_message(self, message_id, message, sender)
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
         self.row = row
         self.ground_y = BOUNCE_Y[row]
-        -- шипы: контакт всегда разрушает мяч, игра прекращается
+        -- шипы: контакт всегда разрушает мяч — теряется жизнь
         if is_spike(row, self.col) then
-            pop_ball(self)
+            lose_life(self, "spikes")
             return
         end
         -- горящая платформа: если в кармане есть капля — мяч гасит её
@@ -858,7 +988,7 @@ function on_message(self, message_id, message, sender)
         -- без капли контакт разрушает мяч и игра прекращается
         if is_burning(row, self.col) then
             if not extinguish_burning(self, row, self.col) then
-                pop_ball(self)
+                lose_life(self, "burning platform")
                 return
             end
         end
@@ -890,15 +1020,14 @@ function on_message(self, message_id, message, sender)
                 hop_and_move(self, slope_dir)
                 self.press_used = true
             else
-                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-                self.next_touch_time = self.time + PERIOD
+                self.hero.settle(self)
                 -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
                 -- остаётся true и следующий высокий прыжок становится невозможен
                 self.press_used = false
             end
             self.squash = 1.0
             self.squash_axis = "y"
-            apply_squash(self)
+            self.hero.apply_squash(self)
             return
         end
         local direction = 0
@@ -919,8 +1048,7 @@ function on_message(self, message_id, message, sender)
             else
                 -- наклон в сторону края экрана: обычный вертикальный отскок,
                 -- дальше мяч улетит за край и упадёт (конец игры)
-                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-                self.next_touch_time = self.time + PERIOD
+                self.hero.settle(self)
             end
         elseif direction ~= 0 then
             if hop_and_move(self, direction) then
@@ -934,16 +1062,17 @@ function on_message(self, message_id, message, sender)
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
             self.rising = true
             self.high_jump = true
+            self.action_time = self.time
+            self.hero.on_action(self, nil, nil)
             -- первый уровень для проверки пересечения — над текущим рядом
             self.hj_row = self.row + 1
             self.next_touch_time = self.time + high_jump_touch_time(self)
         else
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
-            self.next_touch_time = self.time + PERIOD
+            self.hero.settle(self)
         end
         self.pending_jump = false
         self.squash = 1.0
         self.squash_axis = "y"
-        apply_squash(self)
+        self.hero.apply_squash(self)
     end
 end
