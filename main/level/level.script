@@ -4,9 +4,9 @@
 -- Метаданные уровней лежат в main/levels.json (генерируются
 -- tools/extract_levels.py из BUMPY.TAP). Файл подключён как custom_resources
 -- в game.project и читается в рантайме через sys.load_resource + json.decode.
--- Для каждого уровня есть сетка слоя lo (платформы), слоя hi (фон) и сетка
--- объектов (goodies), стартовая ячейка, счётчик выхода (timer) и финишная
--- ячейка (timer_cell).
+-- Для каждого уровня есть сетка слоя lo (платформы), слоя hi (вертикальные
+-- перегородки) и сетка объектов (goodies), стартовая ячейка, счётчик выхода
+-- (timer) и финишная ячейка (timer_cell).
 --
 -- Платформы/предметы/выход создаются через factory-компоненты этого объекта,
 -- id экземпляров складываются в общий реестр main/level/level_state.lua,
@@ -18,9 +18,12 @@
 -- таблице PLATFORM_BY_CODE ниже — рабочая гипотеза; коды без сопоставления
 -- создаются как обычная платформа, чтобы сохранить геометрию уровня.
 --
--- В метаданных нет данных о вертикальных перегородках, поэтому стены пока не
--- генерируются: state.walls остаётся пустым, а логика стен в ball.script не
--- срабатывает. Это осознанное ограничение до появления источника данных.
+-- Вертикальные перегородки (стены) берутся из слоя hi метаданных: столбец gc
+-- описывает границу между вертикалями gc и gc+1, то есть b = gc + 1 — первый
+-- столбец это перегородки между 0 и 1 вертикалью (подтверждено по данным:
+-- последний столбец всегда пуст). Коды: 3 — целая разрушаемая, 4 —
+-- неразрушаемая, 2 — разрушаемая с одним ударом, 1 — с двумя (см.
+-- origin/LEVELS.md).
 
 local state = require("main.level.level_state")
 
@@ -53,6 +56,24 @@ local PLATFORM_BY_CODE = {
     [9] = "#platform_default",
     [10] = "#platform_block",
     [12] = "#platform_default",
+}
+
+-- код слоя hi (0..4) -> id factory-компонента перегородки.
+-- 0 — пусто (перегородка не создаётся). Подтверждено по данным оригинала:
+-- коды 1 и 2 — разрушаемая уже с одним/двумя ударами (та же фабрика, но с
+-- уменьшенной прочностью, см. spawn_wall), 3 — целая разрушаемая,
+-- 4 — неразрушаемая.
+local WALL_BY_CODE = {
+    [1] = "#wall_destructible",
+    [2] = "#wall_destructible",
+    [3] = "#wall_destructible",
+    [4] = "#wall_indestructible",
+}
+
+-- оставшаяся прочность для предварительно повреждённых перегородок (коды hi)
+local WALL_DURABILITY = {
+    [1] = 1, -- два удара получено
+    [2] = 2, -- один удар получен
 }
 
 -- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie).
@@ -109,6 +130,12 @@ end
 -- блока 152x100 (коллизия — половина: 76x50), поэтому свой масштаб
 local BLOCK_SCALE = vmath.vector3(CELL_W / 152.0, CELL_H / 100.0, 1.0)
 
+-- родной размер меша перегородки 20x70 (локальные y -15..55, центр y=20):
+-- толщина совпадает с WALL_THICKNESS в ball.script, поэтому X не масштабируем,
+-- а по Y растягиваем на высоту ряда ячеек; позиция смещена на локальный центр
+-- меша (20 * масштаб), чтобы перегородка заняла весь ряд
+local WALL_SCALE = vmath.vector3(1.0, CELL_H / 70.0, 1.0)
+
 local function spawn_platform(row, col, code)
     local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
     local pos, scale
@@ -137,6 +164,23 @@ local function spawn_goodie(row, col, code)
         vmath.vector3(cell_center_x(col), y, 0.0), nil, { kind = kind })
     state.goodies[row] = state.goodies[row] or {}
     state.goodies[row][col] = id
+    return id
+end
+
+-- перегородка на границе b (между колонками b-1 и b): X — сама граница,
+-- Y — локальный центр меша, растянутого на высоту ряда
+local function spawn_wall(row, b, code)
+    local factory_id = WALL_BY_CODE[code]
+    if not factory_id then
+        return nil
+    end
+    local pos = vmath.vector3(b * CELL_W, platform_y(row) + 20.0 * WALL_SCALE.y, 0.0)
+    -- коды 1 и 2: перегородка уже повреждена — заводим оставшуюся прочность
+    -- (factory-данные попадают в свойство durability скрипта)
+    local data = WALL_DURABILITY[code] and { durability = WALL_DURABILITY[code] } or nil
+    local id = factory.create(factory_id, pos, nil, data, WALL_SCALE)
+    state.walls[row] = state.walls[row] or {}
+    state.walls[row][b] = id
     return id
 end
 
@@ -186,8 +230,8 @@ local function load(self)
     state.exit_cell = lvl.timer_cell
     state.timer = lvl.timer
 
-    local platforms, goodies = 0, 0
-    local unknown_lo, unknown_obj = {}, {}
+    local platforms, walls, goodies = 0, 0, 0
+    local unknown_lo, unknown_hi, unknown_obj = {}, {}, {}
     -- сетки в levels.json — вложенные 6x6 (grid_lo[gr+1][gc+1], gr=0 — верх)
     for gr = 0, ROWS - 1 do
         for gc = 0, COLS - 1 do
@@ -198,6 +242,21 @@ local function load(self)
                 end
                 spawn_platform(screen_row(gr), gc, code)
                 platforms = platforms + 1
+            end
+        end
+    end
+    -- слой hi: вертикальные перегородки; столбец gc — граница b = gc + 1,
+    -- последний столбец (gc = 5) в данных всегда пуст и не используется
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 2 do
+            local code = lvl.grid_hi[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not WALL_BY_CODE[code] then
+                    unknown_hi[code] = true
+                end
+                if spawn_wall(screen_row(gr), gc + 1, code) then
+                    walls = walls + 1
+                end
             end
         end
     end
@@ -221,13 +280,16 @@ local function load(self)
         msg.post(state.exit_id, "open")
     end
 
-    print(string.format("LEVEL %d loaded (theme %d): %d platforms, %d goodies, start=%d exit=%d timer=%d",
-        index, lvl.theme, platforms, goodies, lvl.start_cell, lvl.timer_cell, lvl.timer))
+    print(string.format("LEVEL %d loaded (theme %d): %d platforms, %d walls, %d goodies, start=%d exit=%d timer=%d",
+        index, lvl.theme, platforms, walls, goodies, lvl.start_cell, lvl.timer_cell, lvl.timer))
     -- нераспознанные коды слоя lo / объектов: сопоставление пока не подтверждено
     -- (см. origin/LEVELS.md), поэтому коды без прототипа создаются как обычная
     -- платформа, а объекты пропускаются; выводим их, чтобы пробел был заметен
     if next(unknown_lo) then
         print("level.script: unmapped grid_lo codes -> default platform: " .. sorted_keys(unknown_lo))
+    end
+    if next(unknown_hi) then
+        print("level.script: unmapped grid_hi codes (skipped): " .. sorted_keys(unknown_hi))
     end
     if next(unknown_obj) then
         print("level.script: unmapped object codes (skipped): " .. sorted_keys(unknown_obj))

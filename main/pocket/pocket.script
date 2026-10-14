@@ -88,6 +88,16 @@ local function hammer_x(k, drop_count, key_count)
     return base + (k - 1) * SPACING
 end
 
+-- Instant (non-animated) shift of the hammer group to its current slots.
+-- Adding a key pushes the hammer group right; settled hammers snap instead
+-- of animating. The newly added key is still flying and must not be touched,
+-- so it is excluded here (unlike snap_keys_and_hammers).
+local function snap_hammers(self)
+    for k, id in ipairs(self.hammers) do
+        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
+end
+
 -- Instant (non-animated) shift of the key and hammer groups to their current
 -- slots. Adding a drop pushes both groups right; already-settled items must
 -- not animate on add, so they snap to the new positions instead.
@@ -95,9 +105,7 @@ local function snap_keys_and_hammers(self)
     for j, id in ipairs(self.keys) do
         msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
     end
-    for k, id in ipairs(self.hammers) do
-        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
-    end
+    snap_hammers(self)
 end
 
 -- Snap all occupied items instantly to their grouped slots. Used on
@@ -141,8 +149,9 @@ local function add(self, kind, x, y)
                     from = vmath.vector3(x, y, 0),
                     to   = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0),
                 })
-                -- Adding a key shifts nothing: drops are untouched and the
-                -- new key is appended after the existing ones. No relayout.
+                -- The hammer group shifts right behind the new key; snap it,
+                -- no animation (the key itself is still flying).
+                snap_hammers(self)
                 return
             end
         end

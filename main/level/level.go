@@ -51,6 +51,18 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "wall_destructible"
+  type: "factory"
+  data: "prototype: \"/main/walls/destructible/destructible.go\"\n"
+  ""
+}
+embedded_components {
+  id: "wall_indestructible"
+  type: "factory"
+  data: "prototype: \"/main/walls/indestructible/indestructible.go\"\n"
+  ""
+}
+embedded_components {
   id: "goodie_drop"
   type: "factory"
   data: "prototype: \"/main/goodies/drop/drop.go\"\n"

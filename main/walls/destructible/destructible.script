@@ -6,6 +6,9 @@
 -- в сцене, ball.script читает свойство destroyed = 1 и перестаёт считать её
 -- стеной). Смена вида невозможна через текстуру одного меша, поэтому три
 -- состояния — три меша с разными текстурами (паттерн горящей платформы).
+-- level.script может создать перегородку уже повреждённой (коды слоя hi:
+-- 2 — один удар получен, 1 — два): factory-данные { durability = N } задают
+-- оставшуюся прочность в init(), и вид соответствует состоянию.
 go.property("durability", 3) -- оставшееся число ударов до разрушения
 go.property("destroyed", 0)  -- 1 = перегородка разрушена
 
@@ -13,6 +16,17 @@ function init(self)
     -- меши повреждённых состояний скрыты до первого удара
     msg.post("#mesh_cracked", "disable")
     msg.post("#mesh_broken", "disable")
+    if self.durability < 3 then
+        -- предварительно повреждённая перегородка: показываем соответствующий
+        -- вид (сообщения идут после disable в init, поэтому порядок верный)
+        if self.durability <= 1 then
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_broken", "enable")
+        else
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_cracked", "enable")
+        end
+    end
 end
 
 function on_message(self, message_id, message, sender)
