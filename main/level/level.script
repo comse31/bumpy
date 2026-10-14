@@ -93,13 +93,15 @@ local PLATFORM_DATA = {
 
 -- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie).
 -- 1 — молоток (kind 2, подтверждено по геймплею), 2 — ключ (kind 1),
--- 3 — капля (kind 0, подтверждено по геймплею), коды >= 5 — собираемые
--- объекты, открывающие выход (kind 3, отдельный спрайт-ромб). Код 4 и
--- остальные не реализованы и пропускаются.
+-- 3 — капля (kind 0, подтверждено по геймплею), 4 — дополнительная жизнь
+-- (kind 4, спрайт-сердечко; при сборе увеличивает число жизней в кармане),
+-- коды >= 5 — собираемые объекты, открывающие выход (kind 3, отдельный
+-- спрайт-ромб). Остальные коды не реализованы и пропускаются.
 local function goodie_factory(code)
     if code == 1 then return "#goodie_hammer", 2 end
     if code == 3 then return "#goodie_drop", 0 end
     if code == 2 then return "#goodie_key", 1 end
+    if code == 4 then return "#goodie_heart", 4 end
     if code >= 5 then return "#goodie_collectible", 3 end
     return nil
 end

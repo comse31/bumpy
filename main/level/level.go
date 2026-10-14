@@ -87,6 +87,12 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "goodie_heart"
+  type: "factory"
+  data: "prototype: \"/main/goodies/heart/heart.go\"\n"
+  ""
+}
+embedded_components {
   id: "exit"
   type: "factory"
   data: "prototype: \"/main/exit/exit.go\"\n"

@@ -366,6 +366,48 @@ instances {
     y: 680.0
   }
 }
+instances {
+  id: "pi_l4"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l5"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l6"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l7"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l8"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l9"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
 # --- GAME OVER: плашка по центру поля, поверх всех объектов (z ближе к камере) ---
 instances {
   id: "game_over"

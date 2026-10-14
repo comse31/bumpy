@@ -23,7 +23,9 @@ local LIVES    = 3      -- default number of lives shown
 local DROP_POOL   = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
 local KEY_POOL    = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
 local HAMMER_POOL = { "pi_h1", "pi_h2", "pi_h3", "pi_h4", "pi_h5", "pi_h6" }
-local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3" }
+-- Life hearts: three starting lives plus room for bonus lives picked up in the
+-- level (goodies of kind 4), so the pool is larger than the default LIVES.
+local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3", "pi_l4", "pi_l5", "pi_l6", "pi_l7", "pi_l8", "pi_l9" }
 
 -- X coordinate of the i-th life heart (1-based, left to right); the group
 -- is pinned to the right edge of the strip.
@@ -41,6 +43,17 @@ local function set_lives(self, count)
             msg.post(id, "hide")
         end
     end
+end
+
+-- A bonus life (heart goodie, kind 4) was picked up at (x, y): show the newly
+-- gained heart in the next free slot, flying it in from the pickup point.
+-- Already-visible hearts stay in place; only the new rightmost one animates.
+local function add_life(self, x, y, count)
+    local i = math.max(1, count or 0)
+    local id = LIFE_POOL[i]
+    if not id then return end
+    local to = vmath.vector3(life_x(i), POCKET_Y, 0)
+    msg.post(id, "fly", { from = vmath.vector3(x or to.x, y or to.y, 0), to = to })
 end
 
 function init(self)
@@ -231,6 +244,8 @@ function on_message(self, message_id, message)
         remove(self, message.kind or 0)
     elseif message_id == hash("set_lives") then
         set_lives(self, math.max(0, message.count or LIVES))
+    elseif message_id == hash("add_life") then
+        add_life(self, message.x, message.y, message.count)
     elseif message_id == hash("set_items") then
         set_items(self, message.drops or 0, message.keys or 0, message.hammers or 0)
     end

@@ -187,8 +187,9 @@ end
 
 -- собрать goodies в ячейке: если объект существует и ещё не собран — отправить
 -- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
--- счётчик мяча: капли — pocket, ключи — key_pocket, собираемые для выхода —
--- collectibles (kind 2, открывают выход при наборе timer); возвращает true,
+-- счётчик мяча: капли — pocket, ключи — key_pocket, молотки — hammer_pocket,
+-- дополнительные жизни (сердечки, kind 4) — lives, собираемые для выхода —
+-- collectibles (kind 3, открывают выход при наборе timer); возвращает true,
 -- если goodies был собран. Предмет берётся только при фактическом касании:
 -- одной ячейки с мячом недостаточно (иначе берётся «не касаясь»).
 local function goodie_touched(id)
@@ -222,6 +223,14 @@ local function collect_goodie(self, row, col)
     -- (hammer.go), 3 — собираемый объект, открывающий выход (collectible.go);
     -- счётчики раздельные
     local kind_ok, kind = pcall(go.get, comp, "kind")
+    -- 4 — дополнительная жизнь (сердечко): увеличивает число жизней мяча и
+    -- отображается новым сердечком в кармане; в карман предметов не попадает
+    if kind_ok and kind == 4 then
+        self.lives = self.lives + 1
+        print(string.format("LIFE +1 total=%d cell=(%d, %d)", self.lives, col, row))
+        msg.post("/pocket", "add_life", { x = pos.x, y = pos.y, count = self.lives })
+        return true
+    end
     if kind_ok and kind == 3 then
         self.collectibles = self.collectibles + 1
         print(string.format("COLLECT %d/%d cell=(%d, %d)", self.collectibles, state.timer, col, row))
