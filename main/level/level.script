@@ -14,9 +14,11 @@
 --
 -- Соответствие кодов слоя lo оригинальной игры прототипам частично
 -- подтверждено по геймплею (см. origin/LEVELS.md): 2 — shrinkable,
--- 8 — горящая (burning), 10 — кирпичная стена (block). Остальные коды в
--- таблице PLATFORM_BY_CODE ниже — рабочая гипотеза; коды без сопоставления
--- создаются как обычная платформа, чтобы сохранить геометрию уровня.
+-- 3 — уменьшенная на одно значение shrinkable, 7 — наклонная вправо
+-- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block).
+-- Остальные коды в таблице PLATFORM_BY_CODE ниже — рабочая гипотеза; коды
+-- без сопоставления создаются как обычная платформа, чтобы сохранить
+-- геометрию уровня.
 --
 -- Вертикальные перегородки (стены) берутся из слоя hi метаданных: столбец gc
 -- описывает границу между вертикалями gc и gc+1, то есть b = gc + 1 — первый
@@ -43,15 +45,17 @@ go.property("level", 1)
 -- код слоя lo (0..12) -> id factory-компонента.
 -- 0 — пусто (платформа не создаётся).
 -- Подтверждено по геймплею: 2 — сжимающаяся (shrinkable) платформа,
+-- 3 — та же, но уже уменьшенная на одно значение (предварительно
+-- повреждённая, см. PLATFORM_DATA), 7 — наклонная вправо (sloped right),
 -- 8 — горящая (burning), 10 — кирпичная стена (block).
 local PLATFORM_BY_CODE = {
     [1] = "#platform_default",
     [2] = "#platform_shrinkable",
-    [3] = "#platform_sloped_left",
+    [3] = "#platform_shrinkable",
     [4] = "#platform_shrinkable",
     [5] = "#platform_sticky",
     [6] = "#platform_spike",
-    [7] = "#platform_burning",
+    [7] = "#platform_sloped_right",
     [8] = "#platform_burning",
     [9] = "#platform_default",
     [10] = "#platform_block",
@@ -74,6 +78,12 @@ local WALL_BY_CODE = {
 local WALL_DURABILITY = {
     [1] = 1, -- два удара получено
     [2] = 2, -- один удар получен
+}
+
+-- factory-данные для предварительно повреждённых платформ (коды lo):
+-- число уже полученных ударов (первое касание мяча не уменьшает их)
+local PLATFORM_DATA = {
+    [3] = { initial_hits = 1 }, -- shrinkable, уменьшенная на одно значение
 }
 
 -- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie).
@@ -147,7 +157,8 @@ local function spawn_platform(row, col, code)
         pos = vmath.vector3(cell_center_x(col), platform_y(row), 0.0)
         scale = PLATFORM_SCALE
     end
-    local id = factory.create(factory_id, pos, nil, nil, scale)
+    -- коды с предварительным повреждением передают данные в скрипт платформы
+    local id = factory.create(factory_id, pos, nil, PLATFORM_DATA[code], scale)
     state.platforms[row] = state.platforms[row] or {}
     state.platforms[row][col] = id
     return id

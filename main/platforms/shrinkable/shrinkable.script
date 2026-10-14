@@ -1,8 +1,11 @@
--- расходуемая (shrinkable) платформа: после каждого прыжка мяча на неё
+-- расходуемая (shrinkable) платформа: после каждого касания мяча
 -- платформа уменьшается по горизонтали (высота не меняется) с пружинным
 -- отскоком, а когда прочность исчерпана — исчезает
 -- (визуал сжимается в точку, коллизия отключается, и мяч проваливается)
-go.property("durability", 5) -- число прыжков мяча до исчезновения
+go.property("durability", 3) -- число касаний мяча до исчезновения
+-- удары, которые платформа уже получила в данных уровня (предварительное
+-- повреждение: код lo 3 — уменьшенная на одно значение)
+go.property("initial_hits", 0)
 
 local DAMPING = 0.1 -- постоянная затухания пружины
 local OMEGA = 2.0 * math.pi / 0.3 -- частота пружины (период ~0.3 с)
@@ -21,11 +24,16 @@ local function start_spring(self, target)
 end
 
 function init(self)
-    self.remaining = self.durability
-    self.scale = 1.0
-    self.target = 1.0
+    self.remaining = math.max(0, self.durability - self.initial_hits)
+    self.scale = self.remaining / self.durability
+    self.target = self.scale
     self.springing = false
     self.gone = false
+    if self.remaining <= 0 then
+        -- платформа уже «износилась» в данных уровня — исчезает сразу
+        self.gone = true
+        msg.post("#collision_object", "disable")
+    end
     apply(self)
 end
 
