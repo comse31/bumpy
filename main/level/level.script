@@ -16,10 +16,10 @@
 -- подтверждено по геймплею (см. origin/LEVELS.md): 2 — shrinkable,
 -- 3 — уменьшенная на одно значение shrinkable, 4 — shrinkable с двумя
 -- уменьшениями, 6 — наклонная влево (sloped left), 7 — наклонная вправо
--- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block).
--- Остальные коды в таблице PLATFORM_BY_CODE ниже — рабочая гипотеза; коды
--- без сопоставления создаются как обычная платформа, чтобы сохранить
--- геометрию уровня.
+-- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block),
+-- 12 — шипы (spike). Остальные коды в таблице PLATFORM_BY_CODE ниже —
+-- рабочая гипотеза; коды без сопоставления создаются как обычная
+-- платформа, чтобы сохранить геометрию уровня.
 --
 -- Вертикальные перегородки (стены) берутся из слоя hi метаданных: столбец gc
 -- описывает границу между вертикалями gc и gc+1, то есть b = gc + 1 — первый
@@ -27,6 +27,11 @@
 -- последний столбец всегда пуст). Коды: 3 — целая разрушаемая, 4 —
 -- неразрушаемая, 2 — разрушаемая с одним ударом, 1 — с двумя (см.
 -- origin/LEVELS.md).
+--
+-- По внешним границам поля (b = 0 и b = COLS) всегда создаются статичные
+-- стеклянные перегородки border: в метаданных их нет, они есть на каждом
+-- уровне во всех рядах и не разрушаются. Регистрация в state.walls делает
+-- мяч отскакивать от края поля (см. ball.script).
 
 local state = require("main.level.level_state")
 
@@ -50,7 +55,9 @@ go.property("level", 1) -- TEMP-TEST: вернуть 1 после проверк
 -- 3 — та же, но уже уменьшенная на одно значение (предварительно
 -- повреждённая, см. PLATFORM_DATA), 4 — сжимающаяся с двумя уменьшениями
 -- (durability 2), 6 — наклонная влево (sloped left), 7 — наклонная вправо
--- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block).
+-- (sloped right), 8 — горящая (burning), 10 — кирпичная стена (block),
+-- 12 — шипы (spike): контакт мяча с платформой лопает мяч (см. is_spike
+-- в ball.script).
 local PLATFORM_BY_CODE = {
     [1] = "#platform_default",
     [2] = "#platform_shrinkable",
@@ -62,7 +69,7 @@ local PLATFORM_BY_CODE = {
     [8] = "#platform_burning",
     [9] = "#platform_default",
     [10] = "#platform_block",
-    [12] = "#platform_default",
+    [12] = "#platform_spike",
 }
 
 -- код слоя hi (0..4) -> id factory-компонента перегородки.
@@ -208,6 +215,18 @@ local function spawn_wall(row, b, code)
     return id
 end
 
+-- статичная стеклянная перегородка по внешней границе поля (b = 0 или b = COLS):
+-- геометрия и масштаб те же, что у стен из слоя hi; в levels.json их нет —
+-- они создаются всегда, для каждого ряда, во всех уровнях. Без компонента
+-- #destructible мяч считает её неразрушаемой (см. is_wall_destroyed в ball.script)
+local function spawn_border(row, b)
+    local pos = vmath.vector3(b * CELL_W, platform_y(row) + 20.0 * WALL_SCALE.y, 0.0)
+    local id = factory.create("#wall_border", pos, nil, nil, WALL_SCALE)
+    state.walls[row] = state.walls[row] or {}
+    state.walls[row][b] = id
+    return id
+end
+
 -- выход в финишной ячейке: скрыт, пока мяч не собрал timer объектов
 local function spawn_exit(cell)
     local gr, gc = grid_of(cell)
@@ -291,6 +310,11 @@ local function build_level(self)
                 end
             end
         end
+    end
+    -- стеклянные перегородки по внешним границам поля: всегда, во всех рядах
+    for row = 0, ROWS - 1 do
+        spawn_border(row, 0)
+        spawn_border(row, COLS)
     end
     for gr = 0, ROWS - 1 do
         for gc = 0, COLS - 1 do

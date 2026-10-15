@@ -63,6 +63,12 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "wall_border"
+  type: "factory"
+  data: "prototype: \"/main/walls/border/border.go\"\n"
+  ""
+}
+embedded_components {
   id: "goodie_drop"
   type: "factory"
   data: "prototype: \"/main/goodies/drop/drop.go\"\n"
