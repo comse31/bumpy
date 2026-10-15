@@ -17,6 +17,13 @@ local RADIUS = SIZE / 2.0
 -- предмет (goodies) — спрайт 32x32, как и мяч; сбор идёт только при касании
 local GOODIE_HALF = 16.0
 
+-- табличка EXIT (текстура main/exit/exit.png): размеры в мировых пикселях,
+-- см. spawn_exit в level.script. У таблички нет физического collision object,
+-- чтобы она не блокировала траекторию мяча, поэтому контакт с ней проверяется
+-- геометрически каждый кадр
+local EXIT_SIGN_HALF_W = 60.0 -- половина ширины таблички
+local EXIT_SIGN_HALF_H = 40.0 -- половина высоты таблички
+
 -- число жизней на старте; теряется при контакте с шипами/горящей платформой
 -- или при падении за пределы поля, HUD-карман рисует их сердечками
 local START_LIVES = 3
@@ -199,6 +206,18 @@ local function goodie_touched(id)
     local bpos = go.get_position()
     local cx = vmath.clamp(bpos.x, gpos.x - GOODIE_HALF, gpos.x + GOODIE_HALF)
     local cy = vmath.clamp(bpos.y, gpos.y - GOODIE_HALF, gpos.y + GOODIE_HALF)
+    local dx = bpos.x - cx
+    local dy = bpos.y - cy
+    return dx * dx + dy * dy <= RADIUS * RADIUS
+end
+
+-- касается ли мяч таблички EXIT (прямоугольник вокруг её центра): ближайшая
+-- к центру мяча точка прямоугольника
+local function exit_touched(id)
+    local spos = go.get(id, "position")
+    local bpos = go.get_position()
+    local cx = vmath.clamp(bpos.x, spos.x - EXIT_SIGN_HALF_W, spos.x + EXIT_SIGN_HALF_W)
+    local cy = vmath.clamp(bpos.y, spos.y - EXIT_SIGN_HALF_H, spos.y + EXIT_SIGN_HALF_H)
     local dx = bpos.x - cx
     local dy = bpos.y - cy
     return dx * dx + dy * dy <= RADIUS * RADIUS
@@ -994,6 +1013,17 @@ function update(self, dt)
     if not self.game_over then
         local crow, ccol = cell_at(go.get_position())
         collect_goodie(self, crow, ccol)
+    end
+
+    -- событие выхода: ЛЮБОЙ контакт мяча с табличкой EXIT завершает уровень —
+    -- как при приземлении на платформу в финишной ячейке, так и при пролёте
+    -- через ячейку без платформы (геометрическая проверка круг × прямоугольник)
+    if self.exit_open and not self.level_complete and state.exit_id then
+        if exit_touched(state.exit_id) then
+            self.level_complete = true
+            print("ball touched exit sign: level complete")
+            msg.post("/level", "level_complete")
+        end
     end
 end
 

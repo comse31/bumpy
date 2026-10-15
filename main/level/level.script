@@ -227,12 +227,24 @@ local function spawn_border(row, b)
     return id
 end
 
--- выход в финишной ячейке: скрыт, пока мяч не собрал timer объектов
+-- выход в финишной ячейке: табличка с надписью EXIT в рамке (текстура
+-- main/exit/exit.png генерируется tools/gen_exit_sign.py), скрыта, пока мяч не
+-- собрал timer объектов. Размер таблички уместается в игровой ячейку, не
+-- наезжая на платформу снизу (низ — на верхней грани платформы этой ячейки или
+-- виртуальную поверхность, если платформы нет) и на вертикальные перегородки
+-- по бокам (отступ 20 px против выступа перегородки 10 px)
+local EXIT_SIGN_W = 120.0 -- ширина таблички в мировых пикселях
+local EXIT_SIGN_H = 80.0  -- высота таблички в мировых пикселях
+local EXIT_TEX_W = 240.0  -- родной размер текстуры (см. tools/gen_exit_sign.py)
+local EXIT_TEX_H = 160.0
+
 local function spawn_exit(cell)
     local gr, gc = grid_of(cell)
     local row = screen_row(gr)
-    local y = platform_y(row) + CELL_H / 2.0
-    return factory.create("#exit", vmath.vector3(cell_center_x(gc), y, 0.0))
+    -- центр таблички: низ на верхней грани платформы ряда (platform_y + PLATFORM_H/2)
+    local y = platform_y(row) + PLATFORM_H / 2.0 + EXIT_SIGN_H / 2.0
+    local scale = vmath.vector3(EXIT_SIGN_W / EXIT_TEX_W, EXIT_SIGN_H / EXIT_TEX_H, 1.0)
+    return factory.create("#exit", vmath.vector3(cell_center_x(gc), y, 0.0), nil, nil, scale)
 end
 
 -- прочитать и декодировать main/levels.json (custom resource)
