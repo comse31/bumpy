@@ -1,6 +1,7 @@
 # Defold build output and caches
 /.internal/
 /build/
+/dist/
 
 # Extracted / generated tools (e.g. unpacked Defold editor jar)
 tools/jar_extract/

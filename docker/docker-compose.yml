@@ -1,0 +1,12 @@
+name: bumpy
+
+services:
+  bumpy-web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: bumpy-web:latest
+    container_name: bumpy-web
+    ports:
+      - "8080:80"
+    restart: unless-stopped

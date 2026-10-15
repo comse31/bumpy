@@ -15,8 +15,8 @@ components {
   component: "/main/platforms/sloped/sloped.script"
   properties {
     id: "direction"
+    value: "0.0"
     type: PROPERTY_TYPE_NUMBER
-    value: "0"
   }
 }
 components {
@@ -24,7 +24,7 @@ components {
   component: "/main/platforms/sticky/sticky.script"
   properties {
     id: "sticky"
+    value: "0.0"
     type: PROPERTY_TYPE_NUMBER
-    value: "0"
   }
 }

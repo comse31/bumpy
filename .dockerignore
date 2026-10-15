@@ -1,0 +1,27 @@
+# Keep the Docker build context minimal. Only the HTML5 bundle (dist/web)
+# and docker/ files are actually needed by docker/Dockerfile.
+
+# Defold project sources and editor state
+main/
+input/
+origin/
+tools/
+com/
+org/
+google/
+*.project
+*.collection
+*.script
+*.lua
+*.go
+*.atlas
+*.sprite
+
+.internal/
+build/
+dist/*.json
+
+.vscode/
+.git/
+.gitignore
+*.log
