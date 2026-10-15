@@ -247,6 +247,29 @@ local function spawn_exit(cell)
     return factory.create("#exit", vmath.vector3(cell_center_x(gc), y, 0.0), nil, nil, scale)
 end
 
+-- платформа в финишной ячейке исчезает при появлении выхода: снимаем её из
+-- реестра (мяч больше не может опираться на неё — см. platform_id в ball.script)
+-- и удаляем объект (go.delete отложен до конца кадра)
+local function remove_exit_platform()
+    local gr, gc = grid_of(state.exit_cell)
+    local row = screen_row(gr)
+    local id = state.platform_id(row, gc)
+    if not id then
+        return
+    end
+    state.platforms[row][gc] = nil
+    go.delete(id)
+end
+
+-- открыть выход: включить табличку EXIT и убрать платформу в её ячейке
+local function open_exit()
+    if not state.exit_id then
+        return
+    end
+    msg.post(state.exit_id, "open")
+    remove_exit_platform()
+end
+
 -- прочитать и декодировать main/levels.json (custom resource)
 local function load_model()
     local data, err = sys.load_resource(LEVELS_PATH)
@@ -343,9 +366,9 @@ local function build_level(self)
     end
 
     state.exit_id = spawn_exit(lvl.timer_cell)
-    -- если собирать нечего — выход открыт сразу
+    -- если собирать нечего — выход открыт сразу (табличка + снятие платформы)
     if state.timer <= 0 then
-        msg.post(state.exit_id, "open")
+        open_exit()
     end
 
     print(string.format("LEVEL %d loaded (theme %d): %d platforms, %d walls, %d goodies, start=%d exit=%d timer=%d",
@@ -396,7 +419,11 @@ function on_message(self, message_id, message, sender)
     if not self.model then
         return
     end
-    if message_id == hash("level_complete") then
+    if message_id == hash("exit_open") then
+        -- мяч собрал timer объектов: включить табличку и убрать платформу
+        -- в финишной ячейке
+        open_exit()
+    elseif message_id == hash("level_complete") then
         -- следующий уровень по кругу (после последнего — снова первый)
         self.level = (self.level % self.model.level_count) + 1
         load(self)

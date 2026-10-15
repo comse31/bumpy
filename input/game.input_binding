@@ -18,10 +18,6 @@ key_trigger {
   input: KEY_T
   action: "switch"
 }
-mouse_trigger {
-  input: MOUSE_BUTTON_LEFT
-  action: "jump"
-}
 touch_trigger {
   input: TOUCH_MULTI
   action: "jump"

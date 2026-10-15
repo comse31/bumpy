@@ -192,13 +192,14 @@ local function is_exit_cell(row, col)
     return row == er and col == ec
 end
 
--- открыть выход уровня: вызывается, когда собрано timer объектов
+-- открыть выход уровня: вызывается, когда собрано timer объектов.
+-- Табличку включает и снимает платформу в финишной ячейке level.script
+-- (сообщение "exit_open"), чтобы появление выхода не зависело от порядка
+-- инициализации и работало и для уровней без собираемых объектов
 local function open_exit(self)
     if self.exit_open then return end
     self.exit_open = true
-    if state.exit_id then
-        msg.post(state.exit_id, "open")
-    end
+    msg.post("/level", "exit_open")
     print("EXIT open: cell=" .. tostring(state.exit_cell))
 end
 
