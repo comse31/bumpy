@@ -67,12 +67,20 @@ docker\export-image.cmd
 
 Ручной вариант:
 ```bash
+# сжатый архив (~23 МБ)
 docker save bumpy-web:latest -o dist/bumpy-web-image.tar
 tar -czf dist/bumpy-web-image.tar.gz -C dist bumpy-web-image.tar
+
+# либо сразу несжатый .tar (~54 МБ)
+docker save bumpy-web:latest -o dist/bumpy-web-image.tar
 ```
 
-Полученный [`dist/bumpy-web-image.tar.gz`](dist/bumpy-web-image.tar.gz) (~23 МБ) — то,
-что передаётся получателю (например, через файлообменник или `scp`).
+В [`dist/`](dist) лежат оба варианта:
+- [`dist/bumpy-web-image.tar`](dist/bumpy-web-image.tar) — несжатый образ (`docker save`), ~54 МБ;
+- [`dist/bumpy-web-image.tar.gz`](dist/bumpy-web-image.tar.gz) — сжатый образ, ~23 МБ.
+
+Оба подходят для передачи (например, через файлообменник или `scp`). Несжатый `.tar`
+загружается командой `docker load -i dist/bumpy-web-image.tar` напрямую, без распаковки.
 
 ### Импорт и запуск на другой машине
 
