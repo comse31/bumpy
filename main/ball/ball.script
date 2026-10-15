@@ -71,10 +71,6 @@ local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
 local MOVE_DURATION = 0.25
--- скатывание мяча с липкой платформы на соседнюю: длительность подката к
--- перегородке (туда и обратно) и высота «дуги» переката (мяч почти не отрывается)
-local ROLL_DURATION = 0.22
-local ROLL_LIFT = 6.0
 
 -- общие значения, которые нужны героям; передаются им в setup
 local ENV = {
@@ -95,7 +91,6 @@ local function toggle_character(self)
     self.sticky_rest = false
     self.sticky_action_used = false
     self.sticky_cell = nil
-    self.sticky_high_jump_ok = false
     self.high_jump_locked = false
     self.hero.activate(self)
     print("CHARACTER: " .. self.character)
@@ -148,9 +143,9 @@ local function slope_direction(row, col)
 end
 
 -- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
--- на ней мяч не пружинит — лежит на поверхности, высокий прыжок возможен только
--- при падении на неё с уровня выше (sticky_high_jump_ok) и только при первом
--- касании, дальше мяч может лишь скатиться (см. roll_off)
+-- на ней мяч не пружинит — лежит на поверхности и ждёт команды игрока:
+-- влево/вправо — обычный соскок на соседнюю ячейку, а высокий прыжок доступен
+-- только в момент первого касания (пока мяч лежит — высоко не прыгает)
 local function is_sticky(row, col)
     local id = platform_id(row, col)
     if not id then return false end
@@ -417,18 +412,6 @@ local function is_block_top(row, col)
     return row > 0 and has_block(row - 1, col)
 end
 
--- есть ли ниже в колонке col опора (платформа или верх кладки), на которую мяч
--- упадёт, скатившись с липкой платформы в пустую соседнюю ячейку. Идём сверху
--- вниз и останавливаемся на первой опоре — именно на неё мяч и приземлится
-local function has_support_below(row, col)
-    for r = row - 1, 0, -1 do
-        if platform_id(r, col) or has_block(r, col) then
-            return true
-        end
-    end
-    return false
-end
-
 -- приземление без команды игрока: обычный герой пружинит (settle), а мяч на
 -- липкой поверхности не прыгает — просто лежит на ней и ждёт команды игрока
 local function settle_or_stick(self)
@@ -525,7 +508,6 @@ local function land_on_block_top(self)
     -- кладка не липкая: покой снимается
     self.sticky_rest = false
     self.sticky_cell = nil
-    self.sticky_high_jump_ok = false
     self.press_used = false
     self.block_top_time = self.time
     go.set_position(vmath.vector3(column_center(self.col), land_y, pos.z))
@@ -766,7 +748,8 @@ end
 
 -- высокий прыжок: постоянное движение вверх до платформы снизу или верхнего края
 -- поля; во время полёта можно запрыгнуть на соседнюю ячейку любого ряда.
--- Используется и с обычной платформы, и при первом касании липкой
+-- Используется и с обычной платформы, и с липкой (там высокий прыжок доступен
+-- и при параллельном перемещении — см. sticky.script)
 local function start_high_jump(self)
     bend_platform(self, self.row, self.col)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
@@ -779,70 +762,6 @@ local function start_high_jump(self)
     -- первый уровень для проверки пересечения — над текущим рядом
     self.hj_row = self.row + 1
     self.next_touch_time = self.time + high_jump_touch_time(self)
-end
-
--- скатывание мяча с липкой платформы: мяч не прыгает, а перекатывается к центру
--- соседней ячейки. Если путь преграждает перегородка или стена (блок) — мяч
--- подкатывается к препятствию и возвращается в центр своей платформы
-local function roll_off(self, direction)
-    local old_col = self.col
-    local target = old_col + direction
-    -- перегородка на границе: скатиться сквозь неё нельзя
-    local blocked = (direction > 0 and has_wall_right(self.row, old_col))
-        or (direction < 0 and has_wall_left(self.row, old_col))
-    -- стена (блок) в целевой ячейке: сквозь неё тоже не скатиться
-    local block_ahead = not blocked and has_block(self.row, target)
-    -- есть ли вообще куда скатываться: платформа (или верх кладки) в целевой
-    -- ячейке, либо любая опора ниже в этой колонке — тогда мяч скатывается с
-    -- края липкой платформы и падает на уровень вниз. Если под соседней ячейкой
-    -- опоры нет — скатываться некуда, мяч остаётся на липкой платформе
-    -- (иначе он просто упал бы в пустоту и погиб)
-    local landable = platform_id(self.row, target) ~= nil
-        or (self.row > 0 and has_block(self.row - 1, target))
-        or has_support_below(self.row, target)
-    if not blocked and not block_ahead and not landable then
-        print(string.format("STICK roll: nowhere to roll dir=%d col=%d row=%d", direction, old_col, self.row))
-        return
-    end
-    if blocked or block_ahead then
-        local target_x
-        self.bounce_hit_pending = false
-        if blocked then
-            local wall_x = (direction > 0 and (old_col + 1) or old_col) * CELL_W
-            -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT
-            target_x = wall_x - direction * (RADIUS * (1.0 - SQUASH_AMOUNT) + WALL_THICKNESS / 2.0)
-            -- удар по разрушаемой перегородке — в момент касания (середина пути)
-            self.bounce_hit_pending = true
-            self.bounce_hit_dir = direction
-        else
-            -- боковая грань блока: центр соседней ячейки ∓ полуширина кладки
-            local face_x = column_center(old_col + direction) - direction * BLOCK_HALF_W
-            target_x = face_x - direction * RADIUS * (1.0 - SQUASH_AMOUNT)
-        end
-        print(string.format("STICK roll blocked dir=%d col=%d row=%d", direction, old_col, self.row))
-        self.bounce_x_start = go.get_position().x
-        self.bounce_x_wall = target_x
-        self.bounce_x_end = column_center(old_col)
-        self.bounce_duration = ROLL_DURATION
-        self.bounce_t = ROLL_DURATION
-        self.bounce_squash_pending = true
-        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-        self.action_time = self.time
-        self.next_touch_time = self.time + ROLL_DURATION
-        self.hero.on_action(self, direction, ROLL_DURATION)
-        return
-    end
-    -- обычное скатывание: маленький подскок (мяч почти не отрывается от
-    -- поверхности) и смещение к центру соседней ячейки; приземление туда
-    -- обработает обычный контакт (как после прыжка)
-    self.col = self.col + direction
-    self.sticky_rest = false
-    print(string.format("STICK roll dir=%d col %d->%d", direction, old_col, self.col))
-    local vy = math.sqrt(2.0 * GRAVITY * ROLL_LIFT)
-    local t_land = landing_time(self, vy)
-    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
-    move(self, direction, move_duration_for(t_land))
-    self.next_touch_time = self.time + t_land
 end
 
 -- направление удерживаемой клавиши; если нажаты обе — смещения нет
@@ -892,18 +811,14 @@ function init(self)
     self.rising = false
     self.high_jump = false
     -- липкая поверхность: мяч лежит на ней (sticky_rest) и за одно касание может
-    -- совершить РОВНО одно действие — высокий прыжок ИЛИ скатывание
+    -- совершить РОВНО одно действие — высокий прыжок ИЛИ соскок в сторону
     -- (sticky_action_used); sticky_cell — ячейка липкой платформы, к которой мяч
-    -- уже прилипал (чтобы возврат на неё после отбитого перегородкой скатывания
-    -- не считался новым касанием); sticky_high_jump_ok — высокий прыжок с липкой
-    -- платформы разрешён только при падении на неё с уровня выше (при
-    -- параллельном перемещении с платформы того же ряда мяч лишь прилипает);
+    -- уже прилипал (чтобы возврат на неё не считался новым касанием);
     -- high_jump_locked — верх кирпичной кладки: мяч пружинит как обычно, но
     -- высоко не прыгает
     self.sticky_rest = false
     self.sticky_action_used = false
     self.sticky_cell = nil
-    self.sticky_high_jump_ok = false
     self.high_jump_locked = false
     self.hj_row = nil
     -- стартовая ячейка по умолчанию (уровень 1); level.script уточнит её
@@ -1030,25 +945,27 @@ function update(self, dt)
     -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
     -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
     -- момент, пока он находится в покое. На липкой поверхности мяч лежит и ждёт
-    -- команды: влево/вправо для него — скатывание, а не прыжок
+    -- команды: влево/вправо для него — соскок на соседнюю ячейку
     local dir = held_direction(self)
     -- сброс блокировки действия при отпускании клавиши: удержание даёт ровно
-    -- одно скатывание/прыжок, следующее — только по новому нажатию
+    -- одно действие (соскок/прыжок), следующее — только по новому нажатию
     if dir == 0 and not self.jump_held then
         self.sticky_action_used = false
     end
-    -- команды не принимаются в середине действия (скатывание/отскок): X уже
+    -- команды не принимаются в середине действия (соскок/отскок): X уже
     -- доводится до цели, новое нажатие иначе удвоило бы смещение
     if dir ~= 0 and not self.press_used and not self.high_jump
         and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
         if self.sticky_rest then
-            -- мяч лежит на липкой платформе: влево/вправо не прыжок, а
-            -- скатывание на соседнюю платформу (или возврат в центр, если
-            -- мешает перегородка). За одно касание — ровно одно действие
+            -- мяч лежит на липкой платформе: влево/вправо — обычный соскок на
+            -- соседнюю ячейку (мяч отталкивается и прыгает, а не скатывается).
+            -- За одно касание — ровно одно действие
             if not self.sticky_action_used then
                 self.sticky_action_used = true
+                self.sticky_rest = false
                 self.pending_dir = 0
-                roll_off(self, dir)
+                hop_and_move(self, dir)
+                self.press_used = true
             end
         else
             local since_touch = self.time - self.touch_time
@@ -1076,24 +993,21 @@ function update(self, dt)
 
     -- высокий прыжок: то же окно threshold вокруг касания, что и смещение —
     -- учитывается состояние клавиши (нажата/отжата), а не событие нажатия.
-    -- На липкой поверхности он доступен ТОЛЬКО сразу при первом касании: покой
-    -- sticky_rest в from_rest НЕ входит (иначе после «отлёживания» снова
-    -- открывался бы высокий прыжок), а израсходованное за касание действие
-    -- запрещает sticky_action_used
+    -- На липкой поверхности высокий прыжок доступен ТОЛЬКО в момент первого
+    -- касания: как при падении на неё с уровня выше, так и при параллельном
+    -- перемещении с платформы того же ряда. Пока мяч лежит (sticky_rest) —
+    -- высоко не прыгает
     local from_rest = self.hero.allow_from_rest(self)
     -- высокий прыжок запрещён на верху кирпичной кладки (high_jump_locked) и
-    -- на липкой платформе, если действие за это касание уже израсходовано либо
-    -- мяч пришёл на неё не падением сверху (sticky_high_jump_ok)
+    -- на липкой платформе, если действие за это касание уже израсходовано
     local can_high_jump = not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used)
-        and not (self.sticky_rest and not self.sticky_high_jump_ok)
     if self.jump_held and not self.press_used and not self.high_jump and can_high_jump
         and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD or from_rest then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас;
-            -- на липкой поверхности это разрешено только при первом касании и
-            -- расходует единственное действие за это касание
+            -- на липкой поверхности расходует единственное действие за касание
             if self.sticky_rest then
                 self.sticky_action_used = true
                 self.sticky_rest = false
@@ -1268,7 +1182,6 @@ function on_message(self, message_id, message, sender)
         self.sticky_rest = false
         self.sticky_action_used = false
         self.sticky_cell = nil
-        self.sticky_high_jump_ok = false
         self.high_jump_locked = false
         -- удержания клавиш с момента смерти не переносятся на новый уровень:
         -- иначе нажатие Space в момент потери жизни запускало высокий прыжок
@@ -1344,9 +1257,6 @@ function on_message(self, message_id, message, sender)
         end
         self.touch_time = self.time
         -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
-        -- prev_row — ряд, с которого мяч пришёл: нужен, чтобы отличить падение
-        -- на липкую платформу с уровня выше от параллельного перемещения
-        local prev_row = self.row
         self.row = row
         self.ground_y = BOUNCE_Y[row]
         -- шипы: контакт всегда разрушает мяч — теряется жизнь
@@ -1378,29 +1288,23 @@ function on_message(self, message_id, message, sender)
         -- всегда, но высокий прыжок с неё запрещён (high_jump_locked)
         self.high_jump_locked = is_block_top(row, self.col)
         -- липкая (закрашенная) платформа: мяч не пружинит — лежит на ней и ждёт
-        -- команды игрока. Высокий прыжок доступен только при падении на неё с
-        -- уровня выше и только при первом касании; при параллельном перемещении
-        -- с платформы того же ряда мяч прилипает и может лишь скатиться (roll_off)
+        -- команды игрока. Высокий прыжок доступен всегда, а влево/вправо дают
+        -- обычный соскок на соседнюю ячейку (мяч не скатывается, а прыгает)
         go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
         self.high_jump = false
         local sticky_here = self.hero.sticks_on_platform and is_sticky(row, self.col)
         if sticky_here then
             local cell = row * COLS + self.col
             -- новое касание этой липкой платформы: снова доступно одно действие;
-            -- возврат на ту же ячейку (отбитое скатывание) — не новое касание
+            -- возврат на ту же ячейку — не новое касание
             if self.sticky_cell ~= cell then
                 self.sticky_action_used = false
                 self.sticky_cell = cell
-                -- высокий прыжок разрешён только при падении на липкую платформу
-                -- с уровня выше (prev_row > row): при параллельном перемещении с
-                -- платформы того же ряда мяч лишь прилипает и может скатиться
-                self.sticky_high_jump_ok = prev_row > row
             end
             self.sticky_rest = true
         else
             self.sticky_rest = false
             self.sticky_cell = nil
-            self.sticky_high_jump_ok = false
         end
         -- приземление после смены траектории высокого прыжка: дополнительное
         -- управляемое смещение в этом цикле запрещено, но наклонная платформа
@@ -1446,21 +1350,22 @@ function on_message(self, message_id, message, sender)
             end
         elseif direction ~= 0 then
             if self.sticky_rest then
-                -- на липкой платформе удержанная в момент касания клавиша тоже
-                -- даёт скатывание (а не прыжок) и расходует действие за касание
+                -- на липкой платформе удержанная в момент касания клавиша даёт
+                -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
+                -- действие за это касание
                 self.sticky_action_used = true
-                roll_off(self, direction)
-            elseif hop_and_move(self, direction) then
+                self.sticky_rest = false
+            end
+            if hop_and_move(self, direction) then
                 self.press_used = true
             end
         elseif (self.jump_held or self.pending_jump)
             and not self.high_jump_locked
-            and not (self.sticky_rest and self.sticky_action_used)
-            and not (self.sticky_rest and not self.sticky_high_jump_ok) then
+            and not (self.sticky_rest and self.sticky_action_used) then
             -- высокий прыжок: постоянное движение вверх до платформы снизу или
             -- верхнего края поля; во время полёта можно запрыгнуть на соседнюю
-            -- ячейку любого ряда. На липкой поверхности доступен только при
-            -- первом касании — дальше действие за касание уже израсходовано
+            -- ячейку любого ряда. На липкой поверхности доступен, пока действие
+            -- за касание не израсходовано
             if self.sticky_rest then
                 self.sticky_action_used = true
                 self.sticky_rest = false
