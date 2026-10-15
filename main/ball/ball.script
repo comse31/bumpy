@@ -5,7 +5,7 @@ local hero_ball = require("main.ball.hero_ball")
 local hero_slinky = require("main.ball.hero_slinky")
 
 local SIZE = 32.0
-local BPM = 80.0
+local BPM = 120.0
 
 -- сетка игрового экрана 6 на 6
 local COLS = 6
