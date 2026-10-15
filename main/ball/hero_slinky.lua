@@ -225,6 +225,10 @@ function M.hop_height(self)
     return SLINKY_STEP_LIFT
 end
 
+-- Slinky к липкой платформе не прилипает: она для него обычная (пружинка
+-- отскакивает по своему закону, вести себя как мяч на липкой он не должен)
+M.sticks_on_platform = false
+
 -- длительность бокового шага: Slinky перекатывается на 20% медленнее
 function M.step_scale(self)
     return SLINKY_STEP_SCALE

@@ -55,6 +55,10 @@ function M.hop_height(self)
     return self.env.hop_height
 end
 
+-- мячик «прилипает» к липкой (закрашенной) платформе: не пружинит, лежит на
+-- ней и может лишь скатиться (см. roll_off в ball.script)
+M.sticks_on_platform = true
+
 -- длительность бокового шага мячика: без изменений
 function M.step_scale(self)
     return 1.0
@@ -70,8 +74,11 @@ function M.allow_from_rest(self)
     return false
 end
 
+-- мяч лежит на липкой поверхности: повторные контакты Box2D (шар не отрывается
+-- от платформы) игнорируем — иначе каждые CONTACT_DEDUP секунд мяч «приземлялся»
+-- бы заново и заново запускал скатывание при удержании клавиши
 function M.ignore_contacts(self)
-    return false
+    return self.sticky_rest == true
 end
 
 -- началось действие (шаг/отскок/прыжок): direction/duration заданы для

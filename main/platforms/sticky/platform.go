@@ -16,6 +16,10 @@ components {
   }
 }
 components {
+  id: "bend"
+  component: "/main/platforms/platform.script"
+}
+components {
   id: "slope"
   component: "/main/platforms/sloped/sloped.script"
   properties {
