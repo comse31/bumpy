@@ -1104,7 +1104,8 @@ function on_message(self, message_id, message, sender)
         local side = message.normal.y > 0.0 and "сверху" or "снизу"
         print(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
         -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает;
-        -- платформа при этом упруго прогибается вверх (удар снизу)
+        -- платформа при этом упруго прогибается вверх (удар снизу). Шипы опасны
+        -- и снизу: контакт с нижней гранью тоже лопает мяч.
         if message.normal.y <= 0.0 then
             self.rising = false
             self.high_jump = false
@@ -1112,6 +1113,10 @@ function on_message(self, message_id, message, sender)
             self.squash = 1.0
             self.squash_axis = "y"
             self.hero.apply_squash(self)
+            if is_spike(row, self.col) then
+                lose_life(self, "spikes")
+                return
+            end
             return
         end
         -- приземление точно в центр платформы; пока смещение идёт,
