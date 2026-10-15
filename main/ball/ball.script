@@ -263,6 +263,9 @@ end
 local function extinguish_burning(self, row, col)
     local id = platform_id(row, col)
     if not id then return false end
+    -- без капли гасить нечем: контакт с горящей платформой разрушает мяч
+    -- (счётчик кармана не может стать отрицательным)
+    if self.pocket <= 0 then return false end
     msg.post(id, "extinguish")
     self.pocket = self.pocket - 1
     print(string.format("POCKET -1 total=%d cell=(%d, %d): burning platform extinguished", self.pocket, col, row))
@@ -1003,21 +1006,25 @@ function on_input(self, action_id, action)
         end
         return
     end
-    -- отслеживаем только состояние клавиш: нажата / отжата
+    -- отслеживаем только состояние клавиш: нажата / отжата. Флаг «удерживается»
+    -- ставится только по свежему нажатию (pressed), а не по повторам (repeated):
+    -- удержание в момент потери жизни иначе переносится на перезапуск уровня —
+    -- пока клавиша физически зажата, repeated-события снова включают флаг, и
+    -- мяч запускает высокий прыжок при каждом отскоке нового уровня
     if action_id == hash("jump") then
-        if action.pressed or action.repeated then
+        if action.pressed then
             self.jump_held = true
         elseif action.released then
             self.jump_held = false
         end
     elseif action_id == hash("right") then
-        if action.pressed or action.repeated then
+        if action.pressed then
             self.right_held = true
         elseif action.released then
             self.right_held = false
         end
     elseif action_id == hash("left") then
-        if action.pressed or action.repeated then
+        if action.pressed then
             self.left_held = true
         elseif action.released then
             self.left_held = false
@@ -1059,6 +1066,12 @@ function on_message(self, message_id, message, sender)
         self.pending_dir = 0
         self.pending_jump = false
         self.sticky_locked = false
+        -- удержания клавиш с момента смерти не переносятся на новый уровень:
+        -- иначе нажатие Space в момент потери жизни запускало высокий прыжок
+        -- сразу после перезапуска, и мяч прыгал высоко при каждом отскоке
+        self.jump_held = false
+        self.left_held = false
+        self.right_held = false
         -- сбросить привязку «молоток потрачен на стену»: после пересборки
         -- уровня у стен новые id, и молоток снова тратится на первый удар
         self.hammer_wall_id = nil
