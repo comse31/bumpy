@@ -47,7 +47,7 @@ local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
 
 local LEVELS_PATH = "/main/levels.json"
 
-go.property("level", 11) -- TEMP-TEST: вернуть 1 после проверки
+go.property("level", 1) -- TEMP-TEST: вернуть 1 после проверки
 
 -- код слоя lo (0..12) -> id factory-компонента.
 -- 0 — пусто (платформа не создаётся).
