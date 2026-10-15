@@ -47,14 +47,72 @@ docker run --rm -p 8080:80 bumpy-web
 bash docker/build-and-run.sh
 ```
 
+## 3. Передача образа архивом
+
+Если нужно передать игру на другую машину без исходников и сборки — экспортируйте
+готовый образ в архив.
+
+### Экспорт
+
+Linux/macOS (bash):
+```bash
+bash docker/export-image.sh
+# -> dist/bumpy-web-image.tar.gz
+```
+
+Windows (cmd):
+```bat
+docker\export-image.cmd
+```
+
+Ручной вариант:
+```bash
+docker save bumpy-web:latest -o dist/bumpy-web-image.tar
+tar -czf dist/bumpy-web-image.tar.gz -C dist bumpy-web-image.tar
+```
+
+Полученный [`dist/bumpy-web-image.tar.gz`](dist/bumpy-web-image.tar.gz) (~23 МБ) — то,
+что передаётся получателю (например, через файлообменник или `scp`).
+
+### Импорт и запуск на другой машине
+
+Требуется только Docker (без Node.js, Defold и исходников).
+
+Linux/macOS (bash):
+```bash
+bash docker/load-image.sh dist/bumpy-web-image.tar.gz
+```
+
+Windows (cmd):
+```bat
+docker\load-image.cmd dist\bumpy-web-image.tar.gz
+```
+
+Ручной вариант:
+```bash
+tar -xzf dist/bumpy-web-image.tar.gz -C dist
+docker load -i dist/bumpy-web-image.tar
+docker run -d --name bumpy-web -p 8080:80 bumpy-web:latest
+```
+
+Либо через compose с уже загруженным образом:
+```bash
+docker compose -f docker/docker-compose.image.yml up -d
+```
+
+Открыть <http://localhost:8080>.
+
 ## Структура
 
 | Файл | Назначение |
 |------|------------|
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
 | [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
-| [`docker/docker-compose.yml`](docker/docker-compose.yml) | Проброс порта `8080:80` |
+| [`docker/docker-compose.yml`](docker/docker-compose.yml) | Сборка образа из исходников и запуск, порт `8080:80` |
+| [`docker/docker-compose.image.yml`](docker/docker-compose.image.yml) | Запуск уже загруженного образа (без сборки) |
 | [`docker/build-and-run.sh`](docker/build-and-run.sh) | Сборка бандла + образ + запуск |
+| [`docker/export-image.sh`](docker/export-image.sh) / [`docker/export-image.cmd`](docker/export-image.cmd) | Экспорт образа в `dist/bumpy-web-image.tar.gz` |
+| [`docker/load-image.sh`](docker/load-image.sh) / [`docker/load-image.cmd`](docker/load-image.cmd) | Импорт образа из архива и запуск |
 | [`tools/api_bundle_html5.js`](tools/api_bundle_html5.js) | Бандлинг `wasm-web` через Defold Editor HTTP API |
 | [`.dockerignore`](.dockerignore) | Минимизация контекста сборки образа |
 
