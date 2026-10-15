@@ -414,6 +414,18 @@ local function is_block_top(row, col)
     return row > 0 and has_block(row - 1, col)
 end
 
+-- есть ли ниже в колонке col опора (платформа или верх кладки), на которую мяч
+-- упадёт, скатившись с липкой платформы в пустую соседнюю ячейку. Идём сверху
+-- вниз и останавливаемся на первой опоре — именно на неё мяч и приземлится
+local function has_support_below(row, col)
+    for r = row - 1, 0, -1 do
+        if platform_id(r, col) or has_block(r, col) then
+            return true
+        end
+    end
+    return false
+end
+
 -- приземление без команды игрока: обычный герой пружинит (settle), а мяч на
 -- липкой поверхности не прыгает — просто лежит на ней и ждёт команды игрока
 local function settle_or_stick(self)
@@ -777,10 +789,13 @@ local function roll_off(self, direction)
     -- стена (блок) в целевой ячейке: сквозь неё тоже не скатиться
     local block_ahead = not blocked and has_block(self.row, target)
     -- есть ли вообще куда скатываться: платформа (или верх кладки) в целевой
-    -- ячейке. Если соседняя ячейка пуста — возможность отсутствует, мяч остаётся
-    -- на липкой платформе (иначе он просто упал бы в пустоту и погиб)
+    -- ячейке, либо любая опора ниже в этой колонке — тогда мяч скатывается с
+    -- края липкой платформы и падает на уровень вниз. Если под соседней ячейкой
+    -- опоры нет — скатываться некуда, мяч остаётся на липкой платформе
+    -- (иначе он просто упал бы в пустоту и погиб)
     local landable = platform_id(self.row, target) ~= nil
         or (self.row > 0 and has_block(self.row - 1, target))
+        or has_support_below(self.row, target)
     if not blocked and not block_ahead and not landable then
         print(string.format("STICK roll: nowhere to roll dir=%d col=%d row=%d", direction, old_col, self.row))
         return
