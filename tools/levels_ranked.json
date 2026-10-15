@@ -1,0 +1,15 @@
+{
+ "weights": {
+  "traps": 1.0,
+  "traps_path": 1.5,
+  "simultaneous": 3.0,
+  "no_rest": 2.0,
+  "resources": 2.0,
+  "moves": 0.15
+ },
+ "solvable": 0,
+ "unsolvable": [
+  1
+ ],
+ "ranking": []
+}
