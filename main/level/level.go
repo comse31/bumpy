@@ -45,6 +45,12 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "platform_burning_sticky"
+  type: "factory"
+  data: "prototype: \"/main/platforms/burning_sticky/platform.go\"\n"
+  ""
+}
+embedded_components {
   id: "platform_block"
   type: "factory"
   data: "prototype: \"/main/walls/block/block.go\"\n"
