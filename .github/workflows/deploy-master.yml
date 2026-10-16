@@ -80,12 +80,15 @@ jobs:
                 libxcb1 libxau6 libxdmcp6 libbsd0 \
                 libgl1 libglu1-mesa
               rm -rf /var/lib/apt/lists/*
+              # Для HTML5 bob создаёт вложенную папку с именем проекта
+              # (title=bumpy) внутри --bundle-output, т.е. результат окажется в
+              # dist/web/bumpy/ (index.html, dmloader.js, *.wasm, archive/).
               java -jar bob.jar \
                 --root . \
                 --platform wasm-web \
                 --archive \
                 --variant release \
-                --bundle-output dist/web/bumpy \
+                --bundle-output dist/web \
                 resolve build bundle
             '
           test -f dist/web/bumpy/index.html
