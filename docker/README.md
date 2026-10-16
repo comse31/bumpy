@@ -145,7 +145,9 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 1. скачивает headless-сборщик Defold `bob.jar` стабильной версии
    (`https://d.defold.com/stable/info.json` → `sha1`);
 2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
-   --bundle-output dist/web/bumpy resolve build`;
+   --bundle-output dist/web/bumpy resolve build bundle`
+   (команда `bundle` обязательна — без неё `bob` только собирает, но не
+   выкладывает бандл в `--bundle-output`);
 3. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
 4. разворачивает контейнер на раннере (`docker run -d -p 8080:80`) и проверяет,
    что `http://localhost:8080/` отвечает.

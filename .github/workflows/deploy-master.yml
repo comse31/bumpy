@@ -86,7 +86,7 @@ jobs:
                 --archive \
                 --variant release \
                 --bundle-output dist/web/bumpy \
-                resolve build
+                resolve build bundle
             '
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
