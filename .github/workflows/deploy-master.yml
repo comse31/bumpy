@@ -44,12 +44,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Установка Java (для bob.jar)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
       - name: Скачивание bob.jar (Defold headless)
         run: |
           set -euo pipefail
@@ -59,17 +53,25 @@ jobs:
           curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
           ls -lh bob.jar
 
-      - name: Сборка HTML5-бандла (wasm-web)
+      - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
+        # bob.jar собран под Java 25 (class file version 69), поэтому запускаем
+        # его в официальном JDK-образе — сборка НЕ зависит от системной Java на
+        # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
+        # на раннере в dist/web/bumpy и далее попадает в docker-образ.
         run: |
           set -euo pipefail
           rm -rf dist/web/bumpy
-          java -jar bob.jar \
-            --root . \
-            --platform wasm-web \
-            --archive \
-            --variant release \
-            --bundle-output dist/web/bumpy \
-            resolve build
+          docker run --rm \
+            -v "$PWD":/project \
+            -w /project \
+            eclipse-temurin:25-jdk \
+            java -jar bob.jar \
+              --root . \
+              --platform wasm-web \
+              --archive \
+              --variant release \
+              --bundle-output dist/web/bumpy \
+              resolve build
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
 
