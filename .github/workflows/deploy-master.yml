@@ -1,0 +1,114 @@
+# Сборка и развёртывание Bumpy (Defold, wasm-web) на GitHub-раннере.
+#
+# Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
+#
+# Шаги:
+#   1. Скачивание headless-инструмента Defold (bob.jar) стабильной версии.
+#   2. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
+#   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
+#   4. Развёртывание контейнера прямо на раннере + health check.
+#
+# Важно: раннер GitHub Actions эфемерный — контейнер живёт только во время
+# выполнения job'а. Это развёртывание предназначено для проверки, что образ
+# собирается и корректно запускается ("smoke deploy").
+
+name: Build & Deploy (master)
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Отменять предыдущий запуск при новом пуше в master.
+concurrency:
+  group: deploy-master
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: bumpy-web
+  IMAGE_TAG: latest
+  CONTAINER_NAME: bumpy-web
+  HOST_PORT: "8080"
+
+jobs:
+  build-and-deploy:
+    name: Сборка образа и развёртывание на раннере
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Установка Java (для bob.jar)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Скачивание bob.jar (Defold headless)
+        run: |
+          set -euo pipefail
+          SHA1="$(curl -fsSL https://d.defold.com/stable/info.json \
+            | python3 -c 'import sys, json; print(json.load(sys.stdin)["sha1"])')"
+          echo "Defold stable sha1: ${SHA1}"
+          curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
+          ls -lh bob.jar
+
+      - name: Сборка HTML5-бандла (wasm-web)
+        run: |
+          set -euo pipefail
+          rm -rf dist/web/bumpy
+          java -jar bob.jar \
+            --root . \
+            --platform wasm-web \
+            --archive \
+            --variant release \
+            --bundle-output dist/web/bumpy \
+            resolve build
+          test -f dist/web/bumpy/index.html
+          ls -la dist/web/bumpy
+
+      - name: Сборка Docker-образа
+        run: |
+          set -euo pipefail
+          docker build \
+            -f docker/Dockerfile \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            .
+          docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
+
+      - name: Развёртывание контейнера на раннере
+        run: |
+          set -euo pipefail
+          docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+          docker run -d \
+            --name "${CONTAINER_NAME}" \
+            -p "${HOST_PORT}:80" \
+            --restart unless-stopped \
+            "${IMAGE_NAME}:${IMAGE_TAG}"
+
+      - name: Проверка доступности (health check)
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null "http://localhost:${HOST_PORT}/"; then
+              echo "Сервис отвечает на http://localhost:${HOST_PORT}/"
+              break
+            fi
+            echo "Ожидание запуска nginx... (${i}/30)"
+            sleep 2
+          done
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://localhost:${HOST_PORT}/"
+          docker ps --filter "name=${CONTAINER_NAME}"
+
+      - name: Диагностика при ошибке
+        if: failure()
+        run: |
+          docker ps -a || true
+          docker logs "${CONTAINER_NAME}" || true

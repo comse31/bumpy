@@ -137,6 +137,27 @@ docker compose -f docker/docker-compose.image.yml up -d
 
 Открыть <http://localhost:8080>.
 
+## 5. CI: сборка и развёртывание на GitHub-раннере
+
+Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master.yml)
+запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) и:
+
+1. скачивает headless-сборщик Defold `bob.jar` стабильной версии
+   (`https://d.defold.com/stable/info.json` → `sha1`);
+2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
+   --bundle-output dist/web/bumpy resolve build`;
+3. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
+4. разворачивает контейнер на раннере (`docker run -d -p 8080:80`) и проверяет,
+   что `http://localhost:8080/` отвечает.
+
+В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:
+используется `bob.jar` — тот же сборщик, но в режиме командной строки.
+
+> Раннер GitHub Actions эфемерный: контейнер живёт только во время выполнения
+> job'а. Это развёртывание проверяет, что образ собирается и корректно
+> запускается. Для постоянного хостинга замените шаг развёртывания на публикацию
+> в реестр (`docker/build-push-action`) либо на деплой на ваш сервер.
+
 ## Структура
 
 | Файл | Назначение |
