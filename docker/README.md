@@ -137,11 +137,11 @@ docker compose -f docker/docker-compose.image.yml up -d
 
 Открыть <http://localhost:8080>.
 
-## 5. CI: сборка и развёртывание на self-hosted раннере (teliot)
+## 5. CI: сборка и развёртывание на self-hosted раннере
 
 Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master.yml)
 запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
-self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted, teliot]`) и:
+self-hosted раннере (`runs-on: [self-hosted]`) и:
 
 1. получает headless-сборщик Defold `bob.jar`: из кэша раннера, иначе из ассета
    GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
@@ -167,8 +167,8 @@ self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted,
 он загружается на GitHub один раз отдельным workflow
 [`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml)
 (**запускается только вручную**: Actions → «Fetch bob.jar (manual)» → Run
-workflow). Задача выполняется на GitHub-hosted раннере (быстрый канал) и
-публикует файл как ассет GitHub Release с тегом `bob-jar-<sha1>`.
+workflow). Задача выполняется на self-hosted раннере (`runs-on: [self-hosted]`)
+и публикует файл как ассет GitHub Release с тегом `bob-jar-<sha1>`.
 
 Основная задача сборки ([`deploy-master.yml`](.github/workflows/deploy-master.yml))
 непосредственно перед сборкой образа-сборщика скачивает `bob.jar` из этого
@@ -226,12 +226,12 @@ workflow). Задача выполняется на GitHub-hosted раннере
 - базовые образы `nginx:1.27-alpine` и `eclipse-temurin:25-jdk` остаются
   локально на раннере после первой загрузки.
 
-> `docker` в workflow — это Docker-демон **self-hosted раннера `teliot`**
-> (реальная машина, где выполняется job), а не Docker на машине разработчика.
-> Так как раннер постоянный, контейнер `bumpy-web` остаётся работать и после
-> завершения workflow; при следующем пуше старый контейнер останавливается и
-> удаляется, затем поднимается новый. На раннере должны быть установлены
-> Docker и Python 3 (для разбора `info.json`).
+> `docker` в workflow — это Docker-демон **self-hosted раннера** (реальная
+> машина, где выполняется job), а не Docker на машине разработчика. Так как
+> раннер постоянный, контейнер `bumpy-web` остаётся работать и после завершения
+> workflow; при следующем пуше старый контейнер останавливается и удаляется,
+> затем поднимается новый. На раннере должны быть установлены Docker и Python 3
+> (для разбора `info.json`). Все workflow используют `runs-on: [self-hosted]`.
 
 ## Структура
 

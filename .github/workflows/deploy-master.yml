@@ -10,9 +10,9 @@
 #   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
 #   4. Развёртывание контейнера на раннере + health check.
 #
-# Job выполняется на self-hosted раннере с меткой `teliot`. Контейнер
-# запускается на Docker-демоне этого раннера (реальная машина), поэтому после
-# workflow он продолжает работать (в отличие от эфемерных GitHub-hosted раннеров).
+# Job выполняется на self-hosted раннере. Контейнер запускается на Docker-демоне
+# этого раннера (реальная машина), поэтому после workflow он продолжает работать
+# (в отличие от эфемерных GitHub-hosted раннеров).
 
 name: Build & Deploy (master)
 
@@ -39,8 +39,8 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Сборка образа и развёртывание на self-hosted (teliot)
-    # Self-hosted раннер с меткой `teliot`. Требуется установленный Docker.
+    name: Сборка образа и развёртывание на self-hosted
+    # Self-hosted раннер. Требуется установленный Docker.
     runs-on: [self-hosted]
     timeout-minutes: 30
 
