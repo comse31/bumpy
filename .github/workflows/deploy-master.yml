@@ -3,8 +3,9 @@
 # Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
 #
 # Шаги:
-#   1. Загрузка готового образа-сборщика из Docker Hub (публикуется вручную
-#      workflow build-bob-image.yml). Своего docker build здесь нет.
+#   1. Загрузка готового образа-сборщика из GitHub Container Registry
+#      (публикуется вручную workflow build-bob-image.yml). Своего docker build
+#      здесь нет.
 #   2. Сборка HTML5-бандла (platform wasm-web, --architectures wasm-web,
 #      archive=true) в dist/web/bumpy. Движок берётся из bob.jar, ничего не
 #      качается с d.defold.com.
@@ -30,15 +31,13 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   IMAGE_NAME: bumpy-web
   IMAGE_TAG: latest
   CONTAINER_NAME: bumpy-web
   HOST_PORT: "9999"
-  # Образ-сборщик публикуется workflow build-bob-image.yml. Тянем его из
-  # Docker Hub и тегаем по sha1 версии Defold.
-  BOB_BUILDER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/bumpy-bob-builder
 
 jobs:
   build-and-deploy:
@@ -74,6 +73,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Определение имени образа-сборщика
+        # ghcr.io требует имя в нижнем регистре.
+        run: |
+          set -euo pipefail
+          OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "BOB_BUILDER_IMAGE=ghcr.io/${OWNER_LC}/bumpy-bob-builder" >> "$GITHUB_ENV"
+
       - name: Определение версии Defold (sha1)
         id: defold
         run: |
@@ -83,7 +89,13 @@ jobs:
           echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
           echo "Defold stable sha1: ${SHA1}"
 
-      - name: Загрузка образа-сборщика из Docker Hub
+      - name: Логин в GitHub Container Registry
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Загрузка образа-сборщика из GitHub Container Registry
         # Образ (JDK 25 + библиотеки X11/GL + bob.jar) собирается и публикуется
         # workflow build-bob-image.yml. Здесь только тянем готовый образ —
         # никаких docker build и скачиваний с d.defold.com.

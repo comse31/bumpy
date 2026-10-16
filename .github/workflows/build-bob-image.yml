@@ -1,9 +1,12 @@
-# Сборка и публикация образа-сборщика Defold (bob) в Docker Hub.
+# Сборка и публикация образа-сборщика Defold (bob) в GitHub Container Registry.
 #
 # ЗАПУСК ТОЛЬКО ВРУЧНУЮ (workflow_dispatch): автоматических триггеров нет.
 # Образ тегируется версией bob (sha1 версии Defold), например:
-#   <DOCKERHUB_USERNAME>/bumpy-bob-builder:<sha1>
+#   ghcr.io/<owner>/bumpy-bob-builder:<sha1>
 # Этот же тег использует deploy-master (по текущей stable-версии Defold).
+#
+# Авторизация — через встроенный GITHUB_TOKEN (секреты не нужны), поэтому
+# workflow требует право packages: write.
 #
 # Образ содержит зависимости сборки HTML5-бандла, чтобы во время
 # `deploy-master` не выполнялся `docker build`:
@@ -13,8 +16,6 @@
 # Движки HTML5 в образ НЕ зашиваются: `deploy-master` собирает только
 # однопоточный движок (`--architectures wasm-web`), а он лежит внутри bob.jar
 # (libexec/wasm-web) — в сеть ходить не нужно.
-#
-# Требуются секреты репозитория: DOCKERHUB_USERNAME и DOCKERHUB_TOKEN.
 #
 # Так как образ кэшируется по слоям, повторная сборка при неизменном sha1
 # быстрая.
@@ -35,9 +36,7 @@ concurrency:
 
 permissions:
   contents: read
-
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/bumpy-bob-builder
+  packages: write
 
 jobs:
   build-and-push:
@@ -51,6 +50,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Определение имени образа
+        # ghcr.io требует имя в нижнем регистре.
+        run: |
+          set -euo pipefail
+          OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_NAME=ghcr.io/${OWNER_LC}/bumpy-bob-builder" >> "$GITHUB_ENV"
+
       - name: Определение версии Defold (sha1)
         id: defold
         run: |
@@ -63,11 +69,11 @@ jobs:
           echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
           echo "Версия bob (sha1): ${SHA1}"
 
-      - name: Логин в Docker Hub
+      - name: Логин в GitHub Container Registry
         run: |
           set -euo pipefail
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" \
-            | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Сборка образа-сборщика
         run: |
@@ -80,7 +86,7 @@ jobs:
           docker image inspect "${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}" \
             --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
 
-      - name: Публикация в Docker Hub
+      - name: Публикация в GitHub Container Registry
         run: |
           set -euo pipefail
           docker push "${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}"

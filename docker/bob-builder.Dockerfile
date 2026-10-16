@@ -18,8 +18,8 @@
 #   docker build \
 #     --build-arg BOB_SHA1=<sha1> \
 #     -f docker/bob-builder.Dockerfile \
-#     -t <dockerhub-user>/bumpy-bob-builder:<sha1> .
-#   docker push <dockerhub-user>/bumpy-bob-builder:<sha1>
+#     -t ghcr.io/<owner>/bumpy-bob-builder:<sha1> .
+#   docker push ghcr.io/<owner>/bumpy-bob-builder:<sha1>
 
 FROM eclipse-temurin:25-jdk
 

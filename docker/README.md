@@ -143,9 +143,9 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
 self-hosted раннере (`runs-on: [self-hosted]`) и:
 
-1. тянет из Docker Hub готовый образ-сборщик `bumpy-bob-builder:<sha1>`
-   (публикуется вручную workflow `build-bob-image.yml`, см. ниже). Своего
-   `docker build` в deploy нет;
+1. тянет из GitHub Container Registry готовый образ-сборщик
+   `ghcr.io/<owner>/bumpy-bob-builder:<sha1>` (публикуется вручную workflow
+   `build-bob-image.yml`, см. ниже). Своего `docker build` в deploy нет;
 2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web
    --architectures wasm-web --archive --bundle-output dist/web resolve build
    bundle`
@@ -176,17 +176,18 @@ self-hosted раннере (`runs-on: [self-hosted]`) и:
 Workflow [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml)
 **запускается только вручную** (Actions → «Build & Publish bob-builder image» →
 Run workflow). Он собирает образ-сборщик со **всеми** зависимостями и публикует
-его в Docker Hub под тегом версии `bob`:
+его в GitHub Container Registry (ghcr.io) под тегом версии `bob`:
 
 ```
-<DOCKERHUB_USERNAME>/bumpy-bob-builder:<sha1>
+ghcr.io/<owner>/bumpy-bob-builder:<sha1>
 ```
 
 Этот же тег использует `deploy-master` (по текущей stable-версии Defold). При
 смене версии Defold нужно один раз пересобрать образ (можно передать нужный
 `sha1` во входном параметре `defold_sha1`).
 
-Требуются секреты репозитория `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`.
+Авторизация — через встроенный `GITHUB_TOKEN` (секреты не нужны): сборка
+требует право `packages: write`, загрузка в deploy — `packages: read`.
 
 Образ содержит `bob.jar` (≈220 МБ) — из ассета GitHub Release `bob-jar-<sha1>`,
 а если релиза нет — с `d.defold.com`; в образе лежит `/opt/bob/bob.jar`. Движки
@@ -234,7 +235,7 @@ HTML5 не зашиваются: нужный однопоточный движ�
 | Файл | Назначение |
 |------|------------|
 | [`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml) | Ручная загрузка `bob.jar` и публикация как ассет GitHub Release |
-| [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml) | Ручная сборка и публикация образа-сборщика в Docker Hub (тег = версия bob) |
+| [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml) | Ручная сборка и публикация образа-сборщика в ghcr.io (тег = версия bob) |
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
 | [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL + bob.jar) для CI |
 | [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
