@@ -424,4 +424,16 @@ instances {
     z: 0.9
   }
 }
+# --- READY: табличка "ready for level N? / press any key" по центру поля.
+# Показывается на старте каждого уровня и после потери жизни; игра ждёт
+# нажатия любой клавиши (см. ball.script). Поверх поля, но под GAME OVER ---
+instances {
+  id: "ready"
+  prototype: "/main/ui/ready.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.8
+  }
+}
 scale_along_z: 0

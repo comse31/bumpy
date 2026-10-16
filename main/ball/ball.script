@@ -774,6 +774,16 @@ local function held_direction(self)
     return 0
 end
 
+-- готовность уровня: показать табличку "ready for level N? / press any key"
+-- и заморозить мяч, пока игрок не нажмёт любую клавишу (см. update/on_input).
+-- Вызывается при загрузке уровня (init) и на каждое сообщение level_start —
+-- то есть при старте игры, переходе на новый уровень и после потери жизни.
+local function begin_ready(self)
+    self.awaiting_start = true
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+    msg.post("/ready", "show", { level = state.index })
+end
+
 function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
@@ -783,6 +793,7 @@ function init(self)
     self.move_duration = MOVE_DURATION
     self.action_time = -math.huge
     self.game_over = false
+    self.awaiting_start = false -- ждём нажатия клавиши перед стартом уровня
     self.time = 0.0
     self.touch_time = -math.huge
     self.last_contact_time = -math.huge
@@ -853,10 +864,18 @@ function init(self)
     hero_slinky.deactivate(self)
     -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
     msg.post("/pocket", "set_lives", { count = self.lives })
+    -- табличка готовности: до нажатия любой клавиши уровень не начинается
+    begin_ready(self)
 end
 
 function update(self, dt)
     self.time = self.time + dt
+
+    -- готовность уровня: пока игрок не нажал любую клавишу, мяч заморожен —
+    -- не прыгает и не падает (см. begin_ready/on_input)
+    if self.awaiting_start then
+        return
+    end
 
     -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
     -- теряется жизнь, уровень перезапускается
@@ -1112,6 +1131,16 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    -- готовность уровня: ЛЮБОЕ нажатие запускает уровень — снять табличку,
+    -- вернуть визуал героя (при старте игры он ещё скрыт) и отпустить мяч
+    if self.awaiting_start then
+        if action.pressed then
+            self.awaiting_start = false
+            msg.post("/ready", "hide")
+            self.hero.activate(self)
+        end
+        return
+    end
     -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
     -- начинает новую игру; ждём, пока уровень 1 пересоберётся
     if self.game_over then
@@ -1200,6 +1229,8 @@ function on_message(self, message_id, message, sender)
         -- сбросить деформации визуала и вернуть визуал активного героя
         self.hero.reset(self)
         self.hero.activate(self)
+        -- после пересборки уровня снова ждём нажатия любой клавиши
+        begin_ready(self)
         return
     end
     if message_id == hash("contact_point_response") then

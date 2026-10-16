@@ -1,0 +1,32 @@
+-- Табличка готовности уровня по центру поля:
+--   "ready for level N?\npress any key"
+-- где N — номер уровня (state.index).
+--
+-- Показывается при загрузке/перезагрузке каждого уровня и после потери жизни
+-- (ball.script постит "show" из init и из обработчика level_start). Скрывается
+-- по сообщению "hide", которое ball.script шлёт при нажатии любой клавиши.
+-- Пока табличка видна, игра стоит: мяч не прыгает и не падает (см. ball.script).
+go.property("level", 1)
+
+local function show(self, level)
+    if level then
+        self.level = level
+    end
+    msg.post("#label", "set_text", {
+        text = "ready for level " .. tostring(self.level) .. "?\npress any key",
+    })
+    msg.post("#label", "enable")
+end
+
+function init(self)
+    -- до первого уровня табличка скрыта; покажет её ball.script
+    msg.post("#label", "disable")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        show(self, message and message.level)
+    elseif message_id == hash("hide") then
+        msg.post("#label", "disable")
+    end
+end
