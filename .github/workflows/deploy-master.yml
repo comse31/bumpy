@@ -3,7 +3,9 @@
 # Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
 #
 # Шаги:
-#   1. Скачивание headless-инструмента Defold (bob.jar) стабильной версии.
+#   1. Получение headless-инструмента Defold (bob.jar): из кэша раннера или из
+#      ассета GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
+#      fetch-bob.yml), с fallback на d.defold.com.
 #   2. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
 #   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
 #   4. Развёртывание контейнера на раннере + health check.
@@ -39,7 +41,7 @@ jobs:
   build-and-deploy:
     name: Сборка образа и развёртывание на self-hosted (teliot)
     # Self-hosted раннер с меткой `teliot`. Требуется установленный Docker.
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, teliot]
     timeout-minutes: 30
 
     steps:
@@ -65,12 +67,25 @@ jobs:
           path: bob.jar
           key: defold-bob-${{ steps.defold.outputs.sha1 }}
 
-      - name: Скачивание bob.jar (только при отсутствии в кэше)
+      - name: Получение bob.jar (только при отсутствии в кэше)
+        # bob.jar публикуется вручную отдельным workflow fetch-bob.yml как ассет
+        # GitHub Release с тегом `bob-jar-<sha1>` — скачивание с GitHub быстрее,
+        # чем с d.defold.com. Если релиза нет, берём из исходного источника.
         if: steps.bob-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          curl -fsSL -o bob.jar \
-            "https://d.defold.com/archive/${{ steps.defold.outputs.sha1 }}/bob/bob.jar"
+          SHA1="${{ steps.defold.outputs.sha1 }}"
+          TAG="bob-jar-${SHA1}"
+          ASSET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/bob.jar"
+          echo "Пробую скачать bob.jar из релиза: ${ASSET_URL}"
+          if curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -o bob.jar "${ASSET_URL}"; then
+            echo "bob.jar получен из GitHub Release ${TAG}"
+          else
+            echo "Релиз ${TAG} недоступен — скачиваю с d.defold.com"
+            curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
+          fi
           ls -lh bob.jar
 
       - name: Сборка образа-сборщика bob (кэшируется Docker'ом)

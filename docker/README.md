@@ -143,8 +143,9 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
 self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted, teliot]`) и:
 
-1. скачивает headless-сборщик Defold `bob.jar` стабильной версии
-   (`https://d.defold.com/stable/info.json` → `sha1`);
+1. получает headless-сборщик Defold `bob.jar`: из кэша раннера, иначе из ассета
+   GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
+   `fetch-bob.yml`), иначе с `https://d.defold.com`;
 2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
    --bundle-output dist/web resolve build bundle`
    (команда `bundle` обязательна — без неё `bob` только собирает, но не
@@ -159,6 +160,25 @@ self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted,
 
 В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:
 используется `bob.jar` — тот же сборщик, но в режиме командной строки.
+
+### Предзагрузка bob.jar (ручная задача)
+
+Чтобы не скачивать `bob.jar` (≈220 МБ) с `d.defold.com` при каждой сборке,
+он загружается на GitHub один раз отдельным workflow
+[`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml)
+(**запускается только вручную**: Actions → «Fetch bob.jar (manual)» → Run
+workflow). Задача выполняется на GitHub-hosted раннере (быстрый канал) и
+публикует файл как ассет GitHub Release с тегом `bob-jar-<sha1>`.
+
+Основная задача сборки ([`deploy-master.yml`](.github/workflows/deploy-master.yml))
+при отсутствии файла в кэше раннера сначала пытается скачать `bob.jar` из этого
+релиза (`…/releases/download/bob-jar-<sha1>/bob.jar`), и только если релиза нет —
+берёт из исходного `d.defold.com`. Это ускоряет сборку: файл тянется с GitHub,
+а после первого запуска вообще остаётся в кэше `actions/cache` на раннере.
+
+Порядок работы:
+1. (однократно или при смене версии Defold) вручную запустить «Fetch bob.jar (manual)»;
+2. обычные пуши в `master` запускают сборку, которая берёт `bob.jar` из релиза/кэша.
 
 Сборка бандла выполняется в контейнере `bumpy-bob-builder:25-jdk` через
 `docker run`, поэтому **не зависит от версии Java, установленной на раннере**.
@@ -182,7 +202,10 @@ self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted,
 
 - **`bob.jar`** (≈220 МБ) кэшируется через `actions/cache` с ключом
   `defold-bob-<sha1>` — скачивание происходит только при смене стабильной
-  версии Defold. На self-hosted раннере кэш сохраняется между запусками;
+  версии Defold. При промахе кэша файл берётся из ассета GitHub Release
+  `bob-jar-<sha1>` (публикуется вручную workflow `fetch-bob.yml`), а если
+  релиза нет — с `d.defold.com`. На self-hosted раннере кэш сохраняется между
+  запусками;
 - **образ-сборщик** `bumpy-bob-builder:25-jdk` пересобирается только при
   изменении [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile):
   слои с `apt-get` берутся из кэша Docker;
@@ -200,6 +223,7 @@ self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted,
 
 | Файл | Назначение |
 |------|------------|
+| [`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml) | Ручная загрузка `bob.jar` и публикация как ассет GitHub Release |
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
 | [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL) для CI |
 | [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
