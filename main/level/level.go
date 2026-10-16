@@ -105,6 +105,12 @@ embedded_components {
   ""
 }
 embedded_components {
+  id: "goodie_fruit"
+  type: "factory"
+  data: "prototype: \"/main/goodies/fruit/fruit.go\"\n"
+  ""
+}
+embedded_components {
   id: "exit"
   type: "factory"
   data: "prototype: \"/main/exit/exit.go\"\n"

@@ -71,6 +71,24 @@
   мяч замораживается и постится `show`; по первому нажатию клавиши плашка
   скрывается, коллизия включается и уровень стартует.
 
+## Этап 9. Спрайты-фрукты для собираемых goodies — ВЫПОЛНЕНО
+- Для собираемых объектов (коды >= 5, ранее — единый спрайт-ромб
+  `collectible`) сгенерированы 12 отдельных спрайтов-фруктов 32×32 RGBA:
+  гриб, клубника, яблоко, груша, вишня, банан, апельсин, виноград, слива,
+  лимон, морковь, арбуз. Генератор —
+  [`tools/gen_fruit_sprites.py`](tools/gen_fruit_sprites.py:1).
+- Один атлас [`main/goodies/fruit/fruit.atlas`](main/goodies/fruit/fruit.atlas:1)
+  (12 images + 12 animations, id = имя фрукта) и спрайт
+  [`fruit.sprite`](main/goodies/fruit/fruit.sprite:1). Изображения переименованы
+  с префиксом `fr_`, чтобы неявные id images не конфликтовали с id анимаций.
+- Прототип [`main/goodies/fruit/fruit.go`](main/goodies/fruit/fruit.go:1):
+  спрайт + [`fruit.script`](main/goodies/fruit/fruit.script:1) (kind = 3,
+  выбор анимации по свойству `anim`).
+- [`level.script`](main/level/level.script:1): `goodie_factory` для кодов >= 5
+  возвращает `#goodie_fruit` и имя фрукта (`fruit_for_code` — коды
+  распределяются по кругу); `spawn_goodie` передаёт `anim = hash(имя)`.
+  Factory `goodie_fruit` добавлен в [`level.go`](main/level/level.go:1).
+
 ## Что осталось
 1. **П. 19: проверка нехватки снаряжения → проигрыш.** Нужно на старте уровня
    (или при потере ресурса) вычислять, хватает ли капель/ключей/молотков на

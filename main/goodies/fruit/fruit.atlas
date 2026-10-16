@@ -1,0 +1,123 @@
+images {
+  image: "/main/goodies/fruit/fr_mushroom.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_strawberry.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_apple.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_pear.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_cherry.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_banana.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_orange.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_grapes.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_plum.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_lemon.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_carrot.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/goodies/fruit/fr_watermelon.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+animations {
+  id: "mushroom"
+  images {
+    image: "/main/goodies/fruit/fr_mushroom.png"
+  }
+}
+animations {
+  id: "strawberry"
+  images {
+    image: "/main/goodies/fruit/fr_strawberry.png"
+  }
+}
+animations {
+  id: "apple"
+  images {
+    image: "/main/goodies/fruit/fr_apple.png"
+  }
+}
+animations {
+  id: "pear"
+  images {
+    image: "/main/goodies/fruit/fr_pear.png"
+  }
+}
+animations {
+  id: "cherry"
+  images {
+    image: "/main/goodies/fruit/fr_cherry.png"
+  }
+}
+animations {
+  id: "banana"
+  images {
+    image: "/main/goodies/fruit/fr_banana.png"
+  }
+}
+animations {
+  id: "orange"
+  images {
+    image: "/main/goodies/fruit/fr_orange.png"
+  }
+}
+animations {
+  id: "grapes"
+  images {
+    image: "/main/goodies/fruit/fr_grapes.png"
+  }
+}
+animations {
+  id: "plum"
+  images {
+    image: "/main/goodies/fruit/fr_plum.png"
+  }
+}
+animations {
+  id: "lemon"
+  images {
+    image: "/main/goodies/fruit/fr_lemon.png"
+  }
+}
+animations {
+  id: "carrot"
+  images {
+    image: "/main/goodies/fruit/fr_carrot.png"
+  }
+}
+animations {
+  id: "watermelon"
+  images {
+    image: "/main/goodies/fruit/fr_watermelon.png"
+  }
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0
