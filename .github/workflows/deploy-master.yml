@@ -42,7 +42,11 @@ jobs:
     name: Сборка образа и развёртывание на self-hosted
     # Self-hosted раннер. Требуется установленный Docker.
     runs-on: [self-hosted]
-    timeout-minutes: 30
+    # Запас по времени: первый запуск на новой версии Defold скачивает
+    # bob.jar (~220 МБ) прямо в образ-сборщик, что при медленной отдаче
+    # GitHub Release может занимать десятки минут. 30 минут не хватало —
+    # job прерывался на этапе Bundling.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout

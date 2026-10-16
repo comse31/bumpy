@@ -38,13 +38,21 @@ RUN apt-get update \
 # bob.jar скачивается прямо в образ. Сначала — ассет GitHub Release
 # `bob-jar-<sha1>` (быстрее), при неудаче — с d.defold.com.
 # Слой инвалидируется при смене BOB_SHA1 (версии Defold).
+#
+# Лимиты curl защищают от «зависшей» медленной загрузки: если GitHub Release
+# отдаёт данные слишком медленно (< 200 КБ/с дольше 60 с) или не укладывается
+# в --max-time, curl прерывается и срабатывает fallback на d.defold.com.
+# Без этого медленная загрузка (напр. ~150 КБ/с на 220 МБ = ~24 мин) «съедала»
+# весь бюджет времени job'а.
 RUN set -eux; \
     mkdir -p /opt/bob; \
     ASSET_URL="https://github.com/comse31/bumpy/releases/download/bob-jar-${BOB_SHA1}/bob.jar"; \
-    if curl -fsSL -o /opt/bob/bob.jar "${ASSET_URL}"; then \
+    if curl -fsSL --connect-timeout 15 --max-time 300 \
+            --speed-time 60 --speed-limit 200000 \
+            -o /opt/bob/bob.jar "${ASSET_URL}"; then \
         echo "bob.jar получен из GitHub Release bob-jar-${BOB_SHA1}"; \
     else \
-        echo "Релиз bob-jar-${BOB_SHA1} недоступен — скачиваю с d.defold.com"; \
+        echo "Релиз bob-jar-${BOB_SHA1} недоступен или отдаётся слишком медленно — скачиваю с d.defold.com"; \
         curl -fsSL -o /opt/bob/bob.jar "https://d.defold.com/archive/${BOB_SHA1}/bob/bob.jar"; \
     fi; \
     ls -lh /opt/bob/bob.jar
