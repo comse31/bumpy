@@ -143,7 +143,8 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
 self-hosted раннере (`runs-on: [self-hosted]`) и:
 
-1. получает headless-сборщик Defold `bob.jar`: из кэша раннера, иначе из ассета
+1. собирает образ-сборщик, в который headless-сборщик Defold `bob.jar`
+   скачивается прямо на этапе `docker build` (`--build-arg BOB_SHA1`): из ассета
    GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
    `fetch-bob.yml`), иначе с `https://d.defold.com`;
 2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
@@ -171,17 +172,17 @@ workflow). Задача выполняется на self-hosted раннере (
 и публикует файл как ассет GitHub Release с тегом `bob-jar-<sha1>`.
 
 Основная задача сборки ([`deploy-master.yml`](.github/workflows/deploy-master.yml))
-непосредственно перед сборкой образа-сборщика скачивает `bob.jar` из этого
-релиза по адресу
+при сборке образа-сборщика передаёт в `docker build` аргумент
+`--build-arg BOB_SHA1=<sha1>`, и `bob.jar` скачивается **внутри образа** прямо из
+этого релиза по адресу
 `https://github.com/comse31/bumpy/releases/download/bob-jar-<sha1>/bob.jar`,
-и только если релиза нет — берёт из исходного `d.defold.com`. Скачанный файл
-кладётся в корень репозитория, попадает в контекст сборки Docker и зашивается в
-образ (см. ниже).
+и только если релиза нет — берётся из исходного `d.defold.com`. На хост-раннере
+файл не сохраняется (см. ниже).
 
 Порядок работы:
 1. (однократно или при смене версии Defold) вручную запустить «Fetch bob.jar (manual)»;
-2. обычные пуши в `master` запускают сборку, которая скачивает `bob.jar` из релиза
-   и зашивает его в образ-сборщик.
+2. обычные пуши в `master` запускают сборку: `docker build` скачивает `bob.jar`
+   из релиза прямо в образ-сборщик.
 
 Сборка бандла выполняется в контейнере `bumpy-bob-builder:25-jdk` через
 `docker run`, поэтому **не зависит от версии Java, установленной на раннере**.
@@ -199,17 +200,17 @@ workflow). Задача выполняется на self-hosted раннере (
 только сами библиотеки. Образ собирается один раз и кэшируется Docker'ом, так
 что `apt-get` при каждом запуске workflow не выполняется.
 
-`bob.jar` **зашит в образ**. Последовательность такая:
-1. workflow скачивает `bob.jar` (из GitHub Release или `d.defold.com`) в корень
-   репозитория — файл `bob.jar` попадает в контекст сборки Docker;
+`bob.jar` **скачивается прямо в образ**. Последовательность такая:
+1. workflow передаёт в `docker build` аргумент `--build-arg BOB_SHA1=<sha1>`;
 2. `docker build` по [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile)
-   копирует его в образ: `COPY bob.jar /opt/bob/bob.jar`;
+   в слое `RUN curl …` скачивает `bob.jar` (из GitHub Release или `d.defold.com`)
+   сразу в образ: `/opt/bob/bob.jar`;
 3. сборка бандла запускается как `java -jar /opt/bob/bob.jar …` — из образа, а
    не из смонтированного каталога.
 
-Поэтому `bob.jar` не нужно монтировать в контейнер, и слой `COPY` (а значит и
-скачивание) инвалидируется только при изменении содержимого `bob.jar`, т.е. при
-смене версии Defold.
+Поэтому `bob.jar` не нужно ни монтировать в контейнер, ни сохранять на хост-раннере,
+и слой `RUN`, скачивающий файл, инвалидируется только при смене значения
+`BOB_SHA1`, т.е. при смене версии Defold.
 
 ### Кэширование артефактов сборки
 
@@ -217,12 +218,12 @@ workflow). Задача выполняется на self-hosted раннере (
 
 - **`bob.jar`** (≈220 МБ) скачивается из ассета GitHub Release `bob-jar-<sha1>`
   (публикуется вручную workflow `fetch-bob.yml`), а если релиза нет — с
-  `d.defold.com`. Файл зашивается в образ-сборщик, и слой `COPY bob.jar`
-  инвалидируется только при изменении содержимого, т.е. при смене версии
+  `d.defold.com`. Файл скачивается в образ-сборщик слоем `RUN curl …`, и этот
+  слой инвалидируется только при смене `BOB_SHA1`, т.е. при смене версии
   Defold — повторно файл не скачивается;
 - **образ-сборщик** `bumpy-bob-builder:25-jdk` пересобирается только при
   изменении [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) или
-  содержимого `bob.jar`: слои с `apt-get` берутся из кэша Docker;
+  значения `BOB_SHA1`: слои с `apt-get` берутся из кэша Docker;
 - базовые образы `nginx:1.27-alpine` и `eclipse-temurin:25-jdk` остаются
   локально на раннере после первой загрузки.
 

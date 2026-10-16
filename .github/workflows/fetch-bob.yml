@@ -1,12 +1,12 @@
 # Ручная задача: скачать bob.jar (Defold headless) и опубликовать его на GitHub.
 #
 # Запускается ТОЛЬКО вручную (workflow_dispatch). Делает две вещи:
-#   1. Скачивает bob.jar стабильной версии Defold на GitHub-hosted раннер.
+#   1. Скачивает bob.jar стабильной версии Defold на self-hosted раннере.
 #   2. Публикует его как ассет GitHub Release с тегом `bob-jar-<sha1>`.
 #
 # Затем основная задача сборки (deploy-master.yml) на self-hosted раннере
-# забирает bob.jar из этого релиза (быстро, с GitHub) и кладёт в локальный кэш
-# раннера — повторные сборки bob.jar уже не скачивают.
+# при сборке образа-сборщика скачивает bob.jar из этого релиза прямо в образ
+# (быстро, с GitHub) — на хост-раннере файл не сохраняется.
 #
 # Запуск: Actions → "Fetch bob.jar (manual)" → Run workflow.
 
@@ -27,8 +27,8 @@ permissions:
 jobs:
   fetch-bob:
     name: Скачать bob.jar и загрузить на GitHub
-    # GitHub-hosted раннер: скачивание 220 МБ идёт с быстрого канала GitHub.
-    runs-on: ubuntu-latest
+    # Self-hosted раннер (см. AGENTS.md).
+    runs-on: [self-hosted]
     timeout-minutes: 20
 
     steps:

@@ -3,9 +3,9 @@
 # Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
 #
 # Шаги:
-#   1. Скачивание headless-инструмента Defold (bob.jar) из ассета GitHub Release
-#      `bob-jar-<sha1>` (публикуется вручную workflow fetch-bob.yml), с fallback
-#      на d.defold.com, и сборка образа-сборщика с зашитым bob.jar.
+#   1. Сборка образа-сборщика, в который bob.jar скачивается прямо на этапе
+#      docker build: из ассета GitHub Release `bob-jar-<sha1>` (публикуется
+#      вручную workflow fetch-bob.yml), с fallback на d.defold.com.
 #   2. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
 #   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
 #   4. Развёртывание контейнера на раннере + health check.
@@ -57,29 +57,18 @@ jobs:
           echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
           echo "Defold stable sha1: ${SHA1}"
 
-      - name: Скачивание bob.jar и сборка образа-сборщика
-        # bob.jar публикуется вручную отдельным workflow fetch-bob.yml как ассет
-        # GitHub Release `bob-jar-<sha1>` — скачивание с GitHub быстрее, чем с
-        # d.defold.com; если релиза нет, берём из исходного источника.
+      - name: Сборка образа-сборщика (bob.jar скачивается в образ)
+        # bob.jar скачивается ПРЯМО В ОБРАЗ на этапе docker build по аргументу
+        # BOB_SHA1 (см. docker/bob-builder.Dockerfile): сначала из ассета GitHub
+        # Release `bob-jar-<sha1>` (публикуется вручную workflow fetch-bob.yml,
+        # быстрее), при неудаче — с d.defold.com. На хосте bob.jar не нужен.
         #
-        # Файл кладётся в корень репозитория и попадает в контекст сборки, а
-        # docker/bob-builder.Dockerfile копирует его в образ (/opt/bob/bob.jar).
-        # Образ (JDK 25 + библиотеки X11/GL) собирается один раз; слой COPY
-        # инвалидируется только при смене содержимого bob.jar (смене версии
-        # Defold), а слои с apt-get при повторных запусках берутся из кэша Docker.
+        # Слой скачивания инвалидируется при смене BOB_SHA1 (версии Defold), а
+        # слои с apt-get при повторных запусках берутся из кэша Docker.
         run: |
           set -euo pipefail
-          SHA1="${{ steps.defold.outputs.sha1 }}"
-          ASSET_URL="https://github.com/comse31/bumpy/releases/download/bob-jar-${SHA1}/bob.jar"
-          echo "Пробую скачать bob.jar из релиза: ${ASSET_URL}"
-          if curl -fsSL -o bob.jar "${ASSET_URL}"; then
-            echo "bob.jar получен из GitHub Release bob-jar-${SHA1}"
-          else
-            echo "Релиз bob-jar-${SHA1} недоступен — скачиваю с d.defold.com"
-            curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
-          fi
-          ls -lh bob.jar
           docker build \
+            --build-arg BOB_SHA1="${{ steps.defold.outputs.sha1 }}" \
             -f docker/bob-builder.Dockerfile \
             -t "${BOB_BUILDER_IMAGE}" \
             .

@@ -21,6 +21,10 @@ google/
 build/
 dist/*.json
 
+# bob.jar скачивается внутри образа (docker/bob-builder.Dockerfile),
+# на хосте он не нужен — исключаем из контекста сборки.
+bob.jar
+
 .vscode/
 .git/
 .gitignore
