@@ -4,12 +4,12 @@
 #
 # Шаги:
 #   1. Загрузка готового образа-сборщика из Docker Hub (публикуется вручную
-#      workflow build-bob-image.yml и содержит bob.jar + движки HTML5). Своего
-#      docker build здесь нет — во время сборки ничего не качается с d.defold.com.
-#   2. Копирование кэша движков HTML5 из образа в .internal/cache проекта.
-#   3. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
-#   4. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
-#   5. Развёртывание контейнера на раннере + health check.
+#      workflow build-bob-image.yml). Своего docker build здесь нет.
+#   2. Сборка HTML5-бандла (platform wasm-web, --architectures wasm-web,
+#      archive=true) в dist/web/bumpy. Движок берётся из bob.jar, ничего не
+#      качается с d.defold.com.
+#   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
+#   4. Развёртывание контейнера на раннере + health check.
 #
 # Job выполняется на self-hosted раннере. Контейнер запускается на Docker-демоне
 # этого раннера (реальная машина), поэтому после workflow он продолжает работать
@@ -36,9 +36,8 @@ env:
   IMAGE_TAG: latest
   CONTAINER_NAME: bumpy-web
   HOST_PORT: "9999"
-  # Образ-сборщик публикуется workflow build-bob-image.yml (со всеми
-  # зависимостями: bob.jar + движки HTML5). Тянем его из Docker Hub и тегаем
-  # по sha1 версии Defold.
+  # Образ-сборщик публикуется workflow build-bob-image.yml. Тянем его из
+  # Docker Hub и тегаем по sha1 версии Defold.
   BOB_BUILDER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/bumpy-bob-builder
 
 jobs:
@@ -46,8 +45,8 @@ jobs:
     name: Сборка образа и развёртывание на self-hosted
     # Self-hosted раннер. Требуется установленный Docker.
     runs-on: [self-hosted]
-    # Ничего не скачивается с d.defold.com (образ и движки готовы заранее),
-    # поэтому сборка быстрая; запас на docker pull и сборку бандла.
+    # Ничего не скачивается с d.defold.com (образ готов заранее, движок — из
+    # bob.jar), поэтому сборка быстрая; запас на docker pull и сборку бандла.
     timeout-minutes: 60
 
     steps:
@@ -85,30 +84,14 @@ jobs:
           echo "Defold stable sha1: ${SHA1}"
 
       - name: Загрузка образа-сборщика из Docker Hub
-        # Образ со всеми зависимостями (bob.jar + движки HTML5) собирается и
-        # публикуется workflow build-bob-image.yml. Здесь только тянем готовый
-        # образ — никаких docker build и скачиваний с d.defold.com.
+        # Образ (JDK 25 + библиотеки X11/GL + bob.jar) собирается и публикуется
+        # workflow build-bob-image.yml. Здесь только тянем готовый образ —
+        # никаких docker build и скачиваний с d.defold.com.
         # Тег — sha1 текущей версии Defold: при смене версии сначала нужно
         # пересобрать образ (workflow_dispatch → build-bob-image.yml).
         run: |
           set -euo pipefail
           docker pull "${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}"
-
-      - name: Подготовка кэша движков HTML5 из образа
-        # bob ищет движки в <root>/.internal/cache/<platform>/<sha1>/ и качает
-        # с d.defold.com, если их нет. В образе они уже лежат в
-        # /opt/bob/engine-cache — копируем в кэш проекта, чтобы `bundle`
-        # вообще не ходил в сеть.
-        run: |
-          set -euo pipefail
-          mkdir -p .internal/cache
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            -v "$PWD/.internal/cache":/cache \
-            "${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}" \
-            sh -c 'cp -a /opt/bob/engine-cache/. /cache/'
-          echo "Содержимое .internal/cache:"
-          find .internal/cache -type f -exec ls -l {} +
 
       - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
         # bob.jar зашит в образ bumpy-bob-builder (JDK 25 + системные библиотеки
@@ -117,16 +100,20 @@ jobs:
         # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
         # на раннере в dist/web/bumpy и далее попадает в docker-образ.
         #
+        # --architectures wasm-web: собираем ТОЛЬКО однопоточный движок.
+        # Иначе HTML5-бандлер дополнительно собирает wasm_pthread-web
+        # (HTML5Bundler.bundleApplication → buildWasm для каждой платформы из
+        # --architectures), а его движка в bob.jar НЕТ — bob качает его с
+        # d.defold.com, который на раннере троттлится (~100–200 Б/с) и
+        # «зависает» на этапе Bundling. Игре потоки не нужны (в проекте нет
+        # app manifest / set_thread_count), поэтому однопоточный бандл подходит.
+        #
         # Для HTML5 bob создаёт вложенную папку с именем проекта (title=bumpy)
         # внутри --bundle-output, т.е. результат окажется в dist/web/bumpy/
         # (index.html, dmloader.js, *.wasm, archive/).
         run: |
           set -euxo pipefail
           rm -rf dist/web/bumpy
-
-          # Проверяем, что кэш движков на месте — тогда `bundle` не пойдёт в сеть.
-          test -s ".internal/cache/wasm_pthread-web/${{ steps.defold.outputs.sha1 }}/dmengine_release.wasm" \
-            || { echo "Нет движка wasm_pthread-web в .internal/cache — bundle полезет качать с d.defold.com"; exit 1; }
 
           # Запускаем контейнер от имени пользователя раннера, а не root:
           # bob пишет свой кэш в .internal/ прямо в смонтированный рабочий
@@ -136,8 +123,7 @@ jobs:
           # чтобы JDK не пытался писать в недоступный $HOME пользователя root.
           #
           # Логи bob пишем в файл и стримим через tail, а рядом печатаем
-          # «пульс» каждые 15 с: так видно, что процесс жив (например, что
-          # молча качает движок), а не завис.
+          # «пульс» каждые 15 с: так видно, что процесс жив, а не завис.
           BOB_LOG=/tmp/bob-build.log
           BOB_START=$(date -u +%s)
           : > "$BOB_LOG"
@@ -151,6 +137,7 @@ jobs:
               --verbose \
               --root . \
               --platform wasm-web \
+              --architectures wasm-web \
               --archive \
               --variant release \
               --bundle-output dist/web \

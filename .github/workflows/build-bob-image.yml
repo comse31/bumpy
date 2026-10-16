@@ -5,18 +5,19 @@
 #   <DOCKERHUB_USERNAME>/bumpy-bob-builder:<sha1>
 # Этот же тег использует deploy-master (по текущей stable-версии Defold).
 #
-# Образ содержит ВСЕ зависимости сборки HTML5-бандла, чтобы во время
-# `deploy-master` ничего не докачивалось с d.defold.com (он сильно троттлится
-# и загрузка движка «зависает» на этапе Bundling):
+# Образ содержит зависимости сборки HTML5-бандла, чтобы во время
+# `deploy-master` не выполнялся `docker build`:
 #   * JDK 25 + системные библиотеки X11/GL;
-#   * bob.jar (скачивается из GitHub Release `bob-jar-<sha1>` либо с d.defold.com);
-#   * движки HTML5 (wasm-web из bob.jar и wasm_pthread-web с d.defold.com),
-#     уложенные в /opt/bob/engine-cache для копирования в .internal/cache.
+#   * bob.jar (скачивается из GitHub Release `bob-jar-<sha1>` либо с d.defold.com).
+#
+# Движки HTML5 в образ НЕ зашиваются: `deploy-master` собирает только
+# однопоточный движок (`--architectures wasm-web`), а он лежит внутри bob.jar
+# (libexec/wasm-web) — в сеть ходить не нужно.
 #
 # Требуются секреты репозитория: DOCKERHUB_USERNAME и DOCKERHUB_TOKEN.
 #
 # Так как образ кэшируется по слоям, повторная сборка при неизменном sha1
-# быстрая; при смене версии Defold пересобирается слой с движками.
+# быстрая.
 
 name: Build & Publish bob-builder image
 
@@ -43,8 +44,8 @@ jobs:
     name: Сборка и публикация образа-сборщика
     # Self-hosted раннер с установленным Docker (как и deploy-master).
     runs-on: [self-hosted]
-    # d.defold.com отдаёт движок wasm_pthread-web очень медленно; даём запас.
-    timeout-minutes: 360
+    # Запас: bob.jar (~220 МБ) качается из GitHub Release; apt-get ставит X11/GL.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
