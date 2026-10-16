@@ -47,7 +47,34 @@ docker run --rm -p 8080:80 bumpy-web
 bash docker/build-and-run.sh
 ```
 
-## 3. Передача образа архивом
+## 3. Готовый комплект для передачи
+
+Всё, что нужно для запуска игры на другой машине (только Docker, без Node.js и Defold),
+собрано в один архив:
+
+- [`dist/bumpy-docker.zip`](dist/bumpy-docker.zip) — комплект для передачи;
+- [`dist/bumpy-docker/`](dist/bumpy-docker) — та же сборка распакованной.
+
+Содержимое комплекта:
+
+| Файл | Назначение |
+|------|------------|
+| `bumpy-web-image.tar.gz` | готовый docker-образ (nginx + wasm-бандл игры) |
+| `bumpy-web-image.tar.gz.sha256` | контрольная сумма SHA-256 |
+| `run.cmd` / `run.sh` | загрузка образа и запуск контейнера (Windows / Linux-macOS) |
+| `docker-compose.yml` | запуск через docker compose |
+| `README.txt` | инструкция по запуску |
+
+Запуск у получателя: распаковать архив и выполнить `run.cmd` (Windows) либо
+`bash run.sh` (Linux/macOS), затем открыть <http://localhost:8080>.
+
+Пересобрать комплект:
+
+```bash
+bash docker/export-image.sh          # -> dist/bumpy-web-image.tar.gz
+```
+
+## 4. Передача образа архивом
 
 Если нужно передать игру на другую машину без исходников и сборки — экспортируйте
 готовый образ в архив.
@@ -121,6 +148,8 @@ docker compose -f docker/docker-compose.image.yml up -d
 | [`docker/build-and-run.sh`](docker/build-and-run.sh) | Сборка бандла + образ + запуск |
 | [`docker/export-image.sh`](docker/export-image.sh) / [`docker/export-image.cmd`](docker/export-image.cmd) | Экспорт образа в `dist/bumpy-web-image.tar.gz` |
 | [`docker/load-image.sh`](docker/load-image.sh) / [`docker/load-image.cmd`](docker/load-image.cmd) | Импорт образа из архива и запуск |
+| [`dist/bumpy-docker.zip`](dist/bumpy-docker.zip) | Готовый комплект для передачи (образ + скрипты запуска + README) |
+| [`dist/bumpy-docker/`](dist/bumpy-docker) | Распакованный комплект для передачи |
 | [`tools/api_bundle_html5.js`](tools/api_bundle_html5.js) | Бандлинг `wasm-web` через Defold Editor HTTP API |
 | [`.dockerignore`](.dockerignore) | Минимизация контекста сборки образа |
 
