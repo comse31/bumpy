@@ -69,21 +69,18 @@ jobs:
 
       - name: Получение bob.jar (только при отсутствии в кэше)
         # bob.jar публикуется вручную отдельным workflow fetch-bob.yml как ассет
-        # GitHub Release с тегом `bob-jar-<sha1>` — скачивание с GitHub быстрее,
-        # чем с d.defold.com. Если релиза нет, берём из исходного источника.
+        # GitHub Release `bob-jar-<sha1>` — скачивание с GitHub быстрее, чем с
+        # d.defold.com. Если релиза нет, берём из исходного источника.
         if: steps.bob-cache.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           SHA1="${{ steps.defold.outputs.sha1 }}"
-          TAG="bob-jar-${SHA1}"
-          ASSET_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}/bob.jar"
+          ASSET_URL="https://github.com/comse31/bumpy/releases/download/bob-jar-${SHA1}/bob.jar"
           echo "Пробую скачать bob.jar из релиза: ${ASSET_URL}"
-          if curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -o bob.jar "${ASSET_URL}"; then
-            echo "bob.jar получен из GitHub Release ${TAG}"
+          if curl -fsSL -o bob.jar "${ASSET_URL}"; then
+            echo "bob.jar получен из GitHub Release bob-jar-${SHA1}"
           else
-            echo "Релиз ${TAG} недоступен — скачиваю с d.defold.com"
+            echo "Релиз bob-jar-${SHA1} недоступен — скачиваю с d.defold.com"
             curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
           fi
           ls -lh bob.jar

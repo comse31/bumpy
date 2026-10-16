@@ -172,9 +172,11 @@ workflow). Задача выполняется на GitHub-hosted раннере
 
 Основная задача сборки ([`deploy-master.yml`](.github/workflows/deploy-master.yml))
 при отсутствии файла в кэше раннера сначала пытается скачать `bob.jar` из этого
-релиза (`…/releases/download/bob-jar-<sha1>/bob.jar`), и только если релиза нет —
-берёт из исходного `d.defold.com`. Это ускоряет сборку: файл тянется с GitHub,
-а после первого запуска вообще остаётся в кэше `actions/cache` на раннере.
+релиза по адресу
+`https://github.com/comse31/bumpy/releases/download/bob-jar-<sha1>/bob.jar`,
+и только если релиза нет — берёт из исходного `d.defold.com`. Это ускоряет
+сборку: файл тянется с GitHub, а после первого запуска вообще остаётся в кэше
+`actions/cache` на раннере.
 
 Порядок работы:
 1. (однократно или при смене версии Defold) вручную запустить «Fetch bob.jar (manual)»;
