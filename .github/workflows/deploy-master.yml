@@ -49,6 +49,22 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      - name: Очистка root-owned остатков предыдущих сборок
+        # bob в контейнере-сборщике пишет кэш в .internal/ внутри workspace.
+        # Если контейнер работал под root, файлы (.internal/cache) остаются
+        # root-owned, и actions/checkout не может очистить workspace под
+        # пользователем раннера (EACCES: permission denied). Удаляем такие
+        # остатки из контейнера под root ДО checkout, иначе checkout падает раньше.
+        run: |
+          set -euo pipefail
+          if [ -e .internal ]; then
+            echo "Найдены остатки .internal — удаляю через контейнер под root"
+            docker run --rm -v "$PWD":/project alpine \
+              sh -c 'rm -rf /project/.internal'
+          else
+            echo "Остатков .internal нет — пропускаю"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -90,7 +106,15 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf dist/web/bumpy
+          # Запускаем контейнер от имени пользователя раннера, а не root:
+          # bob пишет свой кэш в .internal/ прямо в смонтированный рабочий
+          # каталог. Если контейнер работает под root, каталог .internal/cache
+          # остаётся root-owned, и на следующем запуске actions/checkout не
+          # может очистить workspace (EACCES: permission denied). HOME=/tmp —
+          # чтобы JDK не пытался писать в недоступный $HOME пользователя root.
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
             -v "$PWD":/project \
             -w /project \
             "${BOB_BUILDER_IMAGE}" \
