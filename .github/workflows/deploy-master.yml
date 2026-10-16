@@ -50,19 +50,24 @@ jobs:
 
     steps:
       - name: Очистка root-owned остатков предыдущих сборок
-        # bob в контейнере-сборщике пишет кэш в .internal/ внутри workspace.
-        # Если контейнер работал под root, файлы (.internal/cache) остаются
-        # root-owned, и actions/checkout не может очистить workspace под
-        # пользователем раннера (EACCES: permission denied). Удаляем такие
-        # остатки из контейнера под root ДО checkout, иначе checkout падает раньше.
+        # bob в контейнере-сборщике пишет свои артефакты (.internal/, build/,
+        # dist/) прямо в смонтированный workspace. Если контейнер работал под
+        # root, эти каталоги остаются root-owned, и actions/checkout не может
+        # очистить workspace под пользователем раннера (EACCES: permission
+        # denied). Все перечисленные каталоги git-ignored и пересоздаются на
+        # этой же сборке, поэтому удаляем их из контейнера под root ДО checkout.
         run: |
           set -euo pipefail
-          if [ -e .internal ]; then
-            echo "Найдены остатки .internal — удаляю через контейнер под root"
+          found=""
+          for d in .internal build dist; do
+            [ -e "$d" ] && found="$found $d"
+          done
+          if [ -n "$found" ]; then
+            echo "Найдены остатки:$found — удаляю через контейнер под root"
             docker run --rm -v "$PWD":/project alpine \
-              sh -c 'rm -rf /project/.internal'
+              sh -c 'rm -rf /project/.internal /project/build /project/dist'
           else
-            echo "Остатков .internal нет — пропускаю"
+            echo "Остатков нет — пропускаю"
           fi
 
       - name: Checkout
