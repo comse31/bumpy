@@ -1,4 +1,4 @@
-# Сборка и развёртывание Bumpy (Defold, wasm-web) на GitHub-раннере.
+# Сборка и развёртывание Bumpy (Defold, wasm-web) на self-hosted раннере.
 #
 # Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
 #
@@ -6,11 +6,11 @@
 #   1. Скачивание headless-инструмента Defold (bob.jar) стабильной версии.
 #   2. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
 #   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
-#   4. Развёртывание контейнера прямо на раннере + health check.
+#   4. Развёртывание контейнера на раннере + health check.
 #
-# Важно: раннер GitHub Actions эфемерный — контейнер живёт только во время
-# выполнения job'а. Это развёртывание предназначено для проверки, что образ
-# собирается и корректно запускается ("smoke deploy").
+# Job выполняется на self-hosted раннере с меткой `teliot`. Контейнер
+# запускается на Docker-демоне этого раннера (реальная машина), поэтому после
+# workflow он продолжает работать (в отличие от эфемерных GitHub-hosted раннеров).
 
 name: Build & Deploy (master)
 
@@ -36,8 +36,9 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Сборка образа и развёртывание на раннере
-    runs-on: ubuntu-latest
+    name: Сборка образа и развёртывание на self-hosted (teliot)
+    # Self-hosted раннер с меткой `teliot`. Требуется установленный Docker.
+    runs-on: [self-hosted, teliot]
     timeout-minutes: 30
 
     steps:
@@ -122,7 +123,11 @@ jobs:
           docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
             --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
 
-      - name: Развёртывание контейнера на раннере
+      - name: Развёртывание контейнера на self-hosted раннере (teliot)
+        # `docker` здесь — это Docker-демон self-hosted раннера `teliot`
+        # (реальная машина), на которой выполняется job. Контейнер остаётся
+        # работать после завершения workflow (в отличие от эфемерных
+        # GitHub-hosted раннеров). Старый контейнер удаляется отдельным шагом.
         run: |
           set -euo pipefail
           docker run -d \

@@ -137,10 +137,11 @@ docker compose -f docker/docker-compose.image.yml up -d
 
 Открыть <http://localhost:8080>.
 
-## 5. CI: сборка и развёртывание на GitHub-раннере
+## 5. CI: сборка и развёртывание на self-hosted раннере (teliot)
 
 Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master.yml)
-запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) и:
+запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
+self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted, teliot]`) и:
 
 1. скачивает headless-сборщик Defold `bob.jar` стабильной версии
    (`https://d.defold.com/stable/info.json` → `sha1`);
@@ -153,8 +154,8 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 3. останавливает и удаляет старый контейнер `bumpy-web`, если он существует
    (`docker stop` + `docker rm`);
 4. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
-5. разворачивает контейнер на раннере (`docker run -d -p 8080:80`) и проверяет,
-   что `http://localhost:8080/` отвечает.
+5. разворачивает контейнер на раннере (`docker run -d -p <HOST_PORT>:80`) и
+   проверяет, что `http://localhost:<HOST_PORT>/` отвечает.
 
 В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:
 используется `bob.jar` — тот же сборщик, но в режиме командной строки.
@@ -174,10 +175,12 @@ Java 25 (class file version 69) и на старой системной Java п�
 `Failed to unpack bundled Bob tools` / `UnsatisfiedLinkError: libXext.so.6`.
 Реальный X-сервер не требуется — нужны только сами библиотеки.
 
-> Раннер GitHub Actions эфемерный: контейнер живёт только во время выполнения
-> job'а. Это развёртывание проверяет, что образ собирается и корректно
-> запускается. Для постоянного хостинга замените шаг развёртывания на публикацию
-> в реестр (`docker/build-push-action`) либо на деплой на ваш сервер.
+> `docker` в workflow — это Docker-демон **self-hosted раннера `teliot`**
+> (реальная машина, где выполняется job), а не Docker на машине разработчика.
+> Так как раннер постоянный, контейнер `bumpy-web` остаётся работать и после
+> завершения workflow; при следующем пуше старый контейнер останавливается и
+> удаляется, затем поднимается новый. На раннере должны быть установлены
+> Docker и Python 3 (для разбора `info.json`).
 
 ## Структура
 
