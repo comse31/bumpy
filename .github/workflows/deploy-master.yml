@@ -58,6 +58,11 @@ jobs:
         # его в официальном JDK-образе — сборка НЕ зависит от системной Java на
         # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
         # на раннере в dist/web/bumpy и далее попадает в docker-образ.
+        #
+        # Дополнительно ставим системные библиотеки X11/GL: нативные
+        # инструменты bob (ModelImporterJni и др.) динамически линкуются с
+        # libXext/libX11/... — без них падает "Failed to unpack bundled Bob tools"
+        # / UnsatisfiedLinkError. Дисплей (X-сервер) не нужен, достаточно .so.
         run: |
           set -euo pipefail
           rm -rf dist/web/bumpy
@@ -65,13 +70,24 @@ jobs:
             -v "$PWD":/project \
             -w /project \
             eclipse-temurin:25-jdk \
-            java -jar bob.jar \
-              --root . \
-              --platform wasm-web \
-              --archive \
-              --variant release \
-              --bundle-output dist/web/bumpy \
-              resolve build
+            bash -c '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                libx11-6 libxext6 libxrender1 libxi6 libxcursor1 \
+                libxrandr2 libxinerama1 libxfixes3 libxxf86vm1 \
+                libxcb1 libxau6 libxdmcp6 libbsd0 \
+                libgl1 libglu1-mesa
+              rm -rf /var/lib/apt/lists/*
+              java -jar bob.jar \
+                --root . \
+                --platform wasm-web \
+                --archive \
+                --variant release \
+                --bundle-output dist/web/bumpy \
+                resolve build
+            '
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
 
