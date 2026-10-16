@@ -32,7 +32,7 @@ env:
   IMAGE_NAME: bumpy-web
   IMAGE_TAG: latest
   CONTAINER_NAME: bumpy-web
-  HOST_PORT: "8080"
+  HOST_PORT: "9999"
 
 jobs:
   build-and-deploy:
