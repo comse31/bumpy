@@ -97,14 +97,20 @@ jobs:
       - name: Остановка и удаление старого контейнера
         run: |
           set -euo pipefail
-          if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
-            echo "Останавливаю старый контейнер ${CONTAINER_NAME}"
-            docker stop "${CONTAINER_NAME}"
-            echo "Удаляю старый контейнер ${CONTAINER_NAME}"
-            docker rm "${CONTAINER_NAME}"
-          else
-            echo "Старый контейнер ${CONTAINER_NAME} не найден — пропускаю"
+          # Есть ли контейнер вообще (запущенный или остановленный).
+          if ! docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+            echo "Контейнер ${CONTAINER_NAME} не найден — пропускаю"
+            exit 0
           fi
+          # Запущен ли он — останавливаем только работающий контейнер.
+          if docker ps --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+            echo "Останавливаю запущенный контейнер ${CONTAINER_NAME}"
+            docker stop "${CONTAINER_NAME}"
+          else
+            echo "Контейнер ${CONTAINER_NAME} уже остановлен — stop не требуется"
+          fi
+          echo "Удаляю контейнер ${CONTAINER_NAME}"
+          docker rm "${CONTAINER_NAME}"
 
       - name: Сборка Docker-образа
         run: |
