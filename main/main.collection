@@ -424,4 +424,14 @@ instances {
     z: 0.9
   }
 }
+# --- READY FOR LEVEL N?: плашка перед началом уровня, поверх всех объектов ---
+instances {
+  id: "ready"
+  prototype: "/main/ui/ready.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.95
+  }
+}
 scale_along_z: 0

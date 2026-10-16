@@ -824,6 +824,10 @@ function init(self)
     -- стартовая ячейка по умолчанию (уровень 1); level.script уточнит её
     -- сообщением "level_start" после генерации уровня
     start_at(self, state.start_cell)
+    -- до первого "level_start" игра заморожена: коллизия выключена, update
+    -- ничего не делает (см. ready_wait) — ждём плашку "READY FOR LEVEL N?"
+    self.ready_wait = true
+    msg.post("#collision_object", "disable")
     -- внутренние счётчики (карманы): количество собранных капель, ключей и
     -- молотков — раздельные; collectibles — собираемые для выхода,
     -- exit_open/level_complete — состояние перехода уровня
@@ -856,6 +860,11 @@ function init(self)
 end
 
 function update(self, dt)
+    -- плашка "READY FOR LEVEL N?": пока она показана, игра не начинается —
+    -- мяч заморожен (коллизия выключена), физика и логика не выполняются
+    if self.ready_wait then
+        return
+    end
     self.time = self.time + dt
 
     -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
@@ -1112,6 +1121,19 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    -- плашка "READY FOR LEVEL N?": любое нажатие клавиши убирает её и
+    -- запускает игру — мяч снова подчиняется физике
+    if self.ready_wait then
+        if action.pressed then
+            self.ready_wait = false
+            msg.post("/ready", "hide")
+            -- включить физику мяча: старт уровня начинается только теперь
+            msg.post("#collision_object", "enable")
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+            print("READY: level " .. tostring(state.index) .. " started")
+        end
+        return
+    end
     -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
     -- начинает новую игру; ждём, пока уровень 1 пересоберётся
     if self.game_over then
@@ -1155,6 +1177,14 @@ function on_message(self, message_id, message, sender)
     -- level.script сообщает стартовую ячейку сгенерированного уровня
     if message_id == hash("level_start") then
         start_at(self, (message and message.cell) or 0)
+        -- плашка "READY FOR LEVEL N?": показываем её перед началом уровня и
+        -- замораживаем мяч — игра начнётся только после нажатия любой клавиши.
+        -- Сначала гасим скорость (пока компонент ещё активен), затем выключаем
+        -- коллизию: без неё физика не двигает мяч, пока плашка на экране
+        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+        msg.post("#collision_object", "disable")
+        self.ready_wait = true
+        msg.post("/ready", "show", { level = state.index })
         -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
         -- если собирать нечего — выход уже открыт level.script'ом.
         -- game_over снимается: после потери жизни уровень перезапускается,
