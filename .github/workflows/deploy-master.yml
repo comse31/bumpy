@@ -3,9 +3,9 @@
 # Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
 #
 # Шаги:
-#   1. Получение headless-инструмента Defold (bob.jar): из кэша раннера или из
-#      ассета GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
-#      fetch-bob.yml), с fallback на d.defold.com.
+#   1. Скачивание headless-инструмента Defold (bob.jar) из ассета GitHub Release
+#      `bob-jar-<sha1>` (публикуется вручную workflow fetch-bob.yml), с fallback
+#      на d.defold.com, и сборка образа-сборщика с зашитым bob.jar.
 #   2. Сборка HTML5-бандла (platform wasm-web, archive=true) в dist/web/bumpy.
 #   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
 #   4. Развёртывание контейнера на раннере + health check.
@@ -41,7 +41,7 @@ jobs:
   build-and-deploy:
     name: Сборка образа и развёртывание на self-hosted (teliot)
     # Self-hosted раннер с меткой `teliot`. Требуется установленный Docker.
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, teliot]
     timeout-minutes: 30
 
     steps:
@@ -57,21 +57,16 @@ jobs:
           echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
           echo "Defold stable sha1: ${SHA1}"
 
-      - name: Кэш bob.jar (ключ по версии Defold)
-        # Кэш привязан к sha1 стабильной версии Defold: пока версия не меняется,
-        # bob.jar (220 МБ) не скачивается повторно. На self-hosted раннере кэш
-        # сохраняется между запусками.
-        id: bob-cache
-        uses: actions/cache@v4
-        with:
-          path: bob.jar
-          key: defold-bob-${{ steps.defold.outputs.sha1 }}
-
-      - name: Получение bob.jar (только при отсутствии в кэше)
+      - name: Скачивание bob.jar и сборка образа-сборщика
         # bob.jar публикуется вручную отдельным workflow fetch-bob.yml как ассет
         # GitHub Release `bob-jar-<sha1>` — скачивание с GitHub быстрее, чем с
-        # d.defold.com. Если релиза нет, берём из исходного источника.
-        if: steps.bob-cache.outputs.cache-hit != 'true'
+        # d.defold.com; если релиза нет, берём из исходного источника.
+        #
+        # Файл кладётся в корень репозитория и попадает в контекст сборки, а
+        # docker/bob-builder.Dockerfile копирует его в образ (/opt/bob/bob.jar).
+        # Образ (JDK 25 + библиотеки X11/GL) собирается один раз; слой COPY
+        # инвалидируется только при смене содержимого bob.jar (смене версии
+        # Defold), а слои с apt-get при повторных запусках берутся из кэша Docker.
         run: |
           set -euo pipefail
           SHA1="${{ steps.defold.outputs.sha1 }}"
@@ -84,25 +79,17 @@ jobs:
             curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
           fi
           ls -lh bob.jar
-
-      - name: Сборка образа-сборщика bob (кэшируется Docker'ом)
-        # Образ bumpy-bob-builder:25-jdk (JDK 25 + библиотеки X11/GL) собирается
-        # один раз; при повторных запусках слои берутся из кэша Docker, apt-get
-        # не выполняется. См. docker/bob-builder.Dockerfile.
-        run: |
-          set -euo pipefail
           docker build \
             -f docker/bob-builder.Dockerfile \
             -t "${BOB_BUILDER_IMAGE}" \
             .
 
       - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
-        # bob.jar собран под Java 25 (class file version 69), поэтому запускаем
-        # его в образе bumpy-bob-builder (JDK 25 + системные библиотеки X11/GL,
-        # которые нужны нативным инструментам bob, напр. ModelImporterJni) —
-        # сборка НЕ зависит от системной Java на раннере. Репозиторий
-        # монтируется в контейнер, готовый бандл остаётся на раннере в
-        # dist/web/bumpy и далее попадает в docker-образ.
+        # bob.jar зашит в образ bumpy-bob-builder (JDK 25 + системные библиотеки
+        # X11/GL, которые нужны нативным инструментам bob, напр.
+        # ModelImporterJni), поэтому сборка НЕ зависит от системной Java на
+        # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
+        # на раннере в dist/web/bumpy и далее попадает в docker-образ.
         #
         # Для HTML5 bob создаёт вложенную папку с именем проекта (title=bumpy)
         # внутри --bundle-output, т.е. результат окажется в dist/web/bumpy/
@@ -114,7 +101,7 @@ jobs:
             -v "$PWD":/project \
             -w /project \
             "${BOB_BUILDER_IMAGE}" \
-            java -jar bob.jar \
+            java -jar /opt/bob/bob.jar \
               --root . \
               --platform wasm-web \
               --archive \
