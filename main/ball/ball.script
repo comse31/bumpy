@@ -55,6 +55,19 @@ local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
 local THRESHOLD_MS = 100.0
 local THRESHOLD = THRESHOLD_MS / 1000.0
 
+-- тач-управление (тачскрин). Жесты работают как удержание клавиш:
+--   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»
+--   (мяч на каждом отскоке смещается в сторону, пока палец на экране);
+--   свайп вверх с удержанием — удержание «высокий прыжок»;
+--   короткий тап без движения — разовая команда по половине игрового поля.
+-- Порог свайпа задаётся долей размера экрана, чтобы жест одинаково распознавался
+-- на разных разрешениях устройств
+local SWIPE_MIN_FRAC = 0.05
+-- «время жизни» разовой тап-команды: она принимается не мгновенно, а в окне
+-- threshold вокруг следующего касания, поэтому держится чуть дольше одного
+-- отскока (PERIOD = 0.5 с) и сбрасывается, как только действие выполнено
+local TOUCH_CMD_TIMEOUT = 0.7
+
 -- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
 -- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
 local CONTACT_DEDUP = 0.1
@@ -764,14 +777,42 @@ local function start_high_jump(self)
     self.next_touch_time = self.time + high_jump_touch_time(self)
 end
 
--- направление удерживаемой клавиши; если нажаты обе — смещения нет
+-- направление удерживаемой клавиши/тач-команды; если нажаты обе — смещения нет.
+-- Тач даёт два вида команд: удержание (touch_left/touch_right — свайп с
+-- удержанием пальца, живёт пока палец на экране) и одноразовый тап
+-- (tap_left/tap_right — короткая команда после отпускания пальца, см.
+-- TOUCH_CMD_TIMEOUT). В управлении учитываются все источники.
 local function held_direction(self)
-    local left  = self.left_held  and not self.right_held
-    local right = self.right_held and not self.left_held
+    local left  = (self.left_held or self.touch_left or self.tap_left)
+        and not (self.right_held or self.touch_right or self.tap_right)
+    local right = (self.right_held or self.touch_right or self.tap_right)
+        and not (self.left_held or self.touch_left or self.tap_left)
 
     if right then return  1 end
     if left  then return -1 end
     return 0
+end
+
+-- «удержание» высокого прыжка с учётом тач-команд (свайп вверх/удержание или тап)
+local function jump_active(self)
+    return self.jump_held or self.touch_jump or self.tap_jump
+end
+
+-- снять одноразовые тап-команды (после выполнения действия или по тайм-ауту);
+-- удержания (touch_*) при этом не трогаются — они живут, пока палец на экране
+local function clear_tap(self)
+    self.tap_left = false
+    self.tap_right = false
+    self.tap_jump = false
+    self.touch_timer = 0.0
+end
+
+-- снять все тач-команды, включая удержания (при старте уровня/потере жизни)
+local function clear_touch(self)
+    clear_tap(self)
+    self.touch_left = false
+    self.touch_right = false
+    self.touch_jump = false
 end
 
 function init(self)
@@ -808,6 +849,20 @@ function init(self)
     self.left_held = false
     self.right_held = false
     self.jump_held = false
+    -- тач-управление. Удержания (touch_*) живут, пока палец на экране, и работают
+    -- как удержание соответствующей клавиши: свайп вправо/влево с удержанием —
+    -- удержание «вправо»/«влево», свайп вверх с удержанием — «высокий прыжок».
+    -- Одноразовые тапы (tap_*) ставятся при отпускании пальца на короткое время
+    -- (TOUCH_CMD_TIMEOUT) и снимаются после выполнения действия.
+    -- touch_state хранит начало/текущую точку активного касания по его id
+    self.touch_left = false
+    self.touch_right = false
+    self.touch_jump = false
+    self.tap_left = false
+    self.tap_right = false
+    self.tap_jump = false
+    self.touch_timer = 0.0
+    self.touch_state = {}
     self.rising = false
     self.high_jump = false
     -- липкая поверхность: мяч лежит на ней (sticky_rest) и за одно касание может
@@ -866,6 +921,16 @@ function update(self, dt)
         return
     end
     self.time = self.time + dt
+
+    -- тайм-аут одноразовых тап-команд: тап держится чуть дольше одного отскока,
+    -- затем снимается, чтобы жест не сработал повторно. Удержания (touch_*) при
+    -- этом не снимаются — они живут, пока палец на экране
+    if self.touch_timer > 0.0 then
+        self.touch_timer = math.max(0.0, self.touch_timer - dt)
+        if self.touch_timer == 0.0 then
+            clear_tap(self)
+        end
+    end
 
     -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
     -- теряется жизнь, уровень перезапускается
@@ -958,7 +1023,7 @@ function update(self, dt)
     local dir = held_direction(self)
     -- сброс блокировки действия при отпускании клавиши: удержание даёт ровно
     -- одно действие (соскок/прыжок), следующее — только по новому нажатию
-    if dir == 0 and not self.jump_held then
+    if dir == 0 and not jump_active(self) then
         self.sticky_action_used = false
     end
     -- команды не принимаются в середине действия (соскок/отскок): X уже
@@ -1011,7 +1076,7 @@ function update(self, dt)
     -- на липкой платформе, если действие за это касание уже израсходовано
     local can_high_jump = not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used)
-    if self.jump_held and not self.press_used and not self.high_jump and can_high_jump
+    if jump_active(self) and not self.press_used and not self.high_jump and can_high_jump
         and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
         local since_touch = self.time - self.touch_time
         if since_touch <= THRESHOLD or from_rest then
@@ -1039,6 +1104,14 @@ function update(self, dt)
                 self.press_used = true
             end
         end
+    end
+
+    -- одноразовость тап-команд: как только действие выполнено (press_used),
+    -- снимаем тап-флаги, иначе жест сработал бы ещё раз в пределах тайм-аута.
+    -- Удержания (touch_*) сохраняются — они продолжают действовать как
+    -- удержание клавиши, пока палец на экране
+    if self.press_used then
+        clear_tap(self)
     end
 
     -- смещение по X линейно во времени: вместе с физической параболой по Y это
@@ -1170,6 +1243,69 @@ function on_input(self, action_id, action)
         if action.pressed then
             toggle_character(self)
         end
+    elseif action_id == hash("touch") then
+        -- Тачскрин. Жесты работают как удержание клавиш:
+        --   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»;
+        --   свайп вверх с удержанием пальца — удержание высокого прыжка;
+        --   короткий тап без движения — разовый прыжок в сторону половины поля.
+        -- Удержание живёт, пока палец на экране, и снимается при отпускании.
+        -- Координаты приводим к долям экрана (0..1, y — вверх): touch приходит уже
+        -- нормированным, а мышь — в пикселях, поэтому значения больше 1 делим на
+        -- размер окна.
+        local x, y = action.x or 0.0, action.y or 0.0
+        if x > 1.0 or y > 1.0 then
+            local w, h = window.get_size()
+            if w > 0 then x = x / w end
+            if h > 0 then y = y / h end
+        end
+        local touch_id = action.touch_id or 0
+        local st = self.touch_state[touch_id]
+        if action.pressed then
+            st = { x0 = x, y0 = y, x = x, y = y, gesture = nil }
+            self.touch_state[touch_id] = st
+        elseif st then
+            st.x, st.y = x, y
+            -- жест определяем по смещению от начальной точки касания:
+            -- вверх (высокий прыжок) приоритетнее, если вертикаль доминирует
+            local dx, dy = x - st.x0, y - st.y0
+            local gesture = nil
+            if dy >= SWIPE_MIN_FRAC and dy >= math.abs(dx) then
+                gesture = "jump"
+            elseif dx >= SWIPE_MIN_FRAC then
+                gesture = "right"
+            elseif -dx >= SWIPE_MIN_FRAC then
+                gesture = "left"
+            end
+            -- появление/смена жеста: снимаем прежнее удержание и ставим новое
+            if gesture ~= st.gesture then
+                st.gesture = gesture
+                self.touch_jump = (gesture == "jump")
+                self.touch_right = (gesture == "right")
+                self.touch_left = (gesture == "left")
+                if gesture then
+                    print("TOUCH: hold " .. gesture)
+                end
+            end
+            if action.released then
+                if st.gesture then
+                    -- жест-удержание завершён: отпускаем «клавишу»
+                    self.touch_jump = false
+                    self.touch_right = false
+                    self.touch_left = false
+                else
+                    -- чистый тап без движения: разовая команда по половине экрана
+                    if st.x < 0.5 then
+                        self.tap_left = true
+                        print("TOUCH: tap left -> hop left")
+                    else
+                        self.tap_right = true
+                        print("TOUCH: tap right -> hop right")
+                    end
+                    self.touch_timer = TOUCH_CMD_TIMEOUT
+                end
+                self.touch_state[touch_id] = nil
+            end
+        end
     end
 end
 
@@ -1219,6 +1355,9 @@ function on_message(self, message_id, message, sender)
         self.jump_held = false
         self.left_held = false
         self.right_held = false
+        -- тач-команды с прошлого уровня не переносятся на новый
+        clear_touch(self)
+        self.touch_state = {}
         -- сбросить привязку «молоток потрачен на стену»: после пересборки
         -- уровня у стен новые id, и молоток снова тратится на первый удар
         self.hammer_wall_id = nil
@@ -1389,7 +1528,8 @@ function on_message(self, message_id, message, sender)
             if hop_and_move(self, direction) then
                 self.press_used = true
             end
-        elseif (self.jump_held or self.pending_jump)
+            clear_tap(self)
+        elseif (jump_active(self) or self.pending_jump)
             and not self.high_jump_locked
             and not (self.sticky_rest and self.sticky_action_used) then
             -- высокий прыжок: постоянное движение вверх до платформы снизу или
@@ -1401,6 +1541,7 @@ function on_message(self, message_id, message, sender)
                 self.sticky_rest = false
             end
             start_high_jump(self)
+            clear_tap(self)
         else
             settle_or_stick(self)
         end
