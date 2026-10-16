@@ -33,6 +33,7 @@ env:
   IMAGE_TAG: latest
   CONTAINER_NAME: bumpy-web
   HOST_PORT: "9999"
+  BOB_BUILDER_IMAGE: bumpy-bob-builder:25-jdk
 
 jobs:
   build-and-deploy:
@@ -45,53 +46,69 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Скачивание bob.jar (Defold headless)
+      - name: Определение версии Defold (sha1)
+        id: defold
         run: |
           set -euo pipefail
           SHA1="$(curl -fsSL https://d.defold.com/stable/info.json \
             | python3 -c 'import sys, json; print(json.load(sys.stdin)["sha1"])')"
+          echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
           echo "Defold stable sha1: ${SHA1}"
-          curl -fsSL -o bob.jar "https://d.defold.com/archive/${SHA1}/bob/bob.jar"
+
+      - name: Кэш bob.jar (ключ по версии Defold)
+        # Кэш привязан к sha1 стабильной версии Defold: пока версия не меняется,
+        # bob.jar (220 МБ) не скачивается повторно. На self-hosted раннере кэш
+        # сохраняется между запусками.
+        id: bob-cache
+        uses: actions/cache@v4
+        with:
+          path: bob.jar
+          key: defold-bob-${{ steps.defold.outputs.sha1 }}
+
+      - name: Скачивание bob.jar (только при отсутствии в кэше)
+        if: steps.bob-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL -o bob.jar \
+            "https://d.defold.com/archive/${{ steps.defold.outputs.sha1 }}/bob/bob.jar"
           ls -lh bob.jar
+
+      - name: Сборка образа-сборщика bob (кэшируется Docker'ом)
+        # Образ bumpy-bob-builder:25-jdk (JDK 25 + библиотеки X11/GL) собирается
+        # один раз; при повторных запусках слои берутся из кэша Docker, apt-get
+        # не выполняется. См. docker/bob-builder.Dockerfile.
+        run: |
+          set -euo pipefail
+          docker build \
+            -f docker/bob-builder.Dockerfile \
+            -t "${BOB_BUILDER_IMAGE}" \
+            .
 
       - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
         # bob.jar собран под Java 25 (class file version 69), поэтому запускаем
-        # его в официальном JDK-образе — сборка НЕ зависит от системной Java на
-        # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
-        # на раннере в dist/web/bumpy и далее попадает в docker-образ.
+        # его в образе bumpy-bob-builder (JDK 25 + системные библиотеки X11/GL,
+        # которые нужны нативным инструментам bob, напр. ModelImporterJni) —
+        # сборка НЕ зависит от системной Java на раннере. Репозиторий
+        # монтируется в контейнер, готовый бандл остаётся на раннере в
+        # dist/web/bumpy и далее попадает в docker-образ.
         #
-        # Дополнительно ставим системные библиотеки X11/GL: нативные
-        # инструменты bob (ModelImporterJni и др.) динамически линкуются с
-        # libXext/libX11/... — без них падает "Failed to unpack bundled Bob tools"
-        # / UnsatisfiedLinkError. Дисплей (X-сервер) не нужен, достаточно .so.
+        # Для HTML5 bob создаёт вложенную папку с именем проекта (title=bumpy)
+        # внутри --bundle-output, т.е. результат окажется в dist/web/bumpy/
+        # (index.html, dmloader.js, *.wasm, archive/).
         run: |
           set -euo pipefail
           rm -rf dist/web/bumpy
           docker run --rm \
             -v "$PWD":/project \
             -w /project \
-            eclipse-temurin:25-jdk \
-            bash -c '
-              set -euo pipefail
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y --no-install-recommends \
-                libx11-6 libxext6 libxrender1 libxi6 libxcursor1 \
-                libxrandr2 libxinerama1 libxfixes3 libxxf86vm1 \
-                libxcb1 libxau6 libxdmcp6 libbsd0 \
-                libgl1 libglu1-mesa
-              rm -rf /var/lib/apt/lists/*
-              # Для HTML5 bob создаёт вложенную папку с именем проекта
-              # (title=bumpy) внутри --bundle-output, т.е. результат окажется в
-              # dist/web/bumpy/ (index.html, dmloader.js, *.wasm, archive/).
-              java -jar bob.jar \
-                --root . \
-                --platform wasm-web \
-                --archive \
-                --variant release \
-                --bundle-output dist/web \
-                resolve build bundle
-            '
+            "${BOB_BUILDER_IMAGE}" \
+            java -jar bob.jar \
+              --root . \
+              --platform wasm-web \
+              --archive \
+              --variant release \
+              --bundle-output dist/web \
+              resolve build bundle
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
 

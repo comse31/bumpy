@@ -160,20 +160,34 @@ self-hosted раннере с меткой **`teliot`** (`runs-on: [self-hosted,
 В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:
 используется `bob.jar` — тот же сборщик, но в режиме командной строки.
 
-Сборка бандла выполняется в официальном JDK-контейнере
-(`eclipse-temurin:25-jdk`) через `docker run`, поэтому **не зависит от версии
-Java, установленной на раннере**. Это важно, т.к. актуальный `bob.jar` собран под
-Java 25 (class file version 69) и на старой системной Java падает с
-`UnsupportedClassVersionError`. Репозиторий монтируется в контейнер
-(`-v "$PWD":/project -w /project`), готовый бандл остаётся на раннере в
-`dist/web/bumpy` и затем попадает в docker-образ.
+Сборка бандла выполняется в контейнере `bumpy-bob-builder:25-jdk` через
+`docker run`, поэтому **не зависит от версии Java, установленной на раннере**.
+Это важно, т.к. актуальный `bob.jar` собран под Java 25 (class file version 69) и
+на старой системной Java падает с `UnsupportedClassVersionError`. Репозиторий
+монтируется в контейнер (`-v "$PWD":/project -w /project`), готовый бандл
+остаётся на раннере в `dist/web/bumpy` и затем попадает в docker-образ.
 
-Внутри этого же контейнера перед запуском `bob.jar` устанавливаются системные
-библиотеки X11/GL (`libx11-6`, `libxext6`, `libxrender1`, `libgl1` и др.):
-нативные инструменты `bob` (например, `ModelImporterJni`) динамически
-линкуются с ними, и без этих `.so` сборка падает с
-`Failed to unpack bundled Bob tools` / `UnsatisfiedLinkError: libXext.so.6`.
-Реальный X-сервер не требуется — нужны только сами библиотеки.
+Образ-сборщик [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile)
+базируется на `eclipse-temurin:25-jdk` и содержит системные библиотеки X11/GL
+(`libx11-6`, `libxext6`, `libxrender1`, `libgl1` и др.): нативные инструменты
+`bob` (например, `ModelImporterJni`) динамически линкуются с ними, и без этих
+`.so` сборка падает с `Failed to unpack bundled Bob tools` /
+`UnsatisfiedLinkError: libXext.so.6`. Реальный X-сервер не требуется — нужны
+только сами библиотеки. Образ собирается один раз и кэшируется Docker'ом, так
+что `apt-get` при каждом запуске workflow не выполняется.
+
+### Кэширование артефактов сборки
+
+Чтобы не скачивать одно и то же при каждом пуше:
+
+- **`bob.jar`** (≈220 МБ) кэшируется через `actions/cache` с ключом
+  `defold-bob-<sha1>` — скачивание происходит только при смене стабильной
+  версии Defold. На self-hosted раннере кэш сохраняется между запусками;
+- **образ-сборщик** `bumpy-bob-builder:25-jdk` пересобирается только при
+  изменении [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile):
+  слои с `apt-get` берутся из кэша Docker;
+- базовые образы `nginx:1.27-alpine` и `eclipse-temurin:25-jdk` остаются
+  локально на раннере после первой загрузки.
 
 > `docker` в workflow — это Docker-демон **self-hosted раннера `teliot`**
 > (реальная машина, где выполняется job), а не Docker на машине разработчика.
@@ -187,6 +201,7 @@ Java 25 (class file version 69) и на старой системной Java п�
 | Файл | Назначение |
 |------|------------|
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
+| [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL) для CI |
 | [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
 | [`docker/docker-compose.yml`](docker/docker-compose.yml) | Сборка образа из исходников и запуск, порт `8080:80` |
 | [`docker/docker-compose.image.yml`](docker/docker-compose.image.yml) | Запуск уже загруженного образа (без сборки) |
