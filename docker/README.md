@@ -150,8 +150,10 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
    выкладывает бандл в `--bundle-output`; для HTML5 внутри `--bundle-output`
    создаётся вложенная папка с именем проекта, поэтому результат оказывается в
    `dist/web/bumpy/`);
-3. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
-4. разворачивает контейнер на раннере (`docker run -d -p 8080:80`) и проверяет,
+3. останавливает и удаляет старый контейнер `bumpy-web`, если он существует
+   (`docker stop` + `docker rm`);
+4. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
+5. разворачивает контейнер на раннере (`docker run -d -p 8080:80`) и проверяет,
    что `http://localhost:8080/` отвечает.
 
 В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:

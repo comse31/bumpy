@@ -94,6 +94,18 @@ jobs:
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
 
+      - name: Остановка и удаление старого контейнера
+        run: |
+          set -euo pipefail
+          if docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+            echo "Останавливаю старый контейнер ${CONTAINER_NAME}"
+            docker stop "${CONTAINER_NAME}"
+            echo "Удаляю старый контейнер ${CONTAINER_NAME}"
+            docker rm "${CONTAINER_NAME}"
+          else
+            echo "Старый контейнер ${CONTAINER_NAME} не найден — пропускаю"
+          fi
+
       - name: Сборка Docker-образа
         run: |
           set -euo pipefail
@@ -107,7 +119,6 @@ jobs:
       - name: Развёртывание контейнера на раннере
         run: |
           set -euo pipefail
-          docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
           docker run -d \
             --name "${CONTAINER_NAME}" \
             -p "${HOST_PORT}:80" \
