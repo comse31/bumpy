@@ -143,48 +143,62 @@ Workflow [`.github/workflows/deploy-master.yml`](.github/workflows/deploy-master
 запускается при **push в ветку `master`** (и вручную через `workflow_dispatch`) на
 self-hosted раннере (`runs-on: [self-hosted]`) и:
 
-1. собирает образ-сборщик, в который headless-сборщик Defold `bob.jar`
-   скачивается прямо на этапе `docker build` (`--build-arg BOB_SHA1`): из ассета
-   GitHub Release `bob-jar-<sha1>` (публикуется вручную workflow
-   `fetch-bob.yml`), иначе с `https://d.defold.com`;
-2. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
+1. тянет из Docker Hub готовый образ-сборщик `bumpy-bob-builder:<sha1>`
+   (публикуется вручную workflow `build-bob-image.yml`, см. ниже). Своего
+   `docker build` в deploy нет — во время сборки **ничего не качается**;
+2. копирует из образа кэш движков HTML5 (`/opt/bob/engine-cache`) в
+   `.internal/cache` проекта — иначе `bob` полез бы качать движок
+   `wasm_pthread-web` с `d.defold.com`;
+3. собирает HTML5-бандл: `java -jar bob.jar --platform wasm-web --archive
    --bundle-output dist/web resolve build bundle`
    (команда `bundle` обязательна — без неё `bob` только собирает, но не
    выкладывает бандл в `--bundle-output`; для HTML5 внутри `--bundle-output`
    создаётся вложенная папка с именем проекта, поэтому результат оказывается в
    `dist/web/bumpy/`);
-3. останавливает и удаляет старый контейнер `bumpy-web`, если он существует
+4. останавливает и удаляет старый контейнер `bumpy-web`, если он существует
    (`docker stop` + `docker rm`);
-4. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
-5. разворачивает контейнер на раннере (`docker run -d -p <HOST_PORT>:80`) и
+5. собирает Docker-образ `bumpy-web:latest` из [`docker/Dockerfile`](docker/Dockerfile);
+6. разворачивает контейнер на раннере (`docker run -d -p <HOST_PORT>:80`) и
    проверяет, что `http://localhost:<HOST_PORT>/` отвечает.
 
 В отличие от локальной сборки, CI **не требует запущенного редактора Defold**:
 используется `bob.jar` — тот же сборщик, но в режиме командной строки.
 
-### Предзагрузка bob.jar (ручная задача)
+### Образ-сборщик (ручная задача build-bob-image.yml)
 
-Чтобы не скачивать `bob.jar` (≈220 МБ) с `d.defold.com` при каждой сборке,
-он загружается на GitHub один раз отдельным workflow
-[`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml)
-(**запускается только вручную**: Actions → «Fetch bob.jar (manual)» → Run
-workflow). Задача выполняется на self-hosted раннере (`runs-on: [self-hosted]`)
-и публикует файл как ассет GitHub Release с тегом `bob-jar-<sha1>`.
+Workflow [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml)
+**запускается только вручную** (Actions → «Build & Publish bob-builder image» →
+Run workflow). Он собирает образ-сборщик со **всеми** зависимостями и публикует
+его в Docker Hub под тегом версии `bob`:
 
-Основная задача сборки ([`deploy-master.yml`](.github/workflows/deploy-master.yml))
-при сборке образа-сборщика передаёт в `docker build` аргумент
-`--build-arg BOB_SHA1=<sha1>`, и `bob.jar` скачивается **внутри образа** прямо из
-этого релиза по адресу
-`https://github.com/comse31/bumpy/releases/download/bob-jar-<sha1>/bob.jar`,
-и только если релиза нет — берётся из исходного `d.defold.com`. На хост-раннере
-файл не сохраняется (см. ниже).
+```
+<DOCKERHUB_USERNAME>/bumpy-bob-builder:<sha1>
+```
 
-Порядок работы:
-1. (однократно или при смене версии Defold) вручную запустить «Fetch bob.jar (manual)»;
-2. обычные пуши в `master` запускают сборку: `docker build` скачивает `bob.jar`
-   из релиза прямо в образ-сборщик.
+Этот же тег использует `deploy-master` (по текущей stable-версии Defold). При
+смене версии Defold нужно один раз пересобрать образ (можно передать нужный
+`sha1` во входном параметре `defold_sha1`).
 
-Сборка бандла выполняется в контейнере `bumpy-bob-builder:25-jdk` через
+Требуются секреты репозитория `DOCKERHUB_USERNAME` и `DOCKERHUB_TOKEN`.
+
+Почему образ нужен как зависимость: `bob` при бандлинге HTML5 скачивает движок
+с `d.defold.com`, а тот на раннере сильно троттлится (единицы КБ/с) — сборка
+«зависает» на этапе `Bundling`. Поэтому в образ заранее кладутся:
+
+- `bob.jar` (≈220 МБ) — из ассета GitHub Release `bob-jar-<sha1>`, а если релиза
+  нет — с `d.defold.com`; в образе лежит `/opt/bob/bob.jar`;
+- движки HTML5 — в `/opt/bob/engine-cache/<platform>/<sha1>/`:
+  `wasm-web` распаковывается из `bob.jar` (`libexec/wasm-web`, сеть не нужна),
+  а `wasm_pthread-web` (в `bob.jar` его нет) скачивается один раз на этапе
+  `docker build`.
+
+`deploy-master` копирует `engine-cache` в `.internal/cache` проекта — `bob`
+кэширует артефакты движка в `<root>/.internal/cache/<platform>/<sha1>/` и
+качает с `d.defold.com` только если файла нет.
+
+### Почему контейнер и что внутри
+
+Сборка бандла выполняется в контейнере `bumpy-bob-builder:<sha1>` через
 `docker run`, поэтому **не зависит от версии Java, установленной на раннере**.
 Это важно, т.к. актуальный `bob.jar` собран под Java 25 (class file version 69) и
 на старой системной Java падает с `UnsupportedClassVersionError`. Репозиторий
@@ -197,33 +211,18 @@ workflow). Задача выполняется на self-hosted раннере (
 `bob` (например, `ModelImporterJni`) динамически линкуются с ними, и без этих
 `.so` сборка падает с `Failed to unpack bundled Bob tools` /
 `UnsatisfiedLinkError: libXext.so.6`. Реальный X-сервер не требуется — нужны
-только сами библиотеки. Образ собирается один раз и кэшируется Docker'ом, так
-что `apt-get` при каждом запуске workflow не выполняется.
-
-`bob.jar` **скачивается прямо в образ**. Последовательность такая:
-1. workflow передаёт в `docker build` аргумент `--build-arg BOB_SHA1=<sha1>`;
-2. `docker build` по [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile)
-   в слое `RUN curl …` скачивает `bob.jar` (из GitHub Release или `d.defold.com`)
-   сразу в образ: `/opt/bob/bob.jar`;
-3. сборка бандла запускается как `java -jar /opt/bob/bob.jar …` — из образа, а
-   не из смонтированного каталога.
-
-Поэтому `bob.jar` не нужно ни монтировать в контейнер, ни сохранять на хост-раннере,
-и слой `RUN`, скачивающий файл, инвалидируется только при смене значения
-`BOB_SHA1`, т.е. при смене версии Defold.
+только сами библиотеки.
 
 ### Кэширование артефактов сборки
 
 Чтобы не скачивать/не собирать одно и то же при каждом пуше:
 
-- **`bob.jar`** (≈220 МБ) скачивается из ассета GitHub Release `bob-jar-<sha1>`
-  (публикуется вручную workflow `fetch-bob.yml`), а если релиза нет — с
-  `d.defold.com`. Файл скачивается в образ-сборщик слоем `RUN curl …`, и этот
-  слой инвалидируется только при смене `BOB_SHA1`, т.е. при смене версии
-  Defold — повторно файл не скачивается;
-- **образ-сборщик** `bumpy-bob-builder:25-jdk` пересобирается только при
+- **`bob.jar`** (≈220 МБ) и движки HTML5 зашиваются в образ-сборщик слоями
+  `RUN`, которые инвалидируются только при смене `BOB_SHA1` (версии Defold);
+- **образ-сборщик** `bumpy-bob-builder:<sha1>` пересобирается только при
   изменении [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) или
-  значения `BOB_SHA1`: слои с `apt-get` берутся из кэша Docker;
+  значения `sha1` — вручную через `build-bob-image.yml`; слои с `apt-get`
+  берутся из кэша Docker;
 - базовые образы `nginx:1.27-alpine` и `eclipse-temurin:25-jdk` остаются
   локально на раннере после первой загрузки.
 
@@ -239,8 +238,9 @@ workflow). Задача выполняется на self-hosted раннере (
 | Файл | Назначение |
 |------|------------|
 | [`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml) | Ручная загрузка `bob.jar` и публикация как ассет GitHub Release |
+| [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml) | Ручная сборка и публикация образа-сборщика в Docker Hub (тег = версия bob) |
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
-| [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL) для CI |
+| [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL + bob.jar + движки HTML5) для CI |
 | [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
 | [`docker/docker-compose.yml`](docker/docker-compose.yml) | Сборка образа из исходников и запуск, порт `8080:80` |
 | [`docker/docker-compose.image.yml`](docker/docker-compose.image.yml) | Запуск уже загруженного образа (без сборки) |

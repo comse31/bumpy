@@ -14,11 +14,12 @@
 # Слой RUN инвалидируется при изменении аргумента BOB_SHA1, т.е. при смене
 # версии Defold; при неизменной версии слой берётся из кэша Docker.
 #
-# Сборка (кэшируется Docker'ом на раннере):
+# Сборка и публикация (обычно — workflow build-bob-image.yml, вручную):
 #   docker build \
 #     --build-arg BOB_SHA1=<sha1> \
 #     -f docker/bob-builder.Dockerfile \
-#     -t bumpy-bob-builder:25-jdk .
+#     -t <dockerhub-user>/bumpy-bob-builder:<sha1> .
+#   docker push <dockerhub-user>/bumpy-bob-builder:<sha1>
 
 FROM eclipse-temurin:25-jdk
 
@@ -28,7 +29,7 @@ ARG BOB_SHA1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl ca-certificates \
+        curl ca-certificates unzip \
         libx11-6 libxext6 libxrender1 libxi6 libxcursor1 \
         libxrandr2 libxinerama1 libxfixes3 libxxf86vm1 \
         libxcb1 libxau6 libxdmcp6 libbsd0 \
@@ -56,5 +57,38 @@ RUN set -eux; \
         curl -fsSL -o /opt/bob/bob.jar "https://d.defold.com/archive/${BOB_SHA1}/bob/bob.jar"; \
     fi; \
     ls -lh /opt/bob/bob.jar
+
+# Пре-загрузка движков HTML5 в кэш, чтобы во время `bundle` НИЧЕГО не
+# скачивалось с d.defold.com (на раннере он сильно троттлится и загрузка
+# «зависает» на этапе Bundling).
+#
+# bob кэширует артефакты движка в <root>/.internal/cache/<platform>/<sha1>/<file>
+# и качает их с d.defold.com только если файла нет. Здесь мы складываем их в
+# /opt/bob/engine-cache/<platform>/<sha1>/, а workflow копирует этот каталог в
+# .internal/cache проекта перед сборкой — тогда bob берёт движки из кэша.
+#
+# HTML5-бандлер собирает ДВА движка: wasm-web и wasm_pthread-web
+# (HTML5Bundler.bundleApplication вызывает buildWasm для обоих платформ).
+#   * wasm-web уже лежит внутри bob.jar (libexec/wasm-web) — распаковываем
+#     оттуда, сеть не нужна;
+#   * wasm_pthread-web в bob.jar НЕ входит — качаем один раз на этапе сборки
+#     образа (ретраи + большой --max-time: d.defold.com отдаёт медленно).
+ARG BOB_SHA1
+RUN set -eux; \
+    CACHE=/opt/bob/engine-cache; \
+    mkdir -p "${CACHE}/wasm-web/${BOB_SHA1}" "${CACHE}/wasm_pthread-web/${BOB_SHA1}"; \
+    unzip -o -j /opt/bob/bob.jar \
+        'libexec/wasm-web/dmengine*.js' \
+        'libexec/wasm-web/dmengine*.wasm' \
+        -d "${CACHE}/wasm-web/${BOB_SHA1}"; \
+    for f in dmengine_release.js dmengine_release.wasm; do \
+        curl -fSL --retry 20 --retry-delay 15 --retry-all-errors \
+            --connect-timeout 30 --max-time 7200 \
+            -o "${CACHE}/wasm_pthread-web/${BOB_SHA1}/${f}" \
+            "https://d.defold.com/archive/${BOB_SHA1}/engine/wasm_pthread-web/${f}"; \
+    done; \
+    test -s "${CACHE}/wasm_pthread-web/${BOB_SHA1}/dmengine_release.js"; \
+    test -s "${CACHE}/wasm_pthread-web/${BOB_SHA1}/dmengine_release.wasm"; \
+    ls -lR "${CACHE}"
 
 WORKDIR /opt/bob
