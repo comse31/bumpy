@@ -1,0 +1,24 @@
+-- Выход уровня: объект в финишной ячейке (timer_cell из метаданных).
+-- Появляется, когда мяч собрал нужное число предметов (timer) — до этого
+-- спрайт выключен. При получении сообщения "open" спрайт включается.
+go.property("open", 0)
+
+local function show(self)
+    self.open = 1
+    msg.post("#sprite", "enable")
+end
+
+function init(self)
+    if self.open > 0 then
+        show(self)
+    else
+        msg.post("#sprite", "disable")
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("open") and self.open == 0 then
+        show(self)
+        print("EXIT opened")
+    end
+end

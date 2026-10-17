@@ -1,0 +1,4 @@
+tile_set: "/main/goodies/fruit/fruit.atlas"
+default_animation: "apple"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

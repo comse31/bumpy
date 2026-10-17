@@ -1,0 +1,4 @@
+material: "/main/platforms/platform.material"
+vertices: "/main/platforms/platform.buffer"
+textures: "/main/platforms/default/platform.png"
+primitive_type: PRIMITIVE_TRIANGLES

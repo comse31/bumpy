@@ -1,0 +1,60 @@
+-- Кирпичная стена (block, код слоя lo = 10): непроходимая кладка, которую мяч
+-- разбивает снизу серией ударов. Каждый удар снизу сносит один ряд кладки
+-- (ряды считаются снизу), а когда ряды кончились — стена разрушается (меш и
+-- коллизия отключаются). Визуально разбитые снизу ряды исчезают: срез
+-- передаётся в шейдер (block.fp, uniform brick_break) и фрагменты ниже среза
+-- отбрасываются — стена как бы «осыпается» снизу вверх.
+--
+-- Удары присылает ball.script сообщением "hit" (он же решает вопрос с
+-- молотком: первый удар снизу по стене расходует один молоток из кармана).
+--
+-- Состояние доступно другим скриптам через свойства компонента #block:
+--   rows      — всего рядов кладки,
+--   broken    — сколько рядов уже разбито снизу,
+--   destroyed — 1 после полного разрушения.
+go.property("rows", 8)      -- всего рядов кладки
+go.property("broken", 0)    -- сколько рядов уже разбито снизу
+go.property("destroyed", 0) -- 1 = стена разрушена
+
+-- передать срез кладки в шейдер: x — разбитых рядов, y — всего рядов
+local function apply_break(self)
+    go.set("#mesh", "brick_break", vmath.vector4(self.broken, self.rows, 0.0, 0.0))
+end
+
+function init(self)
+    self.rows = self.rows or 8
+    self.broken = self.broken or 0
+    self.destroyed = self.destroyed or 0
+    -- стена могла быть задана уже разбитой в данных уровня
+    if self.broken >= self.rows then
+        self.destroyed = 1
+    end
+    if self.destroyed > 0 then
+        msg.post("#mesh", "disable")
+        msg.post("#collision_object", "disable")
+    else
+        apply_break(self)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hit") then
+        if self.destroyed > 0 then
+            return
+        end
+        self.broken = self.broken + 1
+        if self.broken >= self.rows then
+            -- кладка снесена полностью: стена исчезает, мяч проходит насквозь
+            self.destroyed = 1
+            go.set("#block", "broken", self.broken)
+            go.set("#block", "destroyed", 1)
+            msg.post("#mesh", "disable")
+            msg.post("#collision_object", "disable")
+            print(string.format("BLOCK destroyed (%d rows)", self.rows))
+        else
+            go.set("#block", "broken", self.broken)
+            apply_break(self)
+            print(string.format("BLOCK: row broken from below (%d/%d)", self.broken, self.rows))
+        end
+    end
+end

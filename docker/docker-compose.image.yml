@@ -1,0 +1,12 @@
+name: bumpy
+
+# Run the pre-built image (no build step). Use after loading the archive:
+#   gunzip -c dist/bumpy-web-image.tar.gz | docker load
+#   docker compose -f docker/docker-compose.image.yml up -d
+services:
+  bumpy-web:
+    image: bumpy-web:latest
+    container_name: bumpy-web
+    ports:
+      - "8080:80"
+    restart: unless-stopped

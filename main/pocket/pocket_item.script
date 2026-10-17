@@ -1,0 +1,93 @@
+-- Пooled HUD item in the pocket strip above the field.
+-- The manager (/pocket) posts "fly" {from, to} or "hide".
+
+local FLY_TIME = 0.45 -- seconds for the arc flight
+local ARC      = 90   -- desired extra height of the parabola over the straight line
+local SCREEN_H = 720  -- display height (game.project)
+local TOP_PAD  = 24   -- keep sprite centers this far below the top edge
+local SCALE    = 1.0 / 1.5 -- collected goodies shrink by 1.5x in the pocket
+
+-- The straight-line path peaks at max(from.y, to.y); cap the arc so the
+-- parabola never lifts the item above the visible strip.
+local function clamp_arc(from, to)
+    local line_peak = math.max(from.y, to.y)
+    local avail = (SCREEN_H - TOP_PAD) - line_peak
+    return math.min(ARC, math.max(avail, 0))
+end
+
+function init(self)
+    self.flying = false
+    self.t = 0
+    self.from = vmath.vector3()
+    self.to = vmath.vector3()
+    -- start hidden: no sprite flash before the first flight
+    msg.post("#sprite", "disable")
+end
+
+local function ease_out_cubic(t)
+    local u = 1.0 - t
+    return 1.0 - u * u * u
+end
+
+function update(self, dt)
+    if not self.flying then
+        return
+    end
+    self.t = self.t + dt / FLY_TIME
+    local t = self.t >= 1 and 1 or self.t
+    local e = ease_out_cubic(t)
+    -- vmath.lerp is scalar-only in Defold: lerp the components manually
+    local p = vmath.vector3(
+        self.from.x + (self.to.x - self.from.x) * e,
+        self.from.y + (self.to.y - self.from.y) * e,
+        0)
+    -- arc is pre-clamped in on_message so the peak stays on screen
+    p.y = p.y + math.sin(math.pi * t) * (self.arc or 0)
+    go.set_position(p)
+    local s = vmath.lerp(1.0, SCALE, t)
+    go.set_scale(vmath.vector3(s, s, 1))
+    if self.t >= 1 then
+        self.flying = false
+        go.set_position(self.to)
+        go.set_scale(vmath.vector3(SCALE, SCALE, 1))
+    end
+end
+
+-- Instant placement without flight (used by the life balls): show the
+-- sprite at the given position at the settled scale.
+local function show_at(self, pos)
+    self.flying = false
+    self.t = 1
+    go.set_position(pos)
+    go.set_scale(vmath.vector3(SCALE, SCALE, 1))
+    msg.post("#sprite", "enable")
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("show") then
+        show_at(self, message.to or vmath.vector3())
+    elseif message_id == hash("fly") then
+        self.from = message.from or vmath.vector3()
+        self.to = message.to or vmath.vector3()
+        self.arc = clamp_arc(self.from, self.to)
+        self.t = 0
+        self.flying = true
+        go.set_position(self.from)
+        go.set_scale(vmath.vector3(1, 1, 1))
+        msg.post("#sprite", "enable")
+    elseif message_id == hash("hide") then
+        self.flying = false
+        msg.post("#sprite", "disable")
+    elseif message_id == hash("snap") then
+        -- instant regrouping (e.g. the key group shifts when a drop is
+        -- added): no animation for already-settled items.
+        local to = message.to or vmath.vector3()
+        self.from = to
+        self.to = to
+        self.arc = 0
+        self.t = 1
+        self.flying = false
+        go.set_position(to)
+        go.set_scale(vmath.vector3(SCALE, SCALE, 1))
+    end
+end

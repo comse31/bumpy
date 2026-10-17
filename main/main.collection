@@ -1,256 +1,437 @@
 name: "main"
+# Уровень не прописан статически: его генерирует level.script из метаданных
+# (main/levels.json). Здесь остаются только загрузчик уровня, шар и HUD-карман.
+# --- пропорции поля: переключает рендер на fixed-fit проекцию (см. projection.script),
+# чтобы при любом размере окна игровое поле масштабировалось без искажения
 instances {
-  id: "p1_1"
-  prototype: "/main/platform.go"
-  position {
-    x: 80.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
+  id: "projection"
+  prototype: "/main/render/projection.go"
 }
 instances {
-  id: "p1_2"
-  prototype: "/main/platform.go"
-  position {
-    x: 240.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p1_3"
-  prototype: "/main/platform.go"
-  position {
-    x: 400.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p1_4"
-  prototype: "/main/platform.go"
-  position {
-    x: 560.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p1_5"
-  prototype: "/main/platform.go"
-  position {
-    x: 720.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p1_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 20.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p2_2"
-  prototype: "/main/platform.go"
-  position {
-    x: 240.0
-    y: 126.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p2_3"
-  prototype: "/main/platform.go"
-  position {
-    x: 400.0
-    y: 126.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p2_5"
-  prototype: "/main/platform.go"
-  position {
-    x: 720.0
-    y: 126.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p2_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 126.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p3_3"
-  prototype: "/main/platform.go"
-  position {
-    x: 400.0
-    y: 233.33
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p3_4"
-  prototype: "/main/platform.go"
-  position {
-    x: 560.0
-    y: 233.33
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p3_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 233.33
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p4_4"
-  prototype: "/main/platform.go"
-  position {
-    x: 560.0
-    y: 340.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p4_5"
-  prototype: "/main/platform.go"
-  position {
-    x: 720.0
-    y: 340.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p4_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 340.0
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p5_5"
-  prototype: "/main/platform.go"
-  position {
-    x: 720.0
-    y: 446.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p5_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 446.67
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
-}
-instances {
-  id: "p6_6"
-  prototype: "/main/platform.go"
-  position {
-    x: 880.0
-    y: 553.33
-  }
-  scale3 {
-    x: 0.14583
-    y: 0.25
-  }
+  id: "level"
+  prototype: "/main/level/level.go"
 }
 instances {
   id: "ball_visual"
-  prototype: "/main/ball_visual.go"
+  prototype: "/main/ball/ball_visual.go"
   position {
-    x: 400.0
-    y: 46.0
+    x: 80.0
+    y: 579.33
   }
   scale3 {
     x: 0.0625
     y: 0.0625
     z: 0.0625
+  }
+}
+# --- Slinky: пул сегментов-колец, из которых ball.script собирает пружинку ---
+instances {
+  id: "si_1"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_2"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_3"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_4"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_5"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_6"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_7"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_8"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_9"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_10"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_11"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_12"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_13"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
+  }
+}
+instances {
+  id: "si_14"
+  prototype: "/main/slinky/slinky_ring.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.1
+    y: 0.1
+    z: 0.1
   }
 }
 instances {
   id: "ball"
-  prototype: "/main/ball.go"
+  prototype: "/main/ball/ball.go"
   position {
-    x: 400.0
-    y: 46.0
+    x: 80.0
+    y: 579.33
   }
   scale3 {
     x: 0.0625
     y: 0.0625
     z: 0.0625
+  }
+}
+# --- pocket HUD (non-game strip above the field, y = 640..720) ---
+instances {
+  id: "pocket"
+  prototype: "/main/pocket/pocket.go"
+}
+instances {
+  id: "pi_d1"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d2"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d3"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d4"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d5"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_d6"
+  prototype: "/main/pocket/pocket_drop.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k1"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k2"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k3"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k4"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k5"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_k6"
+  prototype: "/main/pocket/pocket_key.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h1"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h2"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h3"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h4"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h5"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_h6"
+  prototype: "/main/pocket/pocket_hammer.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l1"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l2"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l3"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l4"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l5"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l6"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l7"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l8"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pi_l9"
+  prototype: "/main/pocket/pocket_life.go"
+  position {
+    y: 680.0
+  }
+}
+# --- GAME OVER: плашка по центру поля, поверх всех объектов (z ближе к камере) ---
+instances {
+  id: "game_over"
+  prototype: "/main/ui/game_over.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.9
+  }
+}
+# --- READY FOR LEVEL N?: плашка перед началом уровня, поверх всех объектов ---
+instances {
+  id: "ready"
+  prototype: "/main/ui/ready.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.95
   }
 }
 scale_along_z: 0
