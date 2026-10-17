@@ -1,5 +1,7 @@
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
+-- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
+local save = require("main.save")
 -- герои: вся специфика мячика и Slinky вынесена в отдельные модули
 local hero_ball = require("main.ball.hero_ball")
 local hero_slinky = require("main.ball.hero_slinky")
@@ -342,9 +344,22 @@ local function lose_life(self, cause)
         })
         print(string.format("LIFE LOST (%s): %d left, reload level %d",
             cause or "?", self.lives, state.index))
+        -- обновить сохранение: если браузер закрыть сразу после смерти, при
+        -- переоткрытии должно восстановиться уже уменьшенное число жизней
+        -- (карман — снимок на начало уровня, к которому мы только что откатились)
+        save.store({
+            level = state.index,
+            lives = self.lives,
+            drops = self.start_pocket,
+            keys = self.start_keys,
+            hammers = self.start_hammers,
+        })
         msg.post("/level", "reload_level", { level = state.index })
     else
-        -- жизни кончились: показать плашку GAME OVER, уровень не перезапускаем
+        -- жизни кончились: показать плашку GAME OVER, уровень не перезапускаем.
+        -- Обнуляем сохранение (lives = 0), иначе после переоткрытия браузера
+        -- игрок вернулся бы в проигранную игру
+        save.clear()
         msg.post("/game_over", "show")
         print(string.format("GAME OVER (%s): no lives left", cause or "?"))
     end
@@ -366,6 +381,9 @@ local function restart_game(self)
     msg.post("/pocket", "set_items", { drops = 0, keys = 0, hammers = 0 })
     msg.post("/game_over", "hide")
     print("RESTART: new game from level 1")
+    -- новая игра затирает обнулённое сохранение: переоткрытие браузера вернёт
+    -- игрока в начало с полным запасом жизней (дальше снимок обновит level_start)
+    save.store({ level = 1, lives = self.lives, drops = 0, keys = 0, hammers = 0 })
     msg.post("/level", "reload_level", { level = 1 })
 end
 
@@ -912,6 +930,24 @@ function init(self)
     hero_slinky.deactivate(self)
     -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
     msg.post("/pocket", "set_lives", { count = self.lives })
+    -- восстановление прогресса после закрытия браузера: если есть сохранение с
+    -- нерастраченными жизнями, продолжаем с сохранёнными жизнями и карманом.
+    -- lives = 0 означает, что жизни кончились — начинаем новую игру с нуля
+    local data = save.load()
+    if data and (data.lives or 0) > 0 then
+        self.lives = data.lives
+        self.pocket = data.drops or 0
+        self.key_pocket = data.keys or 0
+        self.hammer_pocket = data.hammers or 0
+        msg.post("/pocket", "set_lives", { count = self.lives })
+        msg.post("/pocket", "set_items", {
+            drops = self.pocket,
+            keys = self.key_pocket,
+            hammers = self.hammer_pocket,
+        })
+        print(string.format("RESUME: lives=%d pocket=(%d, %d, %d) level=%d",
+            self.lives, self.pocket, self.key_pocket, self.hammer_pocket, data.level or 1))
+    end
 end
 
 function update(self, dt)
@@ -1369,6 +1405,17 @@ function on_message(self, message_id, message, sender)
         -- сбросить деформации визуала и вернуть визуал активного героя
         self.hero.reset(self)
         self.hero.activate(self)
+        -- зафиксировать прогресс: при закрытии браузера игра возобновится с этого
+        -- уровня, с текущими жизнями и содержимым кармана. Сохраняем именно
+        -- снимок (start_*), к которому карман откатывается при потере жизни —
+        -- тогда переоткрытие вернёт то же состояние, что и перезапуск уровня
+        save.store({
+            level = state.index,
+            lives = self.lives,
+            drops = self.start_pocket,
+            keys = self.start_keys,
+            hammers = self.start_hammers,
+        })
         return
     end
     if message_id == hash("contact_point_response") then
