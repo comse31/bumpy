@@ -3,19 +3,24 @@
 -- ball.script читает свойство по URL платформы в момент приземления.
 -- Если в кармане мяча есть капля, он гасит платформу сообщением "extinguish":
 -- burning = 0 и платформа визуально превращается в безопасную (меняется видимость
--- мешей: горящий скрывается, появляется меш extinguish_mesh).
--- extinguish_mesh задаёт, во что превращается платформа после гашения:
---   "#mesh_default" — обычная платформа (тип lo=8);
---   "#mesh_sticky"  — липкая платформа (гибрид горящая+липкая, тип lo=9):
---                     горящий меш скрывается, включается меш sticky, а компонент
---                     #sticky (sticky=1) уже висит на объекте, поэтому после
---                     гашения мяч на ней не пружинит, а лежит (см. ball.script)
+-- мешей: горящий скрывается, появляется «гашеный» меш).
+-- sticky_after задаёт, во что превращается платформа после гашения:
+--   0 — обычная платформа (тип lo=8), меш #mesh_default;
+--   1 — липкая платформа (гибрид горящая+липкая, тип lo=9), меш #mesh_sticky:
+--       горящий меш скрывается, включается меш sticky, а компонент #sticky
+--       (sticky=1) уже висит на объекте, поэтому после гашения мяч на ней не
+--       пружинит, а лежит (см. ball.script).
+-- ВАЖНО: адреса компонентов ОТНОСИТЕЛЬНЫЕ и должны быть СТРОКАМИ ("#mesh_sticky"),
+-- а не хешами: движок дохеширует относительный адрес с учётом контекста, и
+-- заранее посчитанный hash("#mesh_sticky") не резолвится (см. Defold «Addressing»).
 go.property("burning", 0)
-go.property("extinguish_mesh", "#mesh_default")
+go.property("sticky_after", 0)
 
 function init(self)
-    -- меш, в который платформа превратится после гашения, скрыт до гашения
-    msg.post(self.extinguish_mesh, "disable")
+    -- меш, в который платформа превратится после гашения, скрыт до гашения;
+    -- выбираем строковый адрес (не хеш!), иначе msg.post не доставится
+    self.ext_mesh = self.sticky_after == 1 and "#mesh_sticky" or "#mesh_default"
+    msg.post(self.ext_mesh, "disable")
 end
 
 function on_message(self, message_id, message, sender)
@@ -23,12 +28,12 @@ function on_message(self, message_id, message, sender)
         if self.burning and self.burning > 0 then
             go.set("#burning", "burning", 0)
             -- превращаем в безопасную платформу: отключаем горящий меш и включаем
-            -- меш extinguish_mesh (смена текстуры меша на лету невозможна)
+            -- гашеный (смена текстуры меша на лету невозможна)
             msg.post("#mesh", "disable")
-            msg.post(self.extinguish_mesh, "enable")
+            msg.post(self.ext_mesh, "enable")
             -- прогиб (батут) теперь должен применяться к видимому мешу, иначе
             -- гашеная платформа не будет прогибаться как обычная/липкая
-            go.set("#bend", "mesh_url", self.extinguish_mesh)
+            go.set("#bend", "mesh_url", self.ext_mesh)
             print("BURNING platform extinguished by a drop from the pocket")
         end
     end

@@ -23,9 +23,9 @@ components {
     value: "1"
   }
   properties {
-    id: "extinguish_mesh"
-    type: PROPERTY_TYPE_HASH
-    value: "#mesh_sticky"
+    id: "sticky_after"
+    type: PROPERTY_TYPE_NUMBER
+    value: "1"
   }
 }
 components {
