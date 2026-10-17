@@ -27,5 +27,6 @@ scale_mode = stretch
 
 [project]
 title = bumpy
+version = 1.0.0
 custom_resources = /main/levels.json
 

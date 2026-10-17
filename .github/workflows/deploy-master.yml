@@ -72,6 +72,10 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Полная история: номер сборки = число коммитов (git rev-list --count HEAD).
+          # При shallow-клоне (по умолчанию fetch-depth: 1) счётчик всегда был бы 1.
+          fetch-depth: 0
 
       - name: Определение имени образа-сборщика
         # ghcr.io требует имя в нижнем регистре.
@@ -176,6 +180,59 @@ jobs:
 
           test -f dist/web/bumpy/index.html
           ls -la dist/web/bumpy
+
+      - name: Подстановка версии игры в index.html
+        # Рядом с бейджем «Made with Defold» показываем версию игры и номер сборки.
+        #   * версия игры — [project] version из game.project (semver, источник истины,
+        #     меняется вручную при релизе);
+        #   * номер сборки — число коммитов в текущей истории (git rev-list --count HEAD),
+        #     растёт автоматически на каждом деплое; для этого checkout идёт с fetch-depth: 0.
+        # Итоговый вид: «Made with Defold — v1.0.0 (build 123)».
+        # index.html — сгенерированный Defold-шаблон; правка безопасна: dmloader.js
+        # сверяет sha1/size только wasm и архива, а не самого html.
+        run: |
+          set -euo pipefail
+          GAME_VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' game.project | head -n1 | tr -d '[:space:]')"
+          if [ -z "${GAME_VERSION}" ]; then
+            echo "Не удалось прочитать version из game.project" >&2
+            exit 1
+          fi
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          BUILD_LABEL="v${GAME_VERSION} (build ${BUILD_NUMBER})"
+          echo "Версия игры: ${BUILD_LABEL}"
+
+          INDEX=dist/web/bumpy/index.html
+          GAME_VERSION="${GAME_VERSION}" BUILD_LABEL="${BUILD_LABEL}" python3 - "$INDEX" <<'PY'
+          import os, sys
+
+          index = sys.argv[1]
+          with open(index, encoding="utf-8") as f:
+              html = f.read()
+
+          badge = '<div class="link">Made with <a href="https://defold.com/" target="_blank">Defold</a></div>'
+          if badge not in html:
+              sys.exit(f"В {index} не найден бейдж «Made with Defold» — нечего дополнить")
+
+          version = os.environ["GAME_VERSION"]
+          label = os.environ["BUILD_LABEL"]
+          replacement = (
+              '<div class="link">Made with '
+              '<a href="https://defold.com/" target="_blank">Defold</a>'
+              f' <span class="build-version" title="Версия игры">&#8212; {label}</span></div>'
+          )
+          html = html.replace(badge, replacement, 1)
+
+          # Версию также подставляем в <title> (шаблон рендерит {{project.title}} {{project.version}}),
+          # чтобы в заголовке вкладки был полный номер сборки, а не только semver.
+          html = html.replace(f"<title>bumpy {version}</title>",
+                              f"<title>bumpy {label}</title>", 1)
+
+          with open(index, "w", encoding="utf-8") as f:
+              f.write(html)
+          print("index.html обновлён")
+          PY
+
+          grep -o 'build-version[^<]*</span>' "$INDEX" || true
 
       - name: Остановка и удаление старого контейнера
         run: |

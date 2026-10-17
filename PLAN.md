@@ -105,6 +105,25 @@
   распределяются по кругу); `spawn_goodie` передаёт `anim = hash(имя)`.
   Factory `goodie_fruit` добавлен в [`level.go`](main/level/level.go:1).
 
+## Этап 11. Версия билда рядом с «Made with Defold» — ВЫПОЛНЕНО
+- В нижнем правом углу HTML5-сборки Defold рисует бейдж «Made with Defold».
+  Рядом с ним теперь показывается версия игры и номер сборки: **«Made with
+  Defold — v1.0.0 (build 123)»**. Та же строка подставляется в `<title>`
+  вкладки (шаблон рендерит `{{project.title}} {{project.version}}`).
+- **Версия игры** (semver) — источник истины в
+  [`game.project`](game.project:30) (`[project] version`). Меняется вручную
+  при релизе: `1.0.0` → `1.1.0` и т. п.
+- **Номер сборки** — число коммитов в истории
+  (`git rev-list --count HEAD`), растёт автоматически на каждом деплое.
+  Для этого [`deploy-master.yml`](.github/workflows/deploy-master.yml:73)
+  делает checkout с `fetch-depth: 0` (иначе счётчик всегда был бы 1).
+- Подстановка — шаг «Подстановка версии игры в index.html» в
+  [`deploy-master.yml`](.github/workflows/deploy-master.yml:184): после сборки
+  бандла шаг читает `version` из `game.project`, считает номер сборки и
+  заменяет в `dist/web/bumpy/index.html` бейдж и `<title>` на версионированные.
+  Правка безопасна: `dmloader.js` сверяет sha1/size только wasm и архива, а не
+  самого `index.html`.
+
 ## Что осталось
 1. **П. 19: проверка нехватки снаряжения → проигрыш.** Нужно на старте уровня
    (или при потере ресурса) вычислять, хватает ли капель/ключей/молотков на
