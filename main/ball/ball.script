@@ -157,6 +157,22 @@ local function slope_direction(row, col)
     return rot.z > 0 and -1 or 1
 end
 
+-- отскок строго вниз после удара мяча в НИЖНЮЮ грань наклонной платформы.
+-- У наклонной платформы нормаль контакта наклонена (есть компонента по X),
+-- поэтому Box2D отбрасывает мяч вбок по склону. Гасим горизонтальную скорость
+-- и возвращаем мяч в центр его колонки, чтобы падение было строго вертикальным
+local function rebound_straight_down(self)
+    local pos = go.get_position()
+    local vy = go.get("#collision_object", "linear_velocity").y
+    -- X не трогаем, пока идёт скриптовое смещение (там позицией управляет update)
+    if self.move_t <= 0.0 and self.bounce_t <= 0.0 then
+        pos = vmath.vector3(column_center(self.col), pos.y, pos.z)
+        go.set_position(pos)
+    end
+    -- только вертикальная составляющая, направленная вниз (без подскока вверх)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, math.min(vy, 0.0), 0.0))
+end
+
 -- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
 -- на ней мяч не пружинит — лежит на поверхности и ждёт команды игрока:
 -- влево/вправо — обычный соскок на соседнюю ячейку, а высокий прыжок доступен
@@ -188,6 +204,17 @@ local function is_burning(row, col)
     if not id then return false end
     local ok, burning = pcall(go.get, state.component(id, "burning"), "burning")
     return ok and burning and burning > 0 or false
+end
+
+-- платформа «исчезла» (расходуемая shrinkable полностью схлопнулась): коллизия
+-- отключена, мяч должен провалиться. Свойство gone есть только у shrinkable
+-- (см. shrinkable.script), поэтому go.get оборачиваем в pcall. Нужно swept-тесту:
+-- исчезнувшая платформа остаётся в реестре, и без проверки мяч «прыгал» бы на ней
+local function is_platform_gone(row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, gone = pcall(go.get, state.component(id, "shrink"), "gone")
+    return ok and gone and gone > 0 or false
 end
 
 -- goodies (собираемые объекты): находятся в центре игровой ячейки и собираются
@@ -833,6 +860,207 @@ local function clear_touch(self)
     self.touch_jump = false
 end
 
+-- Приземление мяча на платформу ряда row. Общая логика для физического контакта
+-- (contact_point_response) и скриптового swept-теста (см. swept_land ниже):
+-- проверки поверхности (шипы/огонь/выход/липкость), снап в центр колонки и запуск
+-- действия игрока. Вынесена отдельно, чтобы оба пути приземления вели себя
+-- одинаково и приземление не зависело от частоты кадров
+local function land_on_platform(self, row)
+    -- приземление точно в центр платформы; пока смещение идёт,
+    -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
+    local position = go.get_position()
+    if self.move_t <= 0.0 then
+        go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
+    end
+    self.touch_time = self.time
+    -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
+    self.row = row
+    self.ground_y = BOUNCE_Y[row]
+    -- шипы: контакт всегда разрушает мяч — теряется жизнь
+    if is_spike(row, self.col) then
+        lose_life(self, "spikes")
+        return
+    end
+    -- горящая платформа: если в кармане есть капля — мяч гасит её
+    -- (платформа превращается в default, капля тратится, игра продолжается);
+    -- без капли контакт разрушает мяч и игра прекращается
+    if is_burning(row, self.col) then
+        if not extinguish_burning(self, row, self.col) then
+            lose_life(self, "burning platform")
+            return
+        end
+    end
+    land_platform(self, row, self.col)
+    -- предметы в ячейке собираются в update по фактической позиции мяча
+    -- (collect_goodie вызывается там), чтобы были достижимы предметы и в
+    -- ячейках без платформы; здесь только проверка выхода
+    -- открытый выход: мяч достиг финишной ячейки → следующий уровень
+    if self.exit_open and not self.level_complete and is_exit_cell(row, self.col) then
+        self.level_complete = true
+        print(string.format("LEVEL COMPLETE cell=(%d, %d)", self.col, row))
+        msg.post("/level", "level_complete")
+        return
+    end
+    -- верх кирпичной кладки: обычная твёрдая поверхность — мяч пружинит как
+    -- всегда, но высокий прыжок с неё запрещён (high_jump_locked)
+    self.high_jump_locked = is_block_top(row, self.col)
+    -- липкая (закрашенная) платформа: мяч не пружинит — лежит на ней и ждёт
+    -- команды игрока. Высокий прыжок доступен всегда, а влево/вправо дают
+    -- обычный соскок на соседнюю ячейку (мяч не скатывается, а прыгает)
+    go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
+    self.high_jump = false
+    local sticky_here = self.hero.sticks_on_platform and is_sticky(row, self.col)
+    if sticky_here then
+        local cell = row * COLS + self.col
+        -- новое касание этой липкой платформы: снова доступно одно действие;
+        -- возврат на ту же ячейку — не новое касание
+        if self.sticky_cell ~= cell then
+            self.sticky_action_used = false
+            self.sticky_cell = cell
+        end
+        self.sticky_rest = true
+    else
+        self.sticky_rest = false
+        self.sticky_cell = nil
+    end
+    -- приземление после смены траектории высокого прыжка: дополнительное
+    -- управляемое смещение в этом цикле запрещено, но наклонная платформа
+    -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
+    if self.rising_moved then
+        self.rising_moved = false
+        self.pending_dir = 0
+        self.pending_jump = false
+        local slope_dir = slope_direction(row, self.col)
+        if slope_dir ~= 0 and self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
+            hop_and_move(self, slope_dir)
+            self.press_used = true
+        else
+            settle_or_stick(self)
+            -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
+            -- остаётся true и следующий высокий прыжок становится невозможен
+            self.press_used = false
+        end
+        self.squash = 1.0
+        self.squash_axis = "y"
+        self.hero.apply_squash(self)
+        return
+    end
+    local direction = 0
+    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= THRESHOLD then
+        direction = self.pending_dir
+    end
+    self.pending_dir = 0
+    -- новый цикл отскока: разрешено одно нажатие
+    self.press_used = false
+    -- наклонная платформа: неуправляемый отскок в сторону наклона,
+    -- приоритет над любыми командами игрока (tz.txt: «шар неуправляемо отскакивает»);
+    -- направление определяется по повороту объекта платформы (компонент slope)
+    local slope_dir = slope_direction(row, self.col)
+    if slope_dir ~= 0 then
+        if self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
+            hop_and_move(self, slope_dir)
+            self.press_used = true
+        else
+            -- наклон в сторону края экрана: обычный вертикальный отскок,
+            -- дальше мяч улетит за край и упадёт (конец игры)
+            settle_or_stick(self)
+        end
+    elseif direction ~= 0 then
+        if self.sticky_rest then
+            -- на липкой платформе удержанная в момент касания клавиша даёт
+            -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
+            -- действие за это касание
+            self.sticky_action_used = true
+            self.sticky_rest = false
+        end
+        if hop_and_move(self, direction) then
+            self.press_used = true
+        end
+        clear_tap(self)
+    elseif (jump_active(self) or self.pending_jump)
+        and not self.high_jump_locked
+        and not (self.sticky_rest and self.sticky_action_used) then
+        -- высокий прыжок: постоянное движение вверх до платформы снизу или
+        -- верхнего края поля; во время полёта можно запрыгнуть на соседнюю
+        -- ячейку любого ряда. На липкой поверхности доступен, пока действие
+        -- за касание не израсходовано
+        if self.sticky_rest then
+            self.sticky_action_used = true
+            self.sticky_rest = false
+        end
+        start_high_jump(self)
+        clear_tap(self)
+    else
+        settle_or_stick(self)
+    end
+    self.pending_jump = false
+    self.squash = 1.0
+    self.squash_axis = "y"
+    self.hero.apply_squash(self)
+end
+
+-- Скриптовое приземление (swept-тест). Физика Box2D шагает один раз за кадр, и
+-- при большой скорости падения (с верхнего ряда) мяч за один шаг проникает в
+-- тонкую платформу (20 px) глубже её середины. Тогда ближайшей гранью контакта
+-- становится нижняя, нормаль смотрит вниз, и обработчик контакта принимает
+-- падение за удар снизу — приземление не выполняется, мяч «пролетает» платформу
+-- и теряет жизнь. Чтобы приземление не зависело от частоты кадров, каждый кадр
+-- проверяем, не пересёк ли мяч верхнюю грань платформы в его колонке при
+-- движении вниз (по позициям прошлого и текущего кадра), и приземляем скриптово
+local function swept_land(self, dt)
+    -- только свободное падение: смещение/отскок/высокий прыжок ведут себя иначе
+    if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return false
+    end
+    local prev_y = self.prev_pos_y
+    if not prev_y then
+        return false
+    end
+    -- защита от повторного срабатывания на месте
+    if self.time - (self.swept_time or -math.huge) < 0.1 then
+        return false
+    end
+    local pos = go.get_position()
+    -- падение вниз: при движении вверх/в покое приземления быть не может
+    if go.get("#collision_object", "linear_velocity").y > 0.0 then
+        return false
+    end
+    -- проверяем фактический интервал кадра [prev_y, pos.y]: если низ мяча пересёк
+    -- верхнюю грань платформы (в предыдущем кадре был выше, сейчас ниже) —
+    -- физика «проскочила» её и нужно приземлить мяч скриптово. Обычное
+    -- приземление (физика остановила мяч на поверхности) не срабатывает: там
+    -- pos.y ≈ top, а не ниже грани
+    -- среди пересёкших грань берём самую верхнюю (при падении вниз мяч встречает её первой).
+    -- ячейки с кирпичной кладкой (block) пропускаем: кладка регистрируется в реестре
+    -- платформ, но садиться на уровень её ряда нельзя — её верх/низ определяются
+    -- скриптово (block_bottom_face/land_on_block_top), а не BOUNCE_Y.
+    -- исчезнувшие (схлопнувшиеся) расходуемые платформы тоже пропускаем: они
+    -- остаются в реестре, но коллизия у них отключена — мяч должен провалиться
+    local land_row = nil
+    for row = 0, COLS - 1 do
+        if platform_id(row, self.col) and not block_state(row, self.col)
+            and not is_platform_gone(row, self.col) then
+            local top = BOUNCE_Y[row]
+            if prev_y > top + 0.1 and pos.y < top - 0.1 then
+                if not land_row or top > BOUNCE_Y[land_row] then
+                    land_row = row
+                end
+            end
+        end
+    end
+    if not land_row then
+        return false
+    end
+    self.swept_time = self.time
+    self.last_contact_time = self.time
+    self.contact_processed = true
+    print(string.format("SWEPT LAND cell=(%d, %d) prev_y=%.1f y=%.1f", self.col, land_row, prev_y, pos.y))
+    -- снап на верхнюю грань и общая логика приземления
+    go.set_position(vmath.vector3(pos.x, BOUNCE_Y[land_row], pos.z))
+    land_on_platform(self, land_row)
+    return true
+end
+
 function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
@@ -919,6 +1147,10 @@ function init(self)
     self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
     self.rising_moved = false
     self.contact_processed = false
+    -- прошлая Y мяча (для swept-теста приземления, см. swept_land)
+    self.prev_pos_y = nil
+    -- время последнего скриптового приземления (защита от повторов)
+    self.swept_time = -math.huge
     -- герои: мячик (по умолчанию) и Slinky; активный выбирается клавишей T.
     -- Оба инициализируются сразу, чтобы можно было переключаться в любой момент
     hero_ball.setup(self, ENV)
@@ -1198,7 +1430,11 @@ function update(self, dt)
 
     -- приземление на верх кирпичной стены (физики у кладки нет — проверка
     -- скриптовая): мяч встаёт на кладку и «прилипает», как на липкую платформу
-    land_on_block_top(self)
+    if not land_on_block_top(self) then
+        -- скриптовое приземление на платформу (swept-тест): страхует от «пролёта»
+        -- тонкой платформы при большой скорости падения (см. swept_land)
+        swept_land(self, dt)
+    end
 
     -- затухание «удара» — общая величина self.squash для визуала героев
     if self.squash > 0.0 then
@@ -1227,6 +1463,10 @@ function update(self, dt)
             msg.post("/level", "level_complete")
         end
     end
+
+    -- запомнить текущую Y мяча: в следующем кадре swept-тест сравнит с ней позицию
+    -- и поймает пересечение верхней грани платформы (см. swept_land)
+    self.prev_pos_y = go.get_position().y
 end
 
 function on_input(self, action_id, action)
@@ -1378,6 +1618,10 @@ function on_message(self, message_id, message, sender)
         self.high_jump = false
         self.rising = false
         self.rising_moved = false
+        -- сброс swept-теста: после телепорта на стартовую ячейку прошлая
+        -- позиция невалидна, иначе первый кадр может дать ложное приземление
+        self.prev_pos_y = nil
+        self.swept_time = -math.huge
         self.press_used = false
         self.pending_dir = 0
         self.pending_jump = false
@@ -1463,138 +1707,16 @@ function on_message(self, message_id, message, sender)
                 lose_life(self, "spikes")
                 return
             end
+            -- наклонная платформа: удар снизу даёт отскок строго вниз, а не вбок
+            -- по склону (наклонная нормаль контакта иначе уводит мяч в сторону)
+            if slope_direction(row, self.col) ~= 0 then
+                rebound_straight_down(self)
+            end
             return
         end
-        -- приземление точно в центр платформы; пока смещение идёт,
-        -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
-        local position = go.get_position()
-        if self.move_t <= 0.0 then
-            go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
-        end
-        self.touch_time = self.time
-        -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
-        self.row = row
-        self.ground_y = BOUNCE_Y[row]
-        -- шипы: контакт всегда разрушает мяч — теряется жизнь
-        if is_spike(row, self.col) then
-            lose_life(self, "spikes")
-            return
-        end
-        -- горящая платформа: если в кармане есть капля — мяч гасит её
-        -- (платформа превращается в default, капля тратится, игра продолжается);
-        -- без капли контакт разрушает мяч и игра прекращается
-        if is_burning(row, self.col) then
-            if not extinguish_burning(self, row, self.col) then
-                lose_life(self, "burning platform")
-                return
-            end
-        end
-        land_platform(self, row, self.col)
-        -- предметы в ячейке собираются в update по фактической позиции мяча
-        -- (collect_goodie вызывается там), чтобы были достижимы предметы и в
-        -- ячейках без платформы; здесь только проверка выхода
-        -- открытый выход: мяч достиг финишной ячейки → следующий уровень
-        if self.exit_open and not self.level_complete and is_exit_cell(row, self.col) then
-            self.level_complete = true
-            print(string.format("LEVEL COMPLETE cell=(%d, %d)", self.col, row))
-            msg.post("/level", "level_complete")
-            return
-        end
-        -- верх кирпичной кладки: обычная твёрдая поверхность — мяч пружинит как
-        -- всегда, но высокий прыжок с неё запрещён (high_jump_locked)
-        self.high_jump_locked = is_block_top(row, self.col)
-        -- липкая (закрашенная) платформа: мяч не пружинит — лежит на ней и ждёт
-        -- команды игрока. Высокий прыжок доступен всегда, а влево/вправо дают
-        -- обычный соскок на соседнюю ячейку (мяч не скатывается, а прыгает)
-        go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
-        self.high_jump = false
-        local sticky_here = self.hero.sticks_on_platform and is_sticky(row, self.col)
-        if sticky_here then
-            local cell = row * COLS + self.col
-            -- новое касание этой липкой платформы: снова доступно одно действие;
-            -- возврат на ту же ячейку — не новое касание
-            if self.sticky_cell ~= cell then
-                self.sticky_action_used = false
-                self.sticky_cell = cell
-            end
-            self.sticky_rest = true
-        else
-            self.sticky_rest = false
-            self.sticky_cell = nil
-        end
-        -- приземление после смены траектории высокого прыжка: дополнительное
-        -- управляемое смещение в этом цикле запрещено, но наклонная платформа
-        -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
-        if self.rising_moved then
-            self.rising_moved = false
-            self.pending_dir = 0
-            self.pending_jump = false
-            local slope_dir = slope_direction(row, self.col)
-            if slope_dir ~= 0 and self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
-                hop_and_move(self, slope_dir)
-                self.press_used = true
-            else
-                settle_or_stick(self)
-                -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
-                -- остаётся true и следующий высокий прыжок становится невозможен
-                self.press_used = false
-            end
-            self.squash = 1.0
-            self.squash_axis = "y"
-            self.hero.apply_squash(self)
-            return
-        end
-        local direction = 0
-        if self.pending_dir ~= 0 and (self.time - self.pending_time) <= THRESHOLD then
-            direction = self.pending_dir
-        end
-        self.pending_dir = 0
-        -- новый цикл отскока: разрешено одно нажатие
-        self.press_used = false
-        -- наклонная платформа: неуправляемый отскок в сторону наклона,
-        -- приоритет над любыми командами игрока (tz.txt: «шар неуправляемо отскакивает»);
-        -- направление определяется по повороту объекта платформы (компонент slope)
-        local slope_dir = slope_direction(row, self.col)
-        if slope_dir ~= 0 then
-            if self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
-                hop_and_move(self, slope_dir)
-                self.press_used = true
-            else
-                -- наклон в сторону края экрана: обычный вертикальный отскок,
-                -- дальше мяч улетит за край и упадёт (конец игры)
-                settle_or_stick(self)
-            end
-        elseif direction ~= 0 then
-            if self.sticky_rest then
-                -- на липкой платформе удержанная в момент касания клавиша даёт
-                -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
-                -- действие за это касание
-                self.sticky_action_used = true
-                self.sticky_rest = false
-            end
-            if hop_and_move(self, direction) then
-                self.press_used = true
-            end
-            clear_tap(self)
-        elseif (jump_active(self) or self.pending_jump)
-            and not self.high_jump_locked
-            and not (self.sticky_rest and self.sticky_action_used) then
-            -- высокий прыжок: постоянное движение вверх до платформы снизу или
-            -- верхнего края поля; во время полёта можно запрыгнуть на соседнюю
-            -- ячейку любого ряда. На липкой поверхности доступен, пока действие
-            -- за касание не израсходовано
-            if self.sticky_rest then
-                self.sticky_action_used = true
-                self.sticky_rest = false
-            end
-            start_high_jump(self)
-            clear_tap(self)
-        else
-            settle_or_stick(self)
-        end
-        self.pending_jump = false
-        self.squash = 1.0
-        self.squash_axis = "y"
-        self.hero.apply_squash(self)
+        -- приземление на платформу: вся логика (шипы/огонь/выход/липкость/действие
+        -- игрока) вынесена в land_on_platform — её же использует скриптовый
+        -- swept-тест, поэтому оба пути приземления ведут себя одинаково
+        land_on_platform(self, row)
     end
 end
