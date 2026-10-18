@@ -35,6 +35,8 @@
 -- мяч отскакивать от края поля (см. ball.script).
 
 local state = require("main.level.level_state")
+-- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
+local save = require("main.save")
 
 local COLS = 6
 local ROWS = 6
@@ -427,6 +429,14 @@ function init(self)
     self.model = load_model()
     if not self.model then
         return
+    end
+    -- восстановление прогресса: если есть сохранение с нерастраченными жизнями,
+    -- продолжаем с сохранённого уровня (жизни и карман восстанавливает ball.script).
+    -- lives = 0 означает, что жизни кончились — начинаем новую игру с уровня 1
+    local data = save.load()
+    if data and (data.lives or 0) > 0 then
+        self.level = data.level or self.level
+        print("level.script: resume from save, level " .. tostring(self.level))
     end
     self.pending = false
     -- при старте удалять нечего — строим сразу
