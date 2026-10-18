@@ -157,6 +157,22 @@ local function slope_direction(row, col)
     return rot.z > 0 and -1 or 1
 end
 
+-- отскок строго вниз после удара мяча в НИЖНЮЮ грань наклонной платформы.
+-- У наклонной платформы нормаль контакта наклонена (есть компонента по X),
+-- поэтому Box2D отбрасывает мяч вбок по склону. Гасим горизонтальную скорость
+-- и возвращаем мяч в центр его колонки, чтобы падение было строго вертикальным
+local function rebound_straight_down(self)
+    local pos = go.get_position()
+    local vy = go.get("#collision_object", "linear_velocity").y
+    -- X не трогаем, пока идёт скриптовое смещение (там позицией управляет update)
+    if self.move_t <= 0.0 and self.bounce_t <= 0.0 then
+        pos = vmath.vector3(column_center(self.col), pos.y, pos.z)
+        go.set_position(pos)
+    end
+    -- только вертикальная составляющая, направленная вниз (без подскока вверх)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, math.min(vy, 0.0), 0.0))
+end
+
 -- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
 -- на ней мяч не пружинит — лежит на поверхности и ждёт команды игрока:
 -- влево/вправо — обычный соскок на соседнюю ячейку, а высокий прыжок доступен
@@ -1690,6 +1706,11 @@ function on_message(self, message_id, message, sender)
             if is_spike(row, self.col) then
                 lose_life(self, "spikes")
                 return
+            end
+            -- наклонная платформа: удар снизу даёт отскок строго вниз, а не вбок
+            -- по склону (наклонная нормаль контакта иначе уводит мяч в сторону)
+            if slope_direction(row, self.col) ~= 0 then
+                rebound_straight_down(self)
             end
             return
         end
