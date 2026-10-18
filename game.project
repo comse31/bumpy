@@ -18,9 +18,14 @@ high_dpi = 1
 [android]
 input_method = HiddenInputField
 
+[engine]
+fixed_update_frequency = 120
+max_time_step = 0.033333
+
 [physics]
 gravity_y = -1000.0
 scale = 0.01
+use_fixed_timestep = 1
 
 [html5]
 scale_mode = stretch
