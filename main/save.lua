@@ -34,7 +34,13 @@ function M.load()
 end
 
 -- записать прогресс. Поля: level, lives, drops, keys, hammers.
--- Неполные/битые значения приводим к безопасным умолчаниям
+-- Неполные/битые значения приводим к безопасным умолчаниям.
+--
+-- ВАЖНО (HTML5): sys.save пишет в файловую систему Emscripten. Даже при
+-- html5.use_indexeddb = 1 данные сначала оседают в памяти (MEMFS) и лишь по
+-- sys.sync_fs() сбрасываются в IndexedDB. Без sync_fs() сохранение теряется
+-- при перезагрузке вкладки — именно поэтому игра начиналась с 1-го уровня.
+-- На настольных платформах sys.sync_fs() — no-op, поэтому вызываем всегда
 function M.store(data)
     if type(data) ~= "table" then
         return
@@ -48,6 +54,8 @@ function M.store(data)
         hammers = data.hammers or 0,
     }
     pcall(sys.save, FILE, record)
+    -- сбросить MEMFS в постоянное хранилище (IndexedDB на HTML5)
+    pcall(sys.sync_fs)
 end
 
 -- обнулить сохранение: используется, когда продолжать нельзя (жизни кончились).
