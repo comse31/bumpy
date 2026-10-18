@@ -29,58 +29,81 @@ def meta_cell(r, c):
     return r * 6 + c  # r is a metadata row (0 = top)
 
 
-def brute(level, cap=400000):
-    """Exhaustive reference: keeps every distinct (required, actions) label."""
+def brute(level, cap=2000000):
+    """Exhaustive reference for the lexicographic objective
+    (sum required, -collected consumables, actions)."""
     start_state = (level.start_r, level.start_c, "plat")
     world = sv.collect_items(level, level.initial_world(),
                              sv.rc_bit(level.start_r, level.start_c))
     req0 = (0, 0, 0)
-    if sv.floor_at(level, level.start_r, level.start_c, world) is None:
-        fell, _c = sv.landing(level, level.start_c, level.start_r - 1, world, req0)
-        if fell is None:
-            return {"status": "impossible", "required": (0, 0, 0), "actions": []}
-        start_state = (fell[0], fell[1], fell[2])
-        world, req0 = fell[3], fell[4]
-    nodes = [(start_state, world, req0, None)]
-    seen = {(start_state, world): {(req0, 0)}}
+    st0 = sv.start_state_of(level, world, req0)
+    if st0 is None:
+        return {"status": "impossible", "required": (0, 0, 0),
+                "actions": [], "collected": 0}
+    start_state, world, req0 = st0
+    nodes = [(start_state, world, req0, None, None)]
+    labels = {(start_state, world): [(req0, 0)]}
     pq = [(sum(req0), 0, 0)]
-    goal = None
+    best = None  # (sum required, -collected, actions, node id)
+
+    def offer(world, req, acts, nid):
+        nonlocal best
+        cand = (sum(req), -sv.collected_items(level, world), acts, nid)
+        if best is None or cand[:3] < best[:3]:
+            best = cand
+
+    def add(key, req, acts, node):
+        lst = labels.get(key)
+        if lst is not None:
+            for r0, a0 in lst:
+                if (r0[0] <= req[0] and r0[1] <= req[1] and r0[2] <= req[2]
+                        and a0 <= acts):
+                    return
+            lst = [x for x in lst
+                   if not (req[0] <= x[0][0] and req[1] <= x[0][1]
+                           and req[2] <= x[0][2] and acts <= x[1])]
+        else:
+            lst = []
+        labels[key] = lst
+        lst.append((req, acts))
+        nodes.append(node)
+        heapq.heappush(pq, (sum(req), acts, len(nodes) - 1))
+
     while pq:
         _s, acts, nid = heapq.heappop(pq)
-        state, world, req, _p = nodes[nid]
+        if best is not None and _s > best[0]:
+            break
+        state, world, req, _l, _p = nodes[nid]
         if state[0] == "GOAL" or (sv.exit_opened(level, world)
                                   and (state[0], state[1]) == level.exit):
-            goal = nid
-            break
+            offer(world, req, acts, nid)
         for ns, nw, nreq, label, cells, cost in sv.successors(level, state, world, req):
             nw2 = sv.collect_items(level, nw, cells)
             nacts = acts + cost
             if sv.exit_opened(level, nw2) and (cells & level.exit_bit):
-                if goal is None:
-                    goal = len(nodes)
-                    nodes.append((("GOAL",), nw2, nreq, nid))
-                    heapq.heappush(pq, (sum(nreq), nacts, goal))
+                gnid = len(nodes)
+                nodes.append((("GOAL", 0, 0), nw2, nreq, label, nid))
+                offer(nw2, nreq, nacts, gnid)
                 continue
             if ns[0] == "DEAD":
                 continue
-            key = (ns, nw2)
-            lab = (nreq, nacts)
-            bucket = seen.setdefault(key, set())
-            if lab in bucket:
+            if best is not None and sum(nreq) > best[0]:
                 continue
-            bucket.add(lab)
-            nodes.append((ns, nw2, nreq, nid))
-            heapq.heappush(pq, (sum(nreq), nacts, len(nodes) - 1))
+            add((ns, nw2), nreq, nacts, (ns, nw2, nreq, label, nid))
             if len(nodes) > cap:
-                return {"status": "limit", "required": (0, 0, 0), "actions": []}
-    if goal is None:
-        return {"status": "impossible", "required": (0, 0, 0), "actions": []}
-    n, acts = nodes[goal], None
-    path = []
-    while n[3] is not None:
-        path.append(n[0])
-        n = nodes[n[3]]
-    return {"status": "solvable", "required": nodes[goal][2], "actions": path}
+                return {"status": "limit", "required": (0, 0, 0),
+                        "actions": [], "collected": 0}
+    if best is None:
+        return {"status": "impossible", "required": (0, 0, 0),
+                "actions": [], "collected": 0}
+    nid = best[3]
+    count = 0
+    n = nid
+    while nodes[n][4] is not None:
+        count += 1
+        n = nodes[n][4]
+    return {"status": "solvable", "required": nodes[nid][2],
+            "actions": [None] * count, "collected": -best[1]}
 
 
 def exact(level):
@@ -94,7 +117,9 @@ def check_cross(level, name):
         assert sum(a["required"]) == sum(b["required"]), (name, "req", a["required"], b["required"])
         assert a["required"] == b["required"], (name, "vec", a["required"], b["required"])
         assert len(a["actions"]) == len(b["actions"]), (name, "actions", len(a["actions"]), len(b["actions"]))
-    print(f"ok  cross {name}: {a['status']} req={a['required']} act={len(a['actions'])}")
+        assert a.get("collected") == b.get("collected"), (name, "collected", a.get("collected"), b.get("collected"))
+    print(f"ok  cross {name}: {a['status']} req={a['required']} "
+          f"act={len(a['actions'])} coll={a.get('collected')}")
 
 
 def test_basic_hop_collect_exit():
@@ -155,12 +180,116 @@ def test_bad_metadata_impossible():
     print("ok  bad-metadata -> impossible")
 
 
+def test_block_break_single_action_stable():
+    lo = blank()
+    lo[5] = [1, 1, 1, 1, 1, 1]     # bottom (screen row 0) - stable rest
+    lo[4][0] = 10                  # brick block at screen row 1, col 0
+    objs = blank()
+    objs[5][5] = 5
+    lvl = sv.Level(mk(lo, blank(), objs, meta_cell(5, 0), meta_cell(5, 5), timer=1))
+    gen = sv.successors(lvl, (0, 0, "plat"), lvl.initial_world(), (0, 0, 0))
+    breaks = [g for g in gen if "break block" in g[3]]
+    assert breaks, [g[3] for g in gen]
+    assert all(g[5] == 1 for g in breaks), breaks            # one action
+    assert all(g[2][2] == 1 for g in breaks), breaks         # one hammer
+    assert all(sv.block_destroyed(lvl, 1, 0, g[1]) for g in breaks), breaks
+    print("ok  block-break-one-action-stable")
+
+
+def test_block_break_per_row_on_shrink():
+    lo = blank()
+    lo[5][0] = 1                   # solid under the ball (screen row 0)
+    lo[4][0] = 2                   # shrinkable platform (screen row 1)
+    lo[3][0] = 10                  # brick block above it (screen row 2)
+    objs = blank()
+    objs[5][5] = 5
+    lvl = sv.Level(mk(lo, blank(), objs, meta_cell(5, 0), meta_cell(5, 5), timer=1))
+    gen = sv.successors(lvl, (1, 0, "plat"), lvl.initial_world(), (0, 0, 0))
+    hits = [g for g in gen if "from below" in g[3]]
+    assert hits, [g[3] for g in gen]
+    # above shrink the break is NOT collapsed: one row per action, one hammer on
+    # the first strike, the block not yet destroyed
+    assert all(g[5] == 1 for g in hits), hits
+    assert all(sv.block_broken(lvl, 2, 0, g[1]) == 1 for g in hits), hits
+    assert all(not sv.block_destroyed(lvl, 2, 0, g[1]) for g in hits), hits
+    assert all(g[2][2] == 1 for g in hits), hits
+    print("ok  block-break-per-row-on-shrink")
+
+
+def test_wall_break_one_action_stable():
+    lo = blank()
+    lo[5] = [1, 1, 1, 1, 1, 1]     # stable floor at screen row 0
+    hi = blank()
+    hi[5][0] = 3                   # durability-3 partition at boundary 1, row 0
+    objs = blank()
+    objs[5][5] = 5
+    lvl = sv.Level(mk(lo, hi, objs, meta_cell(5, 0), meta_cell(5, 5), timer=1))
+    gen = sv.successors(lvl, (0, 0, "plat"), lvl.initial_world(), (0, 0, 0))
+    br = [g for g in gen if "break wall" in g[3]]
+    assert br, [g[3] for g in gen]
+    # from a stable platform a partition is broken in one action
+    assert all(g[5] == 1 for g in br), br
+    assert all(g[2][1] == 3 for g in br), br
+    print("ok  wall-break-one-action-stable")
+
+
+def test_wall_break_per_hit_on_shrink():
+    lo = blank()
+    lo[5][0] = 2                   # shrinkable rest (3 uses) at screen row 0
+    lo[5][1] = 1
+    hi = blank()
+    hi[5][0] = 3                   # durability-3 partition at boundary 1, row 0
+    objs = blank()
+    objs[5][5] = 5
+    lvl = sv.Level(mk(lo, hi, objs, meta_cell(5, 0), meta_cell(5, 5), timer=1))
+    gen = sv.successors(lvl, (0, 0, "plat"), lvl.initial_world(), (0, 0, 0))
+    br = [g for g in gen if "break wall" in g[3]]
+    assert br, [g[3] for g in gen]
+    # from a shrinkable platform the break is NOT collapsed: one action per hit
+    assert all(g[5] == 3 for g in br), br
+    assert all(g[2][1] == 3 for g in br), br
+    print("ok  wall-break-per-hit-on-shrink")
+
+
+def test_prefers_more_collected_same_start_items():
+    # Two routes to the exit need no items at start. The short one runs straight
+    # along the floor (5 actions, collects nothing); the long one detours onto a
+    # platform to grab a drop (6 actions, collects one). The objective values
+    # collected before actions, so the detour must win.
+    lo = blank()
+    lo[5] = [1, 1, 1, 1, 1, 1]     # screen row 0: solid floor
+    lo[4][3] = 1                   # screen row 1, col 3: a platform
+    objs = blank()
+    objs[4][3] = 3                 # a drop resting on it
+    lvl = sv.Level(mk(lo, blank(), objs, meta_cell(5, 0), meta_cell(5, 5), timer=0))
+    r = exact(lvl)
+    assert r["status"] == "solvable", r
+    assert r["required"] == (0, 0, 0), r["required"]
+    assert r["collected"] == 1, r
+    check_cross(lvl, "prefers-more-collected")
+
+
+def test_sticky_start_is_a_normal_rest():
+    lo = blank()
+    lo[5] = [5, 1, 1, 1, 1, 1]     # bottom row; the start cell is sticky
+    objs = blank()
+    objs[5][2] = 5                 # collectible at (0,2)
+    lvl = sv.Level(mk(lo, blank(), objs, meta_cell(5, 0), meta_cell(5, 5), timer=1))
+    check_cross(lvl, "sticky-start")
+
+
 def main():
     test_basic_hop_collect_exit()
     test_wall_needs_key_on_level()
     test_block_needs_hammer_on_level()
     test_equal_sum_vectors_not_collapsed()
     test_bad_metadata_impossible()
+    test_block_break_single_action_stable()
+    test_block_break_per_row_on_shrink()
+    test_wall_break_one_action_stable()
+    test_wall_break_per_hit_on_shrink()
+    test_prefers_more_collected_same_start_items()
+    test_sticky_start_is_a_normal_rest()
     print("ALL TESTS PASSED")
 
 

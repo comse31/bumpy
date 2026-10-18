@@ -34,6 +34,7 @@ import argparse
 import importlib.util
 import json
 import math
+import multiprocessing as mp
 import os
 import time
 
@@ -65,11 +66,15 @@ def features(sv, level, res, node_cap, seconds):
     empty = sum(1 for r in range(6) for c in range(6) if plat[r][c] == 0)
     req = res.get("required", (0, 0, 0))
     used = res.get("used", (0, 0, 0))
+    collected = res.get("collected", 0)
+    items = res.get("items", 0)
+    pct = 100.0 if items == 0 else round(100.0 * collected / items, 1)
     return {
         "spikes": spikes, "burning": burning, "slopes": slopes, "shrink": shrink,
         "walls": walls, "blocks": blocks, "empty": empty,
         "collectibles": level.collectibles, "timer": level.timer,
         "required_sum": sum(req), "used_sum": sum(used),
+        "collected": collected, "items": items, "collected_pct": pct,
         "actions": len(res.get("actions", [])),
         "nodes": res.get("nodes", 0),
         "optimal": res.get("optimal", True),
@@ -159,6 +164,7 @@ const COLS = [
   {key:'actions', label:'Действий', num:true},
   {key:'start_sum', label:'На старте', num:true},
   {key:'used_sum', label:'Использовано', num:true},
+  {key:'collected_pct', label:'Собрано %', num:true},
   {key:'collectibles', label:'Собрать', num:true},
   {key:'credits', label:'Опасн/Препят/Нестаб', num:false},
   {key:'nodes', label:'Узлов', num:true},
@@ -184,6 +190,7 @@ function rowObj(r){
   return {
     level:r.level, status:r.status, difficulty:r.difficulty, band:r.band,
     actions:plan.length, start_sum:r.required_sum, used_sum:r.used_sum,
+    collected_pct:r.collected_pct,
     collectibles:r.collectibles, nodes:r.nodes, seconds:r.seconds,
     credits:`${r.spikes+r.burning}/${r.walls+r.blocks}/${r.slopes+r.shrink}`,
     plan:plan,
@@ -205,6 +212,7 @@ function render(){
       <td class="num">${r.actions}</td>
       <td class="num">${esc(vec(DATA.rows.find(x=>x.level===r.level).required))} (${r.start_sum})</td>
       <td class="num">${esc(vec(DATA.rows.find(x=>x.level===r.level).used))} (${r.used_sum})</td>
+      <td class="num">${r.collected_pct}%</td>
       <td class="num">${r.collectibles}</td>
       <td>${r.credits}</td>
       <td class="num">${r.nodes}</td>
@@ -221,10 +229,13 @@ function render(){
 (function initKpi(){
   const s = DATA.summary;
   const counts = s.counts || {};
+  const avgColl = DATA.rows.length
+    ? DATA.rows.reduce((a,r)=>a+r.collected_pct,0)/DATA.rows.length : 0;
   document.getElementById('kpi').innerHTML =
     Object.keys(counts).sort().map(k=>`<div>${k}: <b>${counts[k]}</b></div>`).join('')
     + `<div>оптимально: <b>${s.optimal_count||0}</b></div>`
     + `<div>фолбэк: <b>${s.fallback_count||0}</b></div>`
+    + `<div>ср. собрано: <b>${avgColl.toFixed(1)}%</b></div>`
     + `<div>суммарно: <b>${(s.total_seconds||0).toFixed(1)}s</b></div>`;
   const states = [...new Set(DATA.rows.map(r=>r.status))];
   document.getElementById('filters').innerHTML =
@@ -239,6 +250,62 @@ render();
 """.replace("__DATA__", data).replace("__COLORS__", json.dumps(STATUS_COLOR))
 
 
+def run_level(sv, data, node_cap, n):
+    """Solve one level and build its report row (no printing)."""
+    level = sv.Level(data)
+    t0 = time.time()
+    res = sv.solve(level, node_cap=node_cap)
+    dt = time.time() - t0
+    f = features(sv, level, res, node_cap, round(dt, 3))
+    d = difficulty(f, node_cap)
+    row = {
+        "level": n, "status": res.get("status"),
+        "difficulty": d, "band": band(d),
+        "required": list(res.get("required", (0, 0, 0))),
+        "used": list(res.get("used", (0, 0, 0))),
+        "actions_list": res.get("actions", []),
+        "reason": res.get("reason", ""), "nodes": res.get("nodes", 0),
+        "optimal": res.get("optimal", True), "seconds": round(dt, 3),
+    }
+    row.update(f)
+    return row
+
+
+def print_row(row):
+    f = row
+    print(f"L{row['level']:>3} {row.get('status','?'):<9} diff={row['difficulty']:5.1f} "
+          f"{row['band']:<6} act={f['actions']:<3} {'' if row['optimal'] else 'fb '}"
+          f"coll={f['collected']}/{f['items']} ({f['collected_pct']:.0f}%) "
+          f"start={fmt_vec(row['required'])} used={fmt_vec(row['used'])} "
+          f"nodes={row['nodes']:<7} {row['seconds']:6.2f}s", flush=True)
+
+
+# --- parallel workers (levels are fully independent, so this is embarrassingly
+# --- parallel). The solver module and levels are (re)loaded per process via an
+# --- initializer so this works with fork, forkserver and spawn alike.
+_W = {}
+
+
+def _init_worker(module_path, levels_path, node_cap):
+    _W["sv"] = load_solver(module_path)
+    with open(levels_path) as fh:
+        _W["levels"] = json.load(fh)["levels"]
+    _W["node_cap"] = node_cap
+
+
+def _run_one(n):
+    return run_level(_W["sv"], _W["levels"][n - 1], _W["node_cap"], n)
+
+
+def _node_hint(out_path):
+    """Previous per-level node counts, used to schedule heavy levels first."""
+    try:
+        with open(out_path) as fh:
+            return {r["level"]: r["nodes"] for r in json.load(fh)["rows"]}
+    except Exception:
+        return {}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -250,38 +317,40 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT, help="write JSON metrics here")
     ap.add_argument("--html", default=DEFAULT_HTML, help="write HTML report here")
     ap.add_argument("--no-html", action="store_true", help="skip the HTML report")
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="parallel worker processes (0 = auto, 1 = sequential)")
     args = ap.parse_args()
 
-    sv = load_solver(args.module)
-    with open(args.levels) as fh:
-        model = json.load(fh)
+    tasks = list(range(args.first, args.last + 1))
+    jobs = args.jobs if args.jobs > 0 else min(os.cpu_count() or 1, 16)
+    jobs = min(jobs, len(tasks))
 
     rows = []
     total_t = 0.0
     t_start = time.time()
-    for n in range(args.first, args.last + 1):
-        level = sv.Level(model["levels"][n - 1])
-        t0 = time.time()
-        res = sv.solve(level, node_cap=args.node_cap)
-        dt = time.time() - t0
-        total_t += dt
-        f = features(sv, level, res, args.node_cap, round(dt, 3))
-        d = difficulty(f, args.node_cap)
-        row = {
-            "level": n, "status": res.get("status"),
-            "difficulty": d, "band": band(d),
-            "required": list(res.get("required", (0, 0, 0))),
-            "used": list(res.get("used", (0, 0, 0))),
-            "actions_list": res.get("actions", []),
-            "reason": res.get("reason", ""), "nodes": res.get("nodes", 0),
-            "optimal": res.get("optimal", True), "seconds": round(dt, 3),
-        }
-        row.update(f)
-        rows.append(row)
-        print(f"L{n:>3} {res.get('status','?'):<9} diff={d:5.1f} {band(d):<6} "
-              f"act={f['actions']:<3} {'' if row['optimal'] else 'fb '}"
-              f"start={fmt_vec(row['required'])} used={fmt_vec(row['used'])} "
-              f"nodes={row['nodes']:<7} {dt:6.2f}s", flush=True)
+
+    if jobs <= 1:
+        sv = load_solver(args.module)
+        with open(args.levels) as fh:
+            levels = json.load(fh)["levels"]
+        for n in tasks:
+            row = run_level(sv, levels[n - 1], args.node_cap, n)
+            total_t += row["seconds"]
+            rows.append(row)
+            print_row(row)
+    else:
+        # heavy levels first (by last run's node counts) to shrink the straggler
+        hint = _node_hint(args.out)
+        order = sorted(tasks, key=lambda n: hint.get(n, 0), reverse=True)
+        print(f"parallel: {jobs} workers, {len(tasks)} levels", flush=True)
+        ctx = mp.get_context()
+        with ctx.Pool(processes=jobs, initializer=_init_worker,
+                      initargs=(args.module, args.levels, args.node_cap)) as pool:
+            for row in pool.imap_unordered(_run_one, order, chunksize=1):
+                total_t += row["seconds"]
+                rows.append(row)
+                print_row(row)
+    rows.sort(key=lambda r: r["level"])
 
     counts = {}
     for r in rows:
@@ -293,8 +362,10 @@ def main():
         "counts": counts,
         "optimal_count": sum(1 for r in rows if r["optimal"]),
         "fallback_count": sum(1 for r in rows if not r["optimal"]),
+        "avg_collected_pct": round(sum(r["collected_pct"] for r in rows) / len(rows), 1),
         "total_seconds": round(total_t, 2),
         "wall_seconds": round(time.time() - t_start, 2),
+        "jobs": jobs,
         "slowest": {"level": slowest["level"], "seconds": slowest["seconds"]},
         "most_nodes": {"level": most_nodes["level"], "nodes": most_nodes["nodes"]},
         "hardest": {"level": hardest["level"], "difficulty": hardest["difficulty"]},
