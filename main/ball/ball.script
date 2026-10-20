@@ -30,6 +30,12 @@ local EXIT_SIGN_HALF_H = 40.0 -- половина высоты таблички
 -- или при падении за пределы поля, HUD-карман рисует их сердечками
 local START_LIVES = 3
 
+-- бесконечная ловушка: если наклонная платформа не даёт мячу выбраться
+-- (наклон в сторону непробиваемой стены/края поля, в сторону разрушаемой стены
+-- без ключа или к другой наклонной, направленной навстречу), показывается
+-- плашка «YOU ARE TRAPPED» и ведётся обратный отсчёт до потери жизни
+local TRAP_COUNTDOWN = 3.0
+
 -- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
 local PLATFORM_H = 20.0
 local PLATFORM_Y_BASE = 20.0
@@ -351,6 +357,12 @@ local function lose_life(self, cause)
         return
     end
     self.game_over = true
+    -- ловушка (если была): скрыть плашку и снять отсчёт
+    if self.trap_active then
+        self.trap_active = false
+        self.trap_timer = 0.0
+        msg.post("/trap", "hide")
+    end
     go.set("#collision_object", "linear_velocity", vmath.vector3())
     -- скрыть визуал активного героя (у спрайта нет свойства visible,
     -- скрываем сообщением disable)
@@ -431,6 +443,49 @@ end
 -- есть ли перегородка на границе слева от колонки col (между col-1 и col)?
 local function has_wall_left(row, col)
     return state.wall_id(row, col) ~= nil and not is_wall_destroyed(row, col)
+end
+
+-- бесконечная ловушка: начать показ плашки «YOU ARE TRAPPED» и обратный
+-- отсчёт до потери жизни (см. update). Вызывается при приземлении на наклонную
+-- платформу, из которой мяч не может выбраться
+local function start_trap(self)
+    if self.trap_active or self.game_over then return end
+    self.trap_active = true
+    self.trap_timer = TRAP_COUNTDOWN
+    self.trap_shown = nil
+    msg.post("/trap", "show")
+    print(string.format("TRAP: infinite slope trap cell=(%d, %d)", self.col, self.row))
+end
+
+-- проверка, является ли наклонная платформа (row, col) с направлением slope_dir
+-- бесконечной ловушкой: выхода нет, если на пути наклона
+--   * край поля (там всегда стоит непробиваемая боковая стенка border),
+--   * непробиваемая перегородка (у неё нет компонента #destructible),
+--   * разрушаемая перегородка, но в кармане нет ключа,
+--   * другая наклонная платформа, направленная навстречу (мяч мечется между ними)
+local function check_slope_trap(self, row, col, slope_dir)
+    if self.trap_active then return end
+    local tc = col + slope_dir
+    -- наклон в сторону края поля: боковая стенка border не разрушается
+    if tc < 0 or tc > COLS - 1 then
+        start_trap(self)
+        return
+    end
+    -- перегородка на пути наклона (между col и tc)
+    local b = slope_dir > 0 and col + 1 or col
+    local wall = state.wall_id(row, b)
+    if wall and not is_wall_destroyed(row, b) then
+        -- #destructible есть только у разрушаемых перегородок; без ключа их не пробить
+        local destructible = pcall(go.get, state.component(wall, "destructible"), "destroyed")
+        if not destructible or self.key_pocket <= 0 then
+            start_trap(self)
+        end
+        return
+    end
+    -- две наклонные платформы в сторону друг друга: мяч бесконечно мечется между ними
+    if slope_direction(row, tc) == -slope_dir then
+        start_trap(self)
+    end
 end
 
 -- «стена» (блок, кирпичная кладка): шириной в игровую ячейку (полуширина 70 —
@@ -931,7 +986,12 @@ local function land_on_platform(self, row)
         self.pending_dir = 0
         self.pending_jump = false
         local slope_dir = slope_direction(row, self.col)
-        if slope_dir ~= 0 and self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
+        if slope_dir ~= 0 then
+            -- наклон в сторону непреодолимой преграды — бесконечная ловушка
+            check_slope_trap(self, row, self.col, slope_dir)
+            -- как и при обычном приземлении: наклон даёт неуправляемый прыжок в
+            -- сторону наклона, а у боковой стенки (border) — отскок от неё
+            -- (бесконечная ловушка), см. комментарий ниже
             hop_and_move(self, slope_dir)
             self.press_used = true
         else
@@ -957,14 +1017,13 @@ local function land_on_platform(self, row)
     -- направление определяется по повороту объекта платформы (компонент slope)
     local slope_dir = slope_direction(row, self.col)
     if slope_dir ~= 0 then
-        if self.col + slope_dir >= 0 and self.col + slope_dir <= COLS - 1 then
-            hop_and_move(self, slope_dir)
-            self.press_used = true
-        else
-            -- наклон в сторону края экрана: обычный вертикальный отскок,
-            -- дальше мяч улетит за край и упадёт (конец игры)
-            settle_or_stick(self)
-        end
+        -- наклонная платформа: мяч неуправляемо прыгает в сторону наклона.
+        -- Если в стороне наклона стоит боковая стенка (border) — мяч прыгает
+        -- в её сторону и отскакивает обратно (hop_and_move → bounce_off_wall),
+        -- это бесконечная ловушка: мяч вечно мечется между платформой и стенкой
+        check_slope_trap(self, row, self.col, slope_dir)
+        hop_and_move(self, slope_dir)
+        self.press_used = true
     elseif direction ~= 0 then
         if self.sticky_rest then
             -- на липкой платформе удержанная в момент касания клавиша даёт
@@ -1084,6 +1143,10 @@ function init(self)
     self.bounce_hit_pending = false
     self.bounce_hit_dir = 0
     self.press_used = false
+    -- бесконечная ловушка (наклонная платформа без выхода): плашка и отсчёт
+    self.trap_active = false
+    self.trap_timer = 0.0
+    self.trap_shown = nil
     -- id кирпичной стены, за удар по которой уже потрачен молоток (молоток
     -- расходуется один раз на стену, дальнейшие удары по ней молотков не тратят)
     self.hammer_wall_id = nil
@@ -1197,6 +1260,23 @@ function update(self, dt)
         self.touch_timer = math.max(0.0, self.touch_timer - dt)
         if self.touch_timer == 0.0 then
             clear_tap(self)
+        end
+    end
+
+    -- бесконечная ловушка: идёт обратный отсчёт на плашке «YOU ARE TRAPPED»,
+    -- ввод игрока при этом игнорируется (см. on_input), а мяч продолжает
+    -- метаться в ловушке. По завершении отсчёта теряется жизнь (уровень
+    -- перезапускается). Плашка скрывается в момент потери жизни (см. lose_life)
+    if self.trap_active then
+        self.trap_timer = self.trap_timer - dt
+        local shown = math.max(1, math.ceil(self.trap_timer))
+        if shown ~= self.trap_shown then
+            self.trap_shown = shown
+            msg.post("/trap", "count", { count = shown })
+        end
+        if self.trap_timer <= 0.0 then
+            lose_life(self, "stuck in slope trap")
+            return
         end
     end
 
@@ -1483,6 +1563,11 @@ function on_input(self, action_id, action)
         end
         return
     end
+    -- ловушка: пока идёт обратный отсчёт «YOU LOCK IN TRAP», ввод игрока
+    -- игнорируется — мяч неуправляемо мечется, вырваться из ловушки нельзя
+    if self.trap_active then
+        return
+    end
     -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
     -- начинает новую игру; ждём, пока уровень 1 пересоберётся
     if self.game_over then
@@ -1625,6 +1710,11 @@ function on_message(self, message_id, message, sender)
         self.press_used = false
         self.pending_dir = 0
         self.pending_jump = false
+        -- ловушка с прошлого уровня не переносится: плашка и отсчёт сброшены
+        self.trap_active = false
+        self.trap_timer = 0.0
+        self.trap_shown = nil
+        msg.post("/trap", "hide")
         self.sticky_rest = false
         self.sticky_action_used = false
         self.sticky_cell = nil
