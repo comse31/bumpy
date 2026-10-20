@@ -1,6 +1,6 @@
 components {
   id: "mesh"
-  component: "/main/platforms/burning/platform.mesh"
+  component: "/main/platforms/burning_sticky/platform.mesh"
 }
 components {
   id: "mesh_sticky"

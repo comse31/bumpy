@@ -1,0 +1,4 @@
+material: "/main/platforms/burning_sticky/platform.material"
+vertices: "/main/platforms/burning_sticky/platform.buffer"
+textures: "/main/platforms/burning_sticky/platform.png"
+primitive_type: PRIMITIVE_TRIANGLES
