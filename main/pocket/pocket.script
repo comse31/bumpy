@@ -187,7 +187,8 @@ end
 
 local function remove(self, kind)
     local list = (kind == 2) and self.hammers or ((kind == 1) and self.keys or self.drops)
-    if #list == 0 then
+    -- защита от «минуса» при рассинхроне: убирать нечего — молча выходим
+    if #list <= 0 then
         return
     end
     local id = list[1] -- take the leftmost item of the group
