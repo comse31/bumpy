@@ -364,11 +364,18 @@ local function lose_life(self, cause)
         msg.post("/trap", "hide")
     end
     go.set("#collision_object", "linear_velocity", vmath.vector3())
+    -- мяч умер прямо сейчас: выключаем коллизию, иначе до пересборки уровня
+    -- (1-2 кадра) продолжают приходить contact_point_response, и приземление
+    -- на горящую платформу тратит каплю УЖЕ ПОСЛЕ отката кармана. На
+    -- перезапущенном уровне игрок видел бы не тот набор, с которым пришёл
+    msg.post("#collision_object", "disable")
     -- скрыть визуал активного героя (у спрайта нет свойства visible,
     -- скрываем сообщением disable)
     self.hero.deactivate(self)
     self.lives = self.lives - 1
     msg.post("/pocket", "set_lives", { count = math.max(0, self.lives) })
+    print(string.format("LIFE LOST (%s): %d left, pocket now=(%d, %d, %d), level %d",
+        cause or "?", self.lives, self.pocket, self.key_pocket, self.hammer_pocket, state.index))
     if self.lives > 0 then
         -- предметы в кармане откатываются к состоянию на старте текущего уровня:
         -- собранное на этом уровне не сохраняется, но накопленное между
@@ -381,8 +388,8 @@ local function lose_life(self, cause)
             keys = self.key_pocket,
             hammers = self.hammer_pocket,
         })
-        print(string.format("LIFE LOST (%s): %d left, reload level %d",
-            cause or "?", self.lives, state.index))
+        print(string.format("POCKET rollback to level start: drops=%d keys=%d hammers=%d (reload level %d)",
+            self.start_pocket, self.start_keys, self.start_hammers, state.index))
         -- обновить сохранение: если браузер закрыть сразу после смерти, при
         -- переоткрытии должно восстановиться уже уменьшенное число жизней
         -- (карман — снимок на начало уровня, к которому мы только что откатились)
@@ -921,6 +928,12 @@ end
 -- действия игрока. Вынесена отдельно, чтобы оба пути приземления вели себя
 -- одинаково и приземление не зависело от частоты кадров
 local function land_on_platform(self, row)
+    -- после смерти мяч уже не взаимодействует с уровнем: level.script
+    -- пересобирает уровень, и любая реакция на контакт в этом окне изменила бы
+    -- карман (капля на горящую платформу) уже после отката к снимку уровня
+    if self.game_over then
+        return
+    end
     -- приземление точно в центр платформы; пока смещение идёт,
     -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
     local position = go.get_position()
@@ -1067,6 +1080,10 @@ end
 -- проверяем, не пересёк ли мяч верхнюю грань платформы в его колонке при
 -- движении вниз (по позициям прошлого и текущего кадра), и приземляем скриптово
 local function swept_land(self, dt)
+    -- после смерти мяч не взаимодействует с уровнем (см. lose_life)
+    if self.game_over then
+        return false
+    end
     -- только свободное падение: смещение/отскок/высокий прыжок ведут себя иначе
     if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
         return false
@@ -1234,6 +1251,13 @@ function init(self)
         self.pocket = data.drops or 0
         self.key_pocket = data.keys or 0
         self.hammer_pocket = data.hammers or 0
+        -- восстановленный карман — это ровно тот набор, с которым игрок попал
+        -- на сохранённый уровень: сразу фиксируем его как снимок, чтобы потеря
+        -- жизни откатывала карман к нему, даже если level_start придёт раньше
+        -- (или не придёт вовсе при ошибке загрузки уровня)
+        self.start_pocket = self.pocket
+        self.start_keys = self.key_pocket
+        self.start_hammers = self.hammer_pocket
         msg.post("/pocket", "set_lives", { count = self.lives })
         msg.post("/pocket", "set_items", {
             drops = self.pocket,
@@ -1535,8 +1559,9 @@ function update(self, dt)
 
     -- событие выхода: ЛЮБОЙ контакт мяча с табличкой EXIT завершает уровень —
     -- как при приземлении на платформу в финишной ячейке, так и при пролёте
-    -- через ячейку без платформы (геометрическая проверка круг × прямоугольник)
-    if self.exit_open and not self.level_complete and state.exit_id then
+    -- через ячейку без платформы (геометрическая проверка круг × прямоугольник).
+    -- После смерти уровень уже не завершается: он перезапускается
+    if not self.game_over and self.exit_open and not self.level_complete and state.exit_id then
         if exit_touched(state.exit_id) then
             self.level_complete = true
             print("ball touched exit sign: level complete")
@@ -1569,9 +1594,14 @@ function on_input(self, action_id, action)
         return
     end
     -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
-    -- начинает новую игру; ждём, пока уровень 1 пересоберётся
+    -- начинает новую игру; ждём, пока уровень 1 пересоберётся.
+    -- ВАЖНО: пока жизни ещё есть, game_over означает лишь «уровень
+    -- перезапускается» — level.script пересоберёт его и пришлёт level_start,
+    -- который снимет флаг. Нажатие в этом окне не должно запускать новую игру:
+    -- restart_game обнуляет карман и снимок уровня, из-за чего перезапуск шёл
+    -- с пустым (фиксированным) набором предметов вместо набора на входе в уровень
     if self.game_over then
-        if action.pressed and not self.restart_pending then
+        if self.lives <= 0 and action.pressed and not self.restart_pending then
             restart_game(self)
         end
         return
@@ -1697,6 +1727,8 @@ function on_message(self, message_id, message, sender)
         self.start_pocket = self.pocket
         self.start_keys = self.key_pocket
         self.start_hammers = self.hammer_pocket
+        print(string.format("POCKET snapshot level %d: drops=%d keys=%d hammers=%d",
+            state.index, self.start_pocket, self.start_keys, self.start_hammers))
         -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
         self.move_t = 0.0
         self.bounce_t = 0.0
