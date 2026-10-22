@@ -1,0 +1,12 @@
+text: 'YOU ARE TRAPPED'
+font: '/main/ui/trap.font'
+material: '/builtins/fonts/label-df.material'
+size { x: 460 y: 60 z: 0 }
+color { x: 1 y: 0.35 z: 0.35 w: 1 }
+outline { x: 0 y: 0 z: 0 w: 0 }
+shadow { x: 0 y: 0 z: 0 w: 0 }
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_CENTER
+blend_mode: BLEND_MODE_ALPHA
+line_break: false

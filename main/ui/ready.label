@@ -1,0 +1,12 @@
+text: 'READY FOR LEVEL 1?'
+font: '/main/ui/ready.font'
+material: '/builtins/fonts/label-df.material'
+size { x: 620 y: 80 z: 0 }
+color { x: 1 y: 1 z: 1 w: 1 }
+outline { x: 0 y: 0 z: 0 w: 0 }
+shadow { x: 0 y: 0 z: 0 w: 0 }
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_CENTER
+blend_mode: BLEND_MODE_ALPHA
+line_break: false

@@ -1,0 +1,28 @@
+-- Плашка "READY FOR LEVEL N?": показывается перед началом каждого уровня,
+-- ждёт нажатия любой клавиши (см. ball.script). Состоит из фонового спрайта
+-- (ready.sprite, текстура main/ui/ready.png) и label-компонента с номером
+-- уровня. До сообщения "show" оба компонента выключены.
+local DEFAULT_TEXT = "READY FOR LEVEL 1?"
+
+local function set_visible(self, visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    msg.post("#sprite", action)
+    msg.post("#label", action)
+end
+
+function init(self)
+    -- скрыть плашку до первого уровня: level.script пришлёт "show"
+    go.set("#label", "text", DEFAULT_TEXT)
+    set_visible(self, false)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        local level = message and message.level or 1
+        go.set("#label", "text", string.format("READY FOR LEVEL %d?", level))
+        set_visible(self, true)
+    elseif message_id == hash("hide") then
+        set_visible(self, false)
+    end
+end

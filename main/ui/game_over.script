@@ -1,0 +1,13 @@
+-- Плашка GAME OVER: показана, когда у мяча закончились жизни.
+-- Скрыта до сообщения "show" от ball.script; "hide" убирает её обратно.
+function init(self)
+    msg.post("#sprite", "disable")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        msg.post("#sprite", "enable")
+    elseif message_id == hash("hide") then
+        msg.post("#sprite", "disable")
+    end
+end

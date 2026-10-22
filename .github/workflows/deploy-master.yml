@@ -1,0 +1,308 @@
+# Сборка и развёртывание Bumpy (Defold, wasm-web) на self-hosted раннере.
+#
+# Триггер: push в ветку master (и ручной запуск через workflow_dispatch).
+#
+# Шаги:
+#   1. Загрузка готового образа-сборщика из GitHub Container Registry
+#      (публикуется вручную workflow build-bob-image.yml). Своего docker build
+#      здесь нет.
+#   2. Сборка HTML5-бандла (platform wasm-web, --architectures wasm-web,
+#      archive=true) в dist/web/bumpy. Движок берётся из bob.jar, ничего не
+#      качается с d.defold.com.
+#   3. Сборка Docker-образа (docker/Dockerfile: nginx + бандл).
+#   4. Развёртывание контейнера на раннере + health check.
+#
+# Job выполняется на self-hosted раннере. Контейнер запускается на Docker-демоне
+# этого раннера (реальная машина), поэтому после workflow он продолжает работать
+# (в отличие от эфемерных GitHub-hosted раннеров).
+
+name: Build & Deploy (master)
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Отменять предыдущий запуск при новом пуше в master.
+concurrency:
+  group: deploy-master
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE_NAME: bumpy-web
+  IMAGE_TAG: latest
+  CONTAINER_NAME: bumpy-web
+  HOST_PORT: "9999"
+
+jobs:
+  build-and-deploy:
+    name: Сборка образа и развёртывание на self-hosted
+    # Self-hosted раннер. Требуется установленный Docker.
+    runs-on: [self-hosted]
+    # Ничего не скачивается с d.defold.com (образ готов заранее, движок — из
+    # bob.jar), поэтому сборка быстрая; запас на docker pull и сборку бандла.
+    timeout-minutes: 60
+
+    steps:
+      - name: Очистка root-owned остатков предыдущих сборок
+        # bob в контейнере-сборщике пишет свои артефакты (.internal/, build/,
+        # dist/) прямо в смонтированный workspace. Если контейнер работал под
+        # root, эти каталоги остаются root-owned, и actions/checkout не может
+        # очистить workspace под пользователем раннера (EACCES: permission
+        # denied). Все перечисленные каталоги git-ignored и пересоздаются на
+        # этой же сборке, поэтому удаляем их из контейнера под root ДО checkout.
+        run: |
+          set -euo pipefail
+          found=""
+          for d in .internal build dist; do
+            [ -e "$d" ] && found="$found $d"
+          done
+          if [ -n "$found" ]; then
+            echo "Найдены остатки:$found — удаляю через контейнер под root"
+            docker run --rm -v "$PWD":/project alpine \
+              sh -c 'rm -rf /project/.internal /project/build /project/dist'
+          else
+            echo "Остатков нет — пропускаю"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Полная история: номер сборки = число коммитов (git rev-list --count HEAD).
+          # При shallow-клоне (по умолчанию fetch-depth: 1) счётчик всегда был бы 1.
+          fetch-depth: 0
+
+      - name: Определение имени образа-сборщика
+        # ghcr.io требует имя в нижнем регистре.
+        run: |
+          set -euo pipefail
+          OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "BOB_BUILDER_IMAGE=ghcr.io/${OWNER_LC}/bumpy-bob-builder" >> "$GITHUB_ENV"
+
+      - name: Определение версии Defold (sha1)
+        id: defold
+        run: |
+          set -euo pipefail
+          SHA1="$(curl -fsSL https://d.defold.com/stable/info.json \
+            | python3 -c 'import sys, json; print(json.load(sys.stdin)["sha1"])')"
+          echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
+          echo "Defold stable sha1: ${SHA1}"
+
+      - name: Логин в GitHub Container Registry
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Загрузка образа-сборщика из GitHub Container Registry
+        # Образ (JDK 25 + библиотеки X11/GL + bob.jar) собирается и публикуется
+        # workflow build-bob-image.yml. Здесь только тянем готовый образ —
+        # никаких docker build и скачиваний с d.defold.com.
+        # Тег — sha1 текущей версии Defold: при смене версии сначала нужно
+        # пересобрать образ (workflow_dispatch → build-bob-image.yml).
+        run: |
+          set -euo pipefail
+          REMOTE="${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}"
+          # Если образ для этой версии Defold ещё не опубликован в ghcr.io
+          # (например, stable-версия только что обновилась), не валим деплой:
+          # используем локально собранный образ bumpy-bob-builder:25-jdk.
+          if docker pull "${REMOTE}"; then
+            echo "BOB_BUILDER_REF=${REMOTE}" >> "$GITHUB_ENV"
+          elif docker image inspect "bumpy-bob-builder:25-jdk" >/dev/null 2>&1; then
+            echo "::warning::Образ ${REMOTE} не найден в ghcr.io — использую локальный bumpy-bob-builder:25-jdk"
+            echo "BOB_BUILDER_REF=bumpy-bob-builder:25-jdk" >> "$GITHUB_ENV"
+          else
+            echo "::error::Образ ${REMOTE} недоступен, и локального bumpy-bob-builder:25-jdk нет"
+            exit 1
+          fi
+
+      - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
+        # bob.jar зашит в образ bumpy-bob-builder (JDK 25 + системные библиотеки
+        # X11/GL, которые нужны нативным инструментам bob, напр.
+        # ModelImporterJni), поэтому сборка НЕ зависит от системной Java на
+        # раннере. Репозиторий монтируется в контейнер, готовый бандл остаётся
+        # на раннере в dist/web/bumpy и далее попадает в docker-образ.
+        #
+        # --architectures wasm-web: собираем ТОЛЬКО однопоточный движок.
+        # Иначе HTML5-бандлер дополнительно собирает wasm_pthread-web
+        # (HTML5Bundler.bundleApplication → buildWasm для каждой платформы из
+        # --architectures), а его движка в bob.jar НЕТ — bob качает его с
+        # d.defold.com, который на раннере троттлится (~100–200 Б/с) и
+        # «зависает» на этапе Bundling. Игре потоки не нужны (в проекте нет
+        # app manifest / set_thread_count), поэтому однопоточный бандл подходит.
+        #
+        # Для HTML5 bob создаёт вложенную папку с именем проекта (title=bumpy)
+        # внутри --bundle-output, т.е. результат окажется в dist/web/bumpy/
+        # (index.html, dmloader.js, *.wasm, archive/).
+        run: |
+          set -euxo pipefail
+          rm -rf dist/web/bumpy
+
+          # Запускаем контейнер от имени пользователя раннера, а не root:
+          # bob пишет свой кэш в .internal/ прямо в смонтированный рабочий
+          # каталог. Если контейнер работает под root, каталог .internal/cache
+          # остаётся root-owned, и на следующем запуске actions/checkout не
+          # может очистить workspace (EACCES: permission denied). HOME=/tmp —
+          # чтобы JDK не пытался писать в недоступный $HOME пользователя root.
+          #
+          # Логи bob пишем в файл и стримим через tail, а рядом печатаем
+          # «пульс» каждые 15 с: так видно, что процесс жив, а не завис.
+          BOB_LOG=/tmp/bob-build.log
+          BOB_START=$(date -u +%s)
+          : > "$BOB_LOG"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD":/project \
+            -w /project \
+            "${BOB_BUILDER_REF}" \
+            java -jar /opt/bob/bob.jar \
+              --verbose \
+              --root . \
+              --platform wasm-web \
+              --architectures wasm-web \
+              --archive \
+              --variant release \
+              --bundle-output dist/web \
+              resolve build bundle >"$BOB_LOG" 2>&1 &
+          BOB_PID=$!
+
+          tail -n +1 -f "$BOB_LOG" &
+          TAIL_PID=$!
+
+          while kill -0 "$BOB_PID" 2>/dev/null; do
+            sleep 15
+            echo "[$(date -u +%H:%M:%S)] bob ещё работает уже $(( $(date -u +%s) - BOB_START )) с (строк лога: $(wc -l < "$BOB_LOG"))"
+          done
+
+          kill "$TAIL_PID" 2>/dev/null || true
+          wait "$TAIL_PID" 2>/dev/null || true
+
+          rc=0
+          wait "$BOB_PID" || rc=$?
+          echo "::group::Последние 80 строк лога bob (код выхода: $rc)"
+          tail -n 80 "$BOB_LOG"
+          echo "::endgroup::"
+          [ "$rc" -eq 0 ] || { echo "bob завершился с кодом $rc"; exit "$rc"; }
+
+          test -f dist/web/bumpy/index.html
+          ls -la dist/web/bumpy
+
+      - name: Подстановка версии игры в index.html
+        # Рядом с бейджем «Made with Defold» показываем версию игры и номер сборки.
+        #   * версия игры — [project] version из game.project (semver, источник истины,
+        #     меняется вручную при релизе);
+        #   * номер сборки — число коммитов в текущей истории (git rev-list --count HEAD),
+        #     растёт автоматически на каждом деплое; для этого checkout идёт с fetch-depth: 0.
+        # Итоговый вид: «Made with Defold — v1.0.0 (build 123)».
+        # index.html — сгенерированный Defold-шаблон; правка безопасна: dmloader.js
+        # сверяет sha1/size только wasm и архива, а не самого html.
+        run: |
+          set -euo pipefail
+          GAME_VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' game.project | head -n1 | tr -d '[:space:]')"
+          if [ -z "${GAME_VERSION}" ]; then
+            echo "Не удалось прочитать version из game.project" >&2
+            exit 1
+          fi
+          BUILD_NUMBER="$(git rev-list --count HEAD)"
+          BUILD_LABEL="v${GAME_VERSION} (build ${BUILD_NUMBER})"
+          echo "Версия игры: ${BUILD_LABEL}"
+
+          INDEX=dist/web/bumpy/index.html
+          GAME_VERSION="${GAME_VERSION}" BUILD_LABEL="${BUILD_LABEL}" python3 - "$INDEX" <<'PY'
+          import os, sys
+
+          index = sys.argv[1]
+          with open(index, encoding="utf-8") as f:
+              html = f.read()
+
+          badge = '<div class="link">Made with <a href="https://defold.com/" target="_blank">Defold</a></div>'
+          if badge not in html:
+              sys.exit(f"В {index} не найден бейдж «Made with Defold» — нечего дополнить")
+
+          version = os.environ["GAME_VERSION"]
+          label = os.environ["BUILD_LABEL"]
+          replacement = (
+              '<div class="link">Made with '
+              '<a href="https://defold.com/" target="_blank">Defold</a>'
+              f' <span class="build-version" title="Версия игры">&#8212; {label}</span></div>'
+          )
+          html = html.replace(badge, replacement, 1)
+
+          # Версию также подставляем в <title> (шаблон рендерит {{project.title}} {{project.version}}),
+          # чтобы в заголовке вкладки был полный номер сборки, а не только semver.
+          html = html.replace(f"<title>bumpy {version}</title>",
+                              f"<title>bumpy {label}</title>", 1)
+
+          with open(index, "w", encoding="utf-8") as f:
+              f.write(html)
+          print("index.html обновлён")
+          PY
+
+          grep -o 'build-version[^<]*</span>' "$INDEX" || true
+
+      - name: Остановка и удаление старого контейнера
+        run: |
+          set -euo pipefail
+          # Есть ли контейнер вообще (запущенный или остановленный).
+          if ! docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+            echo "Контейнер ${CONTAINER_NAME} не найден — пропускаю"
+            exit 0
+          fi
+          # Запущен ли он — останавливаем только работающий контейнер.
+          if docker ps --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
+            echo "Останавливаю запущенный контейнер ${CONTAINER_NAME}"
+            docker stop "${CONTAINER_NAME}"
+          else
+            echo "Контейнер ${CONTAINER_NAME} уже остановлен — stop не требуется"
+          fi
+          echo "Удаляю контейнер ${CONTAINER_NAME}"
+          docker rm "${CONTAINER_NAME}"
+
+      - name: Сборка Docker-образа
+        run: |
+          set -euo pipefail
+          docker build \
+            -f docker/Dockerfile \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            .
+          docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
+
+      - name: Развёртывание контейнера на self-hosted раннере (teliot)
+        # `docker` здесь — это Docker-демон self-hosted раннера `teliot`
+        # (реальная машина), на которой выполняется job. Контейнер остаётся
+        # работать после завершения workflow (в отличие от эфемерных
+        # GitHub-hosted раннеров). Старый контейнер удаляется отдельным шагом.
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name "${CONTAINER_NAME}" \
+            -p "${HOST_PORT}:80" \
+            --restart unless-stopped \
+            "${IMAGE_NAME}:${IMAGE_TAG}"
+
+      - name: Проверка доступности (health check)
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null "http://localhost:${HOST_PORT}/"; then
+              echo "Сервис отвечает на http://localhost:${HOST_PORT}/"
+              break
+            fi
+            echo "Ожидание запуска nginx... (${i}/30)"
+            sleep 2
+          done
+          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://localhost:${HOST_PORT}/"
+          docker ps --filter "name=${CONTAINER_NAME}"
+
+      - name: Диагностика при ошибке
+        if: failure()
+        run: |
+          docker ps -a || true
+          docker logs "${CONTAINER_NAME}" || true

@@ -1,0 +1,1795 @@
+-- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
+local state = require("main.level.level_state")
+-- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
+local save = require("main.save")
+-- герои: вся специфика мячика и Slinky вынесена в отдельные модули
+local hero_ball = require("main.ball.hero_ball")
+local hero_slinky = require("main.ball.hero_slinky")
+
+local SIZE = 32.0
+local BPM = 120.0
+
+-- сетка игрового экрана 6 на 6
+local COLS = 6
+local SCREEN_W = 960.0
+local SCREEN_H = 640.0
+local CELL_W = SCREEN_W / COLS
+local CELL_H = SCREEN_H / COLS
+local RADIUS = SIZE / 2.0
+-- предмет (goodies) — спрайт 32x32, как и мяч; сбор идёт только при касании
+local GOODIE_HALF = 16.0
+
+-- табличка EXIT (текстура main/exit/exit.png): размеры в мировых пикселях,
+-- см. spawn_exit в level.script. У таблички нет физического collision object,
+-- чтобы она не блокировала траекторию мяча, поэтому контакт с ней проверяется
+-- геометрически каждый кадр
+local EXIT_SIGN_HALF_W = 60.0 -- половина ширины таблички
+local EXIT_SIGN_HALF_H = 40.0 -- половина высоты таблички
+
+-- число жизней на старте; теряется при контакте с шипами/горящей платформой
+-- или при падении за пределы поля, HUD-карман рисует их сердечками
+local START_LIVES = 3
+
+-- бесконечная ловушка: если наклонная платформа не даёт мячу выбраться
+-- (наклон в сторону непробиваемой стены/края поля, в сторону разрушаемой стены
+-- без ключа или к другой наклонной, направленной навстречу), показывается
+-- плашка «YOU ARE TRAPPED» и ведётся обратный отсчёт до потери жизни
+local TRAP_COUNTDOWN = 3.0
+
+-- высота платформы (одинаковая для всех уровней) и центр Y платформы нижнего ряда
+local PLATFORM_H = 20.0
+local PLATFORM_Y_BASE = 20.0
+-- Y центра мяча в момент отскока от каждого ряда ячеек (индекс 0 — нижний ряд):
+-- верхняя грань платформы + радиус мяча; рассчитывается от высоты платформы
+local BOUNCE_Y = {}
+for c = 0, COLS - 1 do
+    BOUNCE_Y[c] = PLATFORM_Y_BASE + PLATFORM_H / 2.0 + RADIUS + c * CELL_H
+end
+
+local PERIOD = 60.0 / BPM
+-- высота обычного прыжка: в верхней точке мяч не должен касаться платформы выше,
+-- т.е. HEIGHT + 2*RADIUS < зазор между уровнями (48 + 32 < 106.7 - 20)
+local HEIGHT = 1.5 * SIZE
+local GRAVITY = 8.0 * HEIGHT / (PERIOD * PERIOD)
+local JUMP_SPEED = GRAVITY * PERIOD * 0.5
+-- высокий прыжок (Space/Up): начальный импульс как при прыжке на один этаж;
+-- первый уровень подъёма замедляется гравитацией, выше скорость становится
+-- постоянной (JUMP_SPEED) — мяч летит до платформы сверху или верхнего края
+-- игрового поля и может запрыгнуть на любой «этаж»
+local HIGH_JUMP_HEIGHT = CELL_H + HEIGHT
+local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
+
+-- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
+local THRESHOLD_MS = 100.0
+local THRESHOLD = THRESHOLD_MS / 1000.0
+
+-- тач-управление (тачскрин). Жесты работают как удержание клавиш:
+--   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»
+--   (мяч на каждом отскоке смещается в сторону, пока палец на экране);
+--   свайп вверх с удержанием — удержание «высокий прыжок»;
+--   короткий тап без движения — разовая команда по половине игрового поля.
+-- Порог свайпа задаётся долей размера экрана, чтобы жест одинаково распознавался
+-- на разных разрешениях устройств
+local SWIPE_MIN_FRAC = 0.05
+-- «время жизни» разовой тап-команды: она принимается не мгновенно, а в окне
+-- threshold вокруг следующего касания, поэтому держится чуть дольше одного
+-- отскока (PERIOD = 0.5 с) и сбрасывается, как только действие выполнено
+local TOUCH_CMD_TIMEOUT = 0.7
+
+-- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
+-- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
+local CONTACT_DEDUP = 0.1
+-- короткое окно после начала действия (шаг/отскок/прыжок), в котором контакты
+-- игнорируются: иначе «залипший» контакт того же кадра снова усаживает Slinky на
+-- платформу и следующий кадр запускает ещё один шаг — прыжок через платформу
+local CONTACT_GUARD = 0.05
+
+-- затухание «удара»: общая величина состояния self.squash, герои читают её в
+-- своём update (мяч — сплющивание, Slinky — сжатие пружины)
+local SQUASH_DURATION = 0.15
+-- величина сплющивания мяча; нужна также в геометрии удара о перегородку
+local SQUASH_AMOUNT = 0.25
+
+local STEP = CELL_W
+local MOVE_DURATION = 0.25
+
+-- общие значения, которые нужны героям; передаются им в setup
+local ENV = {
+    jump_speed = JUMP_SPEED,
+    period = PERIOD,
+    hop_height = HEIGHT,
+    squash_amount = SQUASH_AMOUNT,
+}
+
+-- переключение героя по клавише T: мячик <-> Slinky. Общий код знает только
+-- интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
+local function toggle_character(self)
+    self.hero.deactivate(self)
+    self.character = self.character == "ball" and "slinky" or "ball"
+    self.hero = self.character == "ball" and hero_ball or hero_slinky
+    self.hero.reset(self)
+    -- покой на липкой поверхности и «первый прыжок» относятся к прежнему герою
+    self.sticky_rest = false
+    self.sticky_action_used = false
+    self.sticky_cell = nil
+    self.high_jump_locked = false
+    self.hero.activate(self)
+    print("CHARACTER: " .. self.character)
+end
+
+-- центр колонки (платформы) по X
+local function column_center(col)
+    return (col + 0.5) * CELL_W
+end
+
+-- поставить шар в стартовую ячейку уровня: индекс ячейки 0..35, строка 0 —
+-- верх экрана; приводим к экранной строке (0 — низ) и центру колонки.
+-- Вызывается из init (значение по умолчанию) и по сообщению "level_start"
+-- от level.script, поэтому порядок инициализации не важен
+local function start_at(self, cell)
+    local col = cell % COLS
+    local row = (COLS - 1) - math.floor(cell / COLS)
+    self.col = col
+    self.row = row
+    self.ground_y = BOUNCE_Y[row]
+    go.set_position(vmath.vector3(column_center(col), BOUNCE_Y[row], go.get_position().z))
+end
+
+-- ячейка (row, col) по мировой позиции мяча: row 0 — низ экрана.
+-- Нужна для сбора предметов по фактической ячейке мяча, в том числе в ячейках
+-- без платформы, которые мяч пролетает при прыжке/падении
+local function cell_at(position)
+    local col = vmath.clamp(math.floor(position.x / CELL_W), 0, COLS - 1)
+    local row = vmath.clamp(math.floor((position.y - PLATFORM_Y_BASE) / CELL_H + 1e-6), 0, COLS - 1)
+    return row, col
+end
+
+-- id платформы в ячейке (row/col — индексы с нуля, row 0 — нижний ряд).
+-- Уровень создаётся level.script из метаданных, поэтому вместо жёстких URL
+-- "/p1_1" экземпляры берутся из общего реестра main/level/level_state.lua
+local function platform_id(row, col)
+    return state.platform_id(row, col)
+end
+
+-- направление наклона платформы: 1 = вправо, -1 = влево, 0 = плоская.
+-- Определяется по повороту объекта (компонент slope поворачивает всю платформу):
+-- отрицательный угол вокруг Z опускает правый конец (наклон вправо),
+-- положительный — поднимает его (наклон влево)
+local function slope_direction(row, col)
+    local id = platform_id(row, col)
+    if not id then return 0 end
+    local rot = go.get(id, "rotation")
+    if not rot or math.abs(rot.z) < 0.01 then return 0 end
+    return rot.z > 0 and -1 or 1
+end
+
+-- отскок строго вниз после удара мяча в НИЖНЮЮ грань наклонной платформы.
+-- У наклонной платформы нормаль контакта наклонена (есть компонента по X),
+-- поэтому Box2D отбрасывает мяч вбок по склону. Гасим горизонтальную скорость
+-- и возвращаем мяч в центр его колонки, чтобы падение было строго вертикальным
+local function rebound_straight_down(self)
+    local pos = go.get_position()
+    local vy = go.get("#collision_object", "linear_velocity").y
+    -- X не трогаем, пока идёт скриптовое смещение (там позицией управляет update)
+    if self.move_t <= 0.0 and self.bounce_t <= 0.0 then
+        pos = vmath.vector3(column_center(self.col), pos.y, pos.z)
+        go.set_position(pos)
+    end
+    -- только вертикальная составляющая, направленная вниз (без подскока вверх)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, math.min(vy, 0.0), 0.0))
+end
+
+-- липкая (закрашенная) платформа: свойство sticky у скрипта платформы;
+-- на ней мяч не пружинит — лежит на поверхности и ждёт команды игрока:
+-- влево/вправо — обычный соскок на соседнюю ячейку, а высокий прыжок доступен
+-- только в момент первого касания (пока мяч лежит — высоко не прыгает)
+local function is_sticky(row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    -- компонент #sticky есть не у всех прототипов (нет, например, у горящих),
+    -- поэтому go.get оборачиваем в pcall
+    local ok, sticky = pcall(go.get, state.component(id, "sticky"), "sticky")
+    return ok and sticky and sticky > 0 or false
+end
+
+-- шипы (опасная платформа): свойство spike у скрипта платформы;
+-- при контакте мяча с шипами мяч лопается и игра прекращается;
+-- компонент есть только у прототипа шипов, поэтому go.get оборачиваем в pcall
+local function is_spike(row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, spike = pcall(go.get, state.component(id, "spike"), "spike")
+    return ok and spike and spike > 0 or false
+end
+
+-- горящая (опасная) платформа: свойство burning у скрипта платформы;
+-- при контакте мяча с ней мяч разрушается и игра прекращается;
+-- компонент есть только у прототипа горящих платформ, поэтому go.get в pcall
+local function is_burning(row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, burning = pcall(go.get, state.component(id, "burning"), "burning")
+    return ok and burning and burning > 0 or false
+end
+
+-- платформа «исчезла» (расходуемая shrinkable полностью схлопнулась): коллизия
+-- отключена, мяч должен провалиться. Свойство gone есть только у shrinkable
+-- (см. shrinkable.script), поэтому go.get оборачиваем в pcall. Нужно swept-тесту:
+-- исчезнувшая платформа остаётся в реестре, и без проверки мяч «прыгал» бы на ней
+local function is_platform_gone(row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    local ok, gone = pcall(go.get, state.component(id, "shrink"), "gone")
+    return ok and gone and gone > 0 or false
+end
+
+-- goodies (собираемые объекты): находятся в центре игровой ячейки и собираются
+-- мячиком при приземлении на платформу этой ячейки; id берётся из реестра
+local function goodie_id(row, col)
+    return state.goodie_id(row, col)
+end
+
+-- достиг ли мяч финишной ячейки уровня (выхода)
+local function is_exit_cell(row, col)
+    local exit = state.exit_cell
+    local ec = exit % COLS
+    local er = (COLS - 1) - math.floor(exit / COLS)
+    return row == er and col == ec
+end
+
+-- открыть выход уровня: вызывается, когда собрано timer объектов.
+-- Табличку включает и снимает платформу в финишной ячейке level.script
+-- (сообщение "exit_open"), чтобы появление выхода не зависело от порядка
+-- инициализации и работало и для уровней без собираемых объектов
+local function open_exit(self)
+    if self.exit_open then return end
+    self.exit_open = true
+    msg.post("/level", "exit_open")
+    print("EXIT open: cell=" .. tostring(state.exit_cell))
+end
+
+-- собрать goodies в ячейке: если объект существует и ещё не собран — отправить
+-- ему "collect" (он скроет себя и пометит collected = 1) и увеличить соответствующий
+-- счётчик мяча: капли — pocket, ключи — key_pocket, молотки — hammer_pocket,
+-- дополнительные жизни (сердечки, kind 4) — lives, собираемые для выхода —
+-- collectibles (kind 3, открывают выход при наборе timer); возвращает true,
+-- если goodies был собран. Предмет берётся только при фактическом касании:
+-- одной ячейки с мячом недостаточно (иначе берётся «не касаясь»).
+local function goodie_touched(id)
+    -- круг мяча (RADIUS) против квадрата спрайта предмета (GOODIE_HALF):
+    -- ближайшая к центру мяча точка квадрата
+    local gpos = go.get(id, "position")
+    local bpos = go.get_position()
+    local cx = vmath.clamp(bpos.x, gpos.x - GOODIE_HALF, gpos.x + GOODIE_HALF)
+    local cy = vmath.clamp(bpos.y, gpos.y - GOODIE_HALF, gpos.y + GOODIE_HALF)
+    local dx = bpos.x - cx
+    local dy = bpos.y - cy
+    return dx * dx + dy * dy <= RADIUS * RADIUS
+end
+
+-- касается ли мяч таблички EXIT (прямоугольник вокруг её центра): ближайшая
+-- к центру мяча точка прямоугольника
+local function exit_touched(id)
+    local spos = go.get(id, "position")
+    local bpos = go.get_position()
+    local cx = vmath.clamp(bpos.x, spos.x - EXIT_SIGN_HALF_W, spos.x + EXIT_SIGN_HALF_W)
+    local cy = vmath.clamp(bpos.y, spos.y - EXIT_SIGN_HALF_H, spos.y + EXIT_SIGN_HALF_H)
+    local dx = bpos.x - cx
+    local dy = bpos.y - cy
+    return dx * dx + dy * dy <= RADIUS * RADIUS
+end
+
+local function collect_goodie(self, row, col)
+    local id = goodie_id(row, col)
+    if not id then return false end
+    -- локальная защита от повторного сбора: сбор идёт покадрово по ячейке мяча,
+    -- а флаг collected у самого объекта выставляется только при обработке
+    -- сообщения "collect" и может отставать на кадр
+    if self.collected[id] then return false end
+    local comp = state.component(id, "goodie")
+    local ok, collected = pcall(go.get, comp, "collected")
+    if not ok or (collected and collected > 0) then return false end
+    -- сбор только по касанию: пока мяч не дотянулся до спрайта предмета — не берём
+    if not goodie_touched(id) then return false end
+    self.collected[id] = true
+    local pos = go.get(id, "position")
+    msg.post(id, "collect")
+    -- тип goodies (kind): 0 — капля (drop), 1 — ключ (key), 2 — молоток
+    -- (hammer.go), 3 — собираемый объект, открывающий выход (collectible.go);
+    -- счётчики раздельные
+    local kind_ok, kind = pcall(go.get, comp, "kind")
+    -- 4 — дополнительная жизнь (сердечко): увеличивает число жизней мяча и
+    -- отображается новым сердечком в кармане; в карман предметов не попадает
+    if kind_ok and kind == 4 then
+        self.lives = self.lives + 1
+        print(string.format("LIFE +1 total=%d cell=(%d, %d)", self.lives, col, row))
+        msg.post("/pocket", "add_life", { x = pos.x, y = pos.y, count = self.lives })
+        return true
+    end
+    if kind_ok and kind == 3 then
+        self.collectibles = self.collectibles + 1
+        print(string.format("COLLECT %d/%d cell=(%d, %d)", self.collectibles, state.timer, col, row))
+        if state.timer > 0 and self.collectibles >= state.timer then
+            open_exit(self)
+        end
+        return true
+    elseif kind_ok and kind == 2 then
+        self.hammer_pocket = self.hammer_pocket + 1
+        print(string.format("HAMMERS +%d total=%d cell=(%d, %d)", 1, self.hammer_pocket, col, row))
+    elseif kind_ok and kind == 1 then
+        self.key_pocket = self.key_pocket + 1
+        print(string.format("KEYS +%d total=%d cell=(%d, %d)", 1, self.key_pocket, col, row))
+    else
+        self.pocket = self.pocket + 1
+        print(string.format("POCKET +%d total=%d cell=(%d, %d)", 1, self.pocket, col, row))
+    end
+    -- уведомить HUD-карман: предмет перелетает в полосу над игровым полем
+    local hud_kind = 0
+    if kind_ok then
+        if kind == 2 then hud_kind = 2 elseif kind == 1 then hud_kind = 1 end
+    end
+    msg.post("/pocket", "add", { kind = hud_kind, x = pos.x, y = pos.y })
+    return true
+end
+
+-- погасить горящую платформу каплей из кармана: платформа становится обычной
+-- (burning = 0, текстура default), игра продолжается; возвращает true, если
+-- гашение произошло (капля потрачена)
+local function extinguish_burning(self, row, col)
+    local id = platform_id(row, col)
+    if not id then return false end
+    -- без капли гасить нечем: контакт с горящей платформой разрушает мяч
+    -- (счётчик кармана не может стать отрицательным)
+    if self.pocket <= 0 then return false end
+    msg.post(id, "extinguish")
+    self.pocket = self.pocket - 1
+    print(string.format("POCKET -1 total=%d cell=(%d, %d): burning platform extinguished", self.pocket, col, row))
+    -- капля потрачена — убрать её из HUD-кармана
+    msg.post("/pocket", "remove", { kind = 0 })
+    return true
+end
+
+-- потеря жизни: остановить мяч, скрыть визуал героя, вычесть жизнь и обновить
+-- HUD-карман. Если жизни остались — перезапустить текущий уровень (level.script
+-- пришлёт level_start, и мяч вернётся в стартовую ячейку); иначе игра окончена.
+local function lose_life(self, cause)
+    if self.game_over then
+        return
+    end
+    self.game_over = true
+    -- ловушка (если была): скрыть плашку и снять отсчёт
+    if self.trap_active then
+        self.trap_active = false
+        self.trap_timer = 0.0
+        msg.post("/trap", "hide")
+    end
+    go.set("#collision_object", "linear_velocity", vmath.vector3())
+    -- мяч умер прямо сейчас: выключаем коллизию, иначе до пересборки уровня
+    -- (1-2 кадра) продолжают приходить contact_point_response, и приземление
+    -- на горящую платформу тратит каплю УЖЕ ПОСЛЕ отката кармана. На
+    -- перезапущенном уровне игрок видел бы не тот набор, с которым пришёл
+    msg.post("#collision_object", "disable")
+    -- скрыть визуал активного героя (у спрайта нет свойства visible,
+    -- скрываем сообщением disable)
+    self.hero.deactivate(self)
+    self.lives = self.lives - 1
+    msg.post("/pocket", "set_lives", { count = math.max(0, self.lives) })
+    print(string.format("LIFE LOST (%s): %d left, pocket now=(%d, %d, %d), level %d",
+        cause or "?", self.lives, self.pocket, self.key_pocket, self.hammer_pocket, state.index))
+    if self.lives > 0 then
+        -- предметы в кармане откатываются к состоянию на старте текущего уровня:
+        -- собранное на этом уровне не сохраняется, но накопленное между
+        -- уровнями остаётся (см. снимок в level_start)
+        self.pocket = self.start_pocket
+        self.key_pocket = self.start_keys
+        self.hammer_pocket = self.start_hammers
+        msg.post("/pocket", "set_items", {
+            drops = self.pocket,
+            keys = self.key_pocket,
+            hammers = self.hammer_pocket,
+        })
+        print(string.format("POCKET rollback to level start: drops=%d keys=%d hammers=%d (reload level %d)",
+            self.start_pocket, self.start_keys, self.start_hammers, state.index))
+        -- обновить сохранение: если браузер закрыть сразу после смерти, при
+        -- переоткрытии должно восстановиться уже уменьшенное число жизней
+        -- (карман — снимок на начало уровня, к которому мы только что откатились)
+        save.store({
+            level = state.index,
+            lives = self.lives,
+            drops = self.start_pocket,
+            keys = self.start_keys,
+            hammers = self.start_hammers,
+        })
+        msg.post("/level", "reload_level", { level = state.index })
+    else
+        -- жизни кончились: показать плашку GAME OVER, уровень не перезапускаем.
+        -- Обнуляем сохранение (lives = 0), иначе после переоткрытия браузера
+        -- игрок вернулся бы в проигранную игру
+        save.clear()
+        msg.post("/game_over", "show")
+        print(string.format("GAME OVER (%s): no lives left", cause or "?"))
+    end
+end
+
+-- новая игра после GAME OVER: полные жизни и пустой карман, плашка скрывается,
+-- уровень 1 пересобирается (level_start снимет game_over и вернёт мяч на старт)
+local function restart_game(self)
+    self.lives = START_LIVES
+    self.pocket = 0
+    self.key_pocket = 0
+    self.hammer_pocket = 0
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
+    self.collected = {}
+    self.restart_pending = true
+    msg.post("/pocket", "set_lives", { count = self.lives })
+    msg.post("/pocket", "set_items", { drops = 0, keys = 0, hammers = 0 })
+    msg.post("/game_over", "hide")
+    print("RESTART: new game from level 1")
+    -- новая игра затирает обнулённое сохранение: переоткрытие браузера вернёт
+    -- игрока в начало с полным запасом жизней (дальше снимок обновит level_start)
+    save.store({ level = 1, lives = self.lives, drops = 0, keys = 0, hammers = 0 })
+    msg.post("/level", "reload_level", { level = 1 })
+end
+
+-- перегородка в ячейке: id из реестра уровня; граница между колонками b-1 и b
+-- (b = 1..5), строка row — экранная (0 — низ)
+local function is_wall_destroyed(row, b)
+    local id = state.wall_id(row, b)
+    if not id then return false end
+    local ok, destroyed = pcall(go.get, state.component(id, "destructible"), "destroyed")
+    return ok and destroyed and destroyed > 0
+end
+
+-- есть ли перегородка на границе справа от колонки col (между col и col+1)?
+local function has_wall_right(row, col)
+    return state.wall_id(row, col + 1) ~= nil and not is_wall_destroyed(row, col + 1)
+end
+
+-- есть ли перегородка на границе слева от колонки col (между col-1 и col)?
+local function has_wall_left(row, col)
+    return state.wall_id(row, col) ~= nil and not is_wall_destroyed(row, col)
+end
+
+-- бесконечная ловушка: начать показ плашки «YOU ARE TRAPPED» и обратный
+-- отсчёт до потери жизни (см. update). Вызывается при приземлении на наклонную
+-- платформу, из которой мяч не может выбраться
+local function start_trap(self)
+    if self.trap_active or self.game_over then return end
+    self.trap_active = true
+    self.trap_timer = TRAP_COUNTDOWN
+    self.trap_shown = nil
+    msg.post("/trap", "show")
+    print(string.format("TRAP: infinite slope trap cell=(%d, %d)", self.col, self.row))
+end
+
+-- проверка, является ли наклонная платформа (row, col) с направлением slope_dir
+-- бесконечной ловушкой: выхода нет, если на пути наклона
+--   * край поля (там всегда стоит непробиваемая боковая стенка border),
+--   * непробиваемая перегородка (у неё нет компонента #destructible),
+--   * разрушаемая перегородка, но в кармане нет ключа,
+--   * другая наклонная платформа, направленная навстречу (мяч мечется между ними)
+local function check_slope_trap(self, row, col, slope_dir)
+    if self.trap_active then return end
+    local tc = col + slope_dir
+    -- наклон в сторону края поля: боковая стенка border не разрушается
+    if tc < 0 or tc > COLS - 1 then
+        start_trap(self)
+        return
+    end
+    -- перегородка на пути наклона (между col и tc)
+    local b = slope_dir > 0 and col + 1 or col
+    local wall = state.wall_id(row, b)
+    if wall and not is_wall_destroyed(row, b) then
+        -- #destructible есть только у разрушаемых перегородок; без ключа их не пробить
+        local destructible = pcall(go.get, state.component(wall, "destructible"), "destroyed")
+        if not destructible or self.key_pocket <= 0 then
+            start_trap(self)
+        end
+        return
+    end
+    -- две наклонные платформы в сторону друг друга: мяч бесконечно мечется между ними
+    if slope_direction(row, tc) == -slope_dir then
+        start_trap(self)
+    end
+end
+
+-- «стена» (блок, кирпичная кладка): шириной в игровую ячейку (полуширина 70 —
+-- не задевает границы, где могли бы стоять перегородки); по высоте кладка
+-- занимает всю ячейку (level.script растягивает меш 140x100 на высоту ряда,
+-- поэтому мировая высота блока равна CELL_H). Кладка разбивается снизу серией
+-- ударов мяча (block.script ведёт число разбитых рядов)
+local BLOCK_HALF_W = 70.0
+-- мировая высота кладки целиком (для расчёта поднятой разбитыми рядами грани)
+local BLOCK_HEIGHT = CELL_H
+
+-- состояние кирпичной стены в ячейке. Блок создаётся фабрикой #platform_block и
+-- лежит в реестре платформ, а его состояние хранит компонент #block (у обычных
+-- платформ его нет, поэтому go.get оборачиваем в pcall). Возвращает
+-- id, число разбитых снизу рядов и признак разрушения; nil, если блока нет
+local function block_state(row, col)
+    local id = platform_id(row, col)
+    if not id then return nil end
+    local comp = state.component(id, "block")
+    local ok, broken = pcall(go.get, comp, "broken")
+    if not ok then return nil end
+    local _, destroyed = pcall(go.get, comp, "destroyed")
+    return id, broken or 0, destroyed or 0
+end
+
+-- есть ли целая (не разрушенная) кирпичная стена в ячейке?
+local function has_block(row, col)
+    local _, _, destroyed = block_state(row, col)
+    return destroyed == 0
+end
+
+-- стоит ли мяч на верхней грани кирпичной стены: кладка занимает всю ячейку
+-- row, поэтому приземлившись на её верх мяч оказывается на уровне ряда row+1.
+-- Верхняя грань блока лежит ровно на поверхности платформы ряда выше, поэтому
+-- мяч на кладке ведёт себя как на липкой платформе (высокий прыжок недоступен)
+local function is_block_top(row, col)
+    return row > 0 and has_block(row - 1, col)
+end
+
+-- приземление без команды игрока: обычный герой пружинит (settle), а мяч на
+-- липкой поверхности не прыгает — просто лежит на ней и ждёт команды игрока
+local function settle_or_stick(self)
+    if self.sticky_rest then
+        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+        self.next_touch_time = nil
+    else
+        self.hero.settle(self)
+    end
+end
+
+-- мировая Y нижней грани оставшейся кладки. Кладка занимает всю ячейку: её
+-- низ лежит на верхней грани платформы своего ряда (platform_y(row) +
+-- PLATFORM_H/2), а верхний край совпадает с верхней гранью платформы ряда выше;
+-- каждый разбитый снизу ряд поднимает нижнюю грань на 1/rows высоты кладки.
+-- nil, если блока нет или он разрушен
+local function block_bottom_face(row, col)
+    local id, broken, destroyed = block_state(row, col)
+    if not id or destroyed > 0 then return nil end
+    local ok, rows = pcall(go.get, state.component(id, "block"), "rows")
+    rows = (ok and rows and rows > 0) and rows or 8
+    local bottom = PLATFORM_Y_BASE + row * CELL_H + PLATFORM_H / 2.0
+    return bottom + (broken / rows) * BLOCK_HEIGHT
+end
+
+-- удар мяча снизу по кирпичной стене: каждый удар сносит один ряд кладки, а
+-- самый первый удар по стене расходует один молоток из кармана (без молотка
+-- кладку не разбить). Молоток берётся один раз на стену — повторные удары по
+-- той же стене молотков не тратят; стена сама ведёт число разбитых рядов и вид
+local function hit_block_from_below(self, row, col)
+    local id, _, destroyed = block_state(row, col)
+    if not id or destroyed > 0 then return end
+    -- защита от двойного сноса ряда в одном кадре: удар может прийти и из
+    -- скриптовой проверки потолка, и из контакта с верхней гранью кладки (#top)
+    if self.block_hit_id == id and self.time - (self.block_hit_time or -math.huge) < 0.1 then
+        return
+    end
+    self.block_hit_id = id
+    self.block_hit_time = self.time
+    if self.hammer_wall_id ~= id then
+        if self.hammer_pocket <= 0 then
+            print(string.format("BLOCK hit from below: no hammers, wall intact cell=(%d, %d)", col, row))
+            return
+        end
+        self.hammer_pocket = self.hammer_pocket - 1
+        self.hammer_wall_id = id
+        -- молоток потрачен — убрать его из HUD-кармана
+        msg.post("/pocket", "remove", { kind = 2 })
+        print(string.format("HAMMERS -1 total=%d: brick wall hit from below", self.hammer_pocket))
+    end
+    msg.post(id, "hit")
+end
+
+-- приземление мяча на верх кирпичной стены. Кладка занимает всю ячейку, её
+-- верх совпадает с поверхностью платформы ряда выше. Физики у кладки нет,
+-- поэтому приземление проверяется скриптово: если мяч падает в колонке с
+-- кладкой и его центр достиг уровня ряда выше — он приземляется на верх кладки
+-- и «прилипает» (как на липкую платформу: высокий прыжок становится недоступен)
+local function land_on_block_top(self)
+    -- только при свободном падении (без смещения/отскока/высокого прыжка)
+    if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return false
+    end
+    -- защита от повторного срабатывания в одном кадре/на месте
+    if self.time - (self.block_top_time or -math.huge) < 0.1 then
+        return false
+    end
+    if go.get("#collision_object", "linear_velocity").y > 0.0 then
+        return false
+    end
+    local pos = go.get_position()
+    local crow = vmath.clamp(math.floor((pos.y - PLATFORM_Y_BASE) / CELL_H + 1e-6), 0, COLS - 1)
+    -- если в этой ячейке есть настоящая платформа — приземление обрабатывает
+    -- обычная физика, скриптовый «верх кладки» не нужен
+    if platform_id(crow, self.col) then
+        return false
+    end
+    -- кладка в ряду ниже: её верх — уровень текущего ряда crow
+    if crow < 1 or not has_block(crow - 1, self.col) then
+        return false
+    end
+    local land_y = BOUNCE_Y[crow]
+    if pos.y > land_y or pos.y <= land_y - CELL_H then
+        return false
+    end
+    -- приземление на верх кладки: центр мяча — на уровне ряда выше.
+    -- Верх кладки — обычная твёрдая поверхность: мяч пружинит как всегда, но
+    -- высокий прыжок с неё запрещён (флаг high_jump_locked)
+    self.row = crow
+    self.ground_y = land_y
+    self.touch_time = self.time
+    self.last_contact_time = self.time
+    self.high_jump_locked = true
+    -- кладка не липкая: покой снимается
+    self.sticky_rest = false
+    self.sticky_cell = nil
+    self.press_used = false
+    self.block_top_time = self.time
+    go.set_position(vmath.vector3(column_center(self.col), land_y, pos.z))
+    self.hero.settle(self)
+    self.squash = 1.0
+    self.squash_axis = "y"
+    self.hero.apply_squash(self)
+    print(string.format("BLOCK top landing cell=(%d, %d)", self.col, crow))
+    return true
+end
+
+-- удар по разрушаемой перегородке: вид меняется только если в кармане есть
+-- ключик — расходим один ключ и шлём "hit" (стена сама ведёт прочность и вид);
+-- без ключа отскок обычный, стена не повреждается
+local function hit_destructible_wall(self, direction)
+    local b = direction > 0 and self.col + 1 or self.col
+    local id = state.wall_id(self.row, b)
+    -- только у разрушаемой перегородки есть компонент #destructible
+    if not id or not pcall(go.get, state.component(id, "destructible"), "destroyed") then return end
+    if self.key_pocket > 0 then
+        self.key_pocket = self.key_pocket - 1
+        msg.post(id, "hit")
+        print(string.format("KEYS -1 total=%d: hit destructible wall", self.key_pocket))
+        -- ключ потрачен — убрать его из HUD-кармана
+        msg.post("/pocket", "remove", { kind = 1 })
+    end
+end
+
+-- визуальный прогиб платформы: dir = 1 — вниз (отталкивание сверху),
+-- dir = -1 — вверх (удар мяча снизу); коллизия не меняется — эффект чисто визуальный
+local function bend_platform(self, row, col, dir)
+    local id = platform_id(row, col)
+    if id then
+        msg.post(id, "bend", { dir = dir or 1 })
+    end
+end
+
+-- уведомить платформу о приземлении мяча (нужно расходуемым платформам)
+local function land_platform(self, row, col)
+    local id = platform_id(row, col)
+    if id then
+        msg.post(id, "land")
+    end
+end
+
+-- поведение при приземлении без команды игрока делегируется герою:
+-- мяч автоматически отскакивает, Slinky встаёт на платформу и стоит
+
+-- длительность смещения равна времени до приземления: мяч достигает
+-- центра целевой платформы ровно в момент касания (нижняя точка траектории)
+local function move_duration_for(t_land)
+    if t_land <= 0.0 then
+        return MOVE_DURATION
+    end
+    return math.max(1.0 / 60.0, t_land)
+end
+
+local function move(self, direction, duration)
+    local position = go.get_position()
+    self.move_from = position.x
+    -- всегда приземляемся точно в центр целевой платформы
+    self.move_to = column_center(self.col)
+    self.move_duration = duration or MOVE_DURATION
+    self.move_t = self.move_duration
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky запоминает сторону переката
+    self.hero.on_action(self, direction, self.move_duration)
+end
+
+-- высота мяча над землей (реальная позиция мяча)
+local function height_above_ground(self)
+    if not self.ground_y then
+        return 0.0
+    end
+    return math.max(0.0, go.get_position().y - self.ground_y)
+end
+
+-- высота подскока при смещении между платформами задаётся героем: мяч прыгает
+-- на обычную высоту, Slinky «переступает» (минимальный подъём)
+local function hop_height(self)
+    return self.hero.hop_height(self)
+end
+
+-- вертикальная скорость, чтобы достичь вершины подскока из текущей высоты
+local function hop_velocity(self)
+    local h = height_above_ground(self)
+    local target = hop_height(self)
+    if h >= target then
+        return 0.0
+    end
+    return math.sqrt(2.0 * GRAVITY * (target - h))
+end
+
+-- время до приземления при текущей высоте и вертикальной скорости
+local function landing_time(self, vy)
+    local h = height_above_ground(self)
+    return (vy + math.sqrt(vy * vy + 2.0 * GRAVITY * h)) / GRAVITY
+end
+
+-- оценка времени до следующего контакта во время высокого прыжка: первый уровень —
+-- гравитационное замедление (парабола), выше — постоянная скорость JUMP_SPEED до
+-- ближайшей платформы сверху в колонке (или верхнего края поля) + падение под
+-- гравитацией на платформу текущего ряда
+local function high_jump_touch_time(self)
+    local pos = go.get_position()
+    local vel = go.get("#collision_object", "linear_velocity")
+    -- Y центра мяча в момент удара о препятствие: нижняя грань ближайшей
+    -- платформы выше в колонке, нижняя грань стены (блока) или верхний край поля
+    local stop_y = SCREEN_H - RADIUS
+    for r = self.row + 1, COLS - 1 do
+        -- кирпичная кладка (создаётся фабрикой #platform_block, лежит в реестре
+        -- платформ) проверяется ПЕРВОЙ: у неё нет меша платформы, и иначе она
+        -- была бы ошибочно принята за платформу ряда
+        local block_bottom = block_bottom_face(r, self.col)
+        if block_bottom then
+            stop_y = math.min(stop_y, block_bottom - RADIUS)
+            break
+        end
+        local id = platform_id(r, self.col)
+        if id then
+            local py = go.get(id, "position").y
+            stop_y = math.min(stop_y, py - PLATFORM_H / 2.0 - RADIUS)
+            break
+        end
+    end
+    -- высота перехода на постоянную скорость: центр мяча на уровне отскока ряда выше
+    local level_y = self.row + 1 < COLS and BOUNCE_Y[self.row + 1] or math.huge
+    local t = 0.0
+    if pos.y < level_y then
+        -- параболический подъём до первого уровня (или до препятствия, если оно ниже)
+        local rise_to = math.min(level_y, stop_y)
+        if pos.y < rise_to then
+            local dy = rise_to - pos.y
+            t = (vel.y - math.sqrt(math.max(0.0, vel.y * vel.y - 2.0 * GRAVITY * dy))) / GRAVITY
+        end
+    end
+    -- постоянная скорость до препятствия
+    t = t + math.max(0.0, (stop_y - math.max(pos.y, level_y)) / JUMP_SPEED)
+    -- падение под гравитацией на платформу текущего ряда
+    local fall_h = math.max(0.0, stop_y - BOUNCE_Y[self.row])
+    return t + math.sqrt(2.0 * fall_h / GRAVITY)
+end
+
+-- толщина перегородки (совпадает с мешем и коллизией в wall.buffer/wall.collisionobject)
+local WALL_THICKNESS = 20.0
+
+-- отскок от перегородки: мяч прыгает в сторону перегородки, касается её в верхней
+-- точке дуги и возвращается в центр своей колонки; X — линейно во времени
+-- (туда и обратно), Y — физическая парабола до приземления на свою платформу
+local function bounce_off_wall(self, direction)
+    local col = self.col
+    -- X перегородки на границе: справа от col — (col+1)*CELL_W, слева — col*CELL_W
+    local wall_x = (direction > 0 and (col + 1) or col) * CELL_W
+    self.bounce_x_start = go.get_position().x
+    -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT, поэтому
+    -- до грани перегородки дотягивается сжатый край (RADIUS * (1 - SQUASH_AMOUNT))
+    self.bounce_x_wall = wall_x - direction * (RADIUS * (1.0 - SQUASH_AMOUNT) + WALL_THICKNESS / 2.0)
+    self.bounce_x_end = column_center(col)
+    local vy = hop_velocity(self)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    self.bounce_duration = landing_time(self, vy)
+    self.bounce_t = self.bounce_duration
+    self.next_touch_time = self.time + self.bounce_duration
+    -- сплющивание по X (горизонтальное) включается в момент касания перегородки
+    self.bounce_squash_pending = true
+    self.action_time = self.time
+    -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
+    self.hero.on_action(self, direction, self.bounce_duration)
+end
+
+-- отскок от стены (блока): мяч прыгает в сторону блока, касается его боковой грани
+-- в верхней точке дуги и возвращается в центр своей колонки; X — линейно во времени
+-- (туда и обратно), Y — физическая парабола до приземления на свою платформу
+local function bounce_off_block(self, direction)
+    -- блок стоит в соседней колонке col+direction по центру её ячейки, поэтому
+    -- его боковая грань — центр той ячейки ∓ полуширина кладки
+    local face_x = column_center(self.col + direction) - direction * BLOCK_HALF_W
+    self.bounce_x_start = go.get_position().x
+    -- точка касания: в момент удара мяч сплющен по X на SQUASH_AMOUNT, поэтому
+    -- до грани блока дотягивается сжатый край (RADIUS * (1 - SQUASH_AMOUNT))
+    self.bounce_x_wall = face_x - direction * RADIUS * (1.0 - SQUASH_AMOUNT)
+    self.bounce_x_end = column_center(self.col)
+    local vy = hop_velocity(self)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    self.bounce_duration = landing_time(self, vy)
+    self.bounce_t = self.bounce_duration
+    self.next_touch_time = self.time + self.bounce_duration
+    -- сплющивание по X (горизонтальное) включается в момент касания блока
+    self.bounce_squash_pending = true
+    -- мяч переворачивается на 180° в сторону прыжка за время отскока
+    self.rot_from = self.rot
+    self.rot_to = self.rot - direction * math.pi
+    self.rot_duration = self.bounce_duration
+    self.rot_t = self.bounce_duration
+end
+
+-- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
+-- X линейно во времени, а высота — физическая парабола, поэтому мяч летит по дуге;
+-- смещение за пределы поля равносильно падению вниз (конец игры)
+local function hop_and_move(self, direction)
+    local old_col = self.col
+    -- вертикальная перегородка на границе ячеек: прыжок сквозь неё невозможен —
+    -- мяч прыгает в её сторону, отскакивает и возвращается на свою платформу
+    local blocked = (direction > 0 and has_wall_right(self.row, old_col))
+        or (direction < 0 and has_wall_left(self.row, old_col))
+    if blocked then
+        print(string.format("WALL bounce dir=%d col=%d row=%d", direction, old_col, self.row))
+        -- удар наносится в момент касания перегородки (середина дуги), а не в
+        -- начале прыжка — флаг снимается в update при k <= 0.5
+        self.bounce_hit_pending = true
+        self.bounce_hit_dir = direction
+        bounce_off_wall(self, direction)
+        return false
+    end
+    -- стена (блок) в целевой ячейке: прыжок сквозь неё невозможен — мяч прыгает
+    -- в её сторону, отскакивает от боковой грани и возвращается на свою платформу
+    if has_block(self.row, old_col + direction) then
+        print(string.format("BLOCK bounce dir=%d col=%d row=%d", direction, old_col, self.row))
+        bounce_off_block(self, direction)
+        return false
+    end
+    -- любое управляемое смещение срывает мяч с липкой поверхности: сбрасываем
+    -- покой, иначе контакты навсегда игнорируются (hero.ignore_contacts) и мяч
+    -- перестаёт отскакивать на обычных платформах
+    self.sticky_rest = false
+    self.col = self.col + direction
+    print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
+    -- масштаб длительности шага задаёт герой (Slinky перекатывается медленнее):
+    -- вертикальный импульс растягивается во времени, поэтому X-смещение и
+    -- приземление остаются синхронными
+    local vy = hop_velocity(self) * self.hero.step_scale(self)
+    local t_land = landing_time(self, vy)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, vy, 0.0))
+    move(self, direction, move_duration_for(t_land))
+    self.next_touch_time = self.time + t_land
+    return true
+end
+
+-- высокий прыжок: постоянное движение вверх до платформы снизу или верхнего края
+-- поля; во время полёта можно запрыгнуть на соседнюю ячейку любого ряда.
+-- Используется и с обычной платформы, и с липкой (там высокий прыжок доступен
+-- и при параллельном перемещении — см. sticky.script)
+local function start_high_jump(self)
+    bend_platform(self, self.row, self.col)
+    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
+    self.rising = true
+    self.high_jump = true
+    -- мяч оторвался от липкой поверхности: покой снят
+    self.sticky_rest = false
+    self.action_time = self.time
+    self.hero.on_action(self, nil, nil)
+    -- первый уровень для проверки пересечения — над текущим рядом
+    self.hj_row = self.row + 1
+    self.next_touch_time = self.time + high_jump_touch_time(self)
+end
+
+-- направление удерживаемой клавиши/тач-команды; если нажаты обе — смещения нет.
+-- Тач даёт два вида команд: удержание (touch_left/touch_right — свайп с
+-- удержанием пальца, живёт пока палец на экране) и одноразовый тап
+-- (tap_left/tap_right — короткая команда после отпускания пальца, см.
+-- TOUCH_CMD_TIMEOUT). В управлении учитываются все источники.
+local function held_direction(self)
+    local left  = (self.left_held or self.touch_left or self.tap_left)
+        and not (self.right_held or self.touch_right or self.tap_right)
+    local right = (self.right_held or self.touch_right or self.tap_right)
+        and not (self.left_held or self.touch_left or self.tap_left)
+
+    if right then return  1 end
+    if left  then return -1 end
+    return 0
+end
+
+-- «удержание» высокого прыжка с учётом тач-команд (свайп вверх/удержание или тап)
+local function jump_active(self)
+    return self.jump_held or self.touch_jump or self.tap_jump
+end
+
+-- снять одноразовые тап-команды (после выполнения действия или по тайм-ауту);
+-- удержания (touch_*) при этом не трогаются — они живут, пока палец на экране
+local function clear_tap(self)
+    self.tap_left = false
+    self.tap_right = false
+    self.tap_jump = false
+    self.touch_timer = 0.0
+end
+
+-- снять все тач-команды, включая удержания (при старте уровня/потере жизни)
+local function clear_touch(self)
+    clear_tap(self)
+    self.touch_left = false
+    self.touch_right = false
+    self.touch_jump = false
+end
+
+-- Приземление мяча на платформу ряда row. Общая логика для физического контакта
+-- (contact_point_response) и скриптового swept-теста (см. swept_land ниже):
+-- проверки поверхности (шипы/огонь/выход/липкость), снап в центр колонки и запуск
+-- действия игрока. Вынесена отдельно, чтобы оба пути приземления вели себя
+-- одинаково и приземление не зависело от частоты кадров
+local function land_on_platform(self, row)
+    -- после смерти мяч уже не взаимодействует с уровнем: level.script
+    -- пересобирает уровень, и любая реакция на контакт в этом окне изменила бы
+    -- карман (капля на горящую платформу) уже после отката к снимку уровня
+    if self.game_over then
+        return
+    end
+    -- приземление точно в центр платформы; пока смещение идёт,
+    -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
+    local position = go.get_position()
+    if self.move_t <= 0.0 then
+        go.set_position(vmath.vector3(column_center(self.col), position.y, position.z))
+    end
+    self.touch_time = self.time
+    -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
+    self.row = row
+    self.ground_y = BOUNCE_Y[row]
+    -- шипы: контакт всегда разрушает мяч — теряется жизнь
+    if is_spike(row, self.col) then
+        lose_life(self, "spikes")
+        return
+    end
+    -- горящая платформа: если в кармане есть капля — мяч гасит её
+    -- (платформа превращается в default, капля тратится, игра продолжается);
+    -- без капли контакт разрушает мяч и игра прекращается
+    if is_burning(row, self.col) then
+        if not extinguish_burning(self, row, self.col) then
+            lose_life(self, "burning platform")
+            return
+        end
+    end
+    land_platform(self, row, self.col)
+    -- предметы в ячейке собираются в update по фактической позиции мяча
+    -- (collect_goodie вызывается там), чтобы были достижимы предметы и в
+    -- ячейках без платформы; здесь только проверка выхода
+    -- открытый выход: мяч достиг финишной ячейки → следующий уровень
+    if self.exit_open and not self.level_complete and is_exit_cell(row, self.col) then
+        self.level_complete = true
+        print(string.format("LEVEL COMPLETE cell=(%d, %d)", self.col, row))
+        msg.post("/level", "level_complete")
+        return
+    end
+    -- верх кирпичной кладки: обычная твёрдая поверхность — мяч пружинит как
+    -- всегда, но высокий прыжок с неё запрещён (high_jump_locked)
+    self.high_jump_locked = is_block_top(row, self.col)
+    -- липкая (закрашенная) платформа: мяч не пружинит — лежит на ней и ждёт
+    -- команды игрока. Высокий прыжок доступен всегда, а влево/вправо дают
+    -- обычный соскок на соседнюю ячейку (мяч не скатывается, а прыгает)
+    go.set_position(vmath.vector3(position.x, self.ground_y, position.z))
+    self.high_jump = false
+    local sticky_here = self.hero.sticks_on_platform and is_sticky(row, self.col)
+    if sticky_here then
+        local cell = row * COLS + self.col
+        -- новое касание этой липкой платформы: снова доступно одно действие;
+        -- возврат на ту же ячейку — не новое касание
+        if self.sticky_cell ~= cell then
+            self.sticky_action_used = false
+            self.sticky_cell = cell
+        end
+        self.sticky_rest = true
+    else
+        self.sticky_rest = false
+        self.sticky_cell = nil
+    end
+    -- приземление после смены траектории высокого прыжка: дополнительное
+    -- управляемое смещение в этом цикле запрещено, но наклонная платформа
+    -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
+    if self.rising_moved then
+        self.rising_moved = false
+        self.pending_dir = 0
+        self.pending_jump = false
+        local slope_dir = slope_direction(row, self.col)
+        if slope_dir ~= 0 then
+            -- наклон в сторону непреодолимой преграды — бесконечная ловушка
+            check_slope_trap(self, row, self.col, slope_dir)
+            -- как и при обычном приземлении: наклон даёт неуправляемый прыжок в
+            -- сторону наклона, а у боковой стенки (border) — отскок от неё
+            -- (бесконечная ловушка), см. комментарий ниже
+            hop_and_move(self, slope_dir)
+            self.press_used = true
+        else
+            settle_or_stick(self)
+            -- новый цикл отскока: разрешено одно нажатие; без сброса press_used
+            -- остаётся true и следующий высокий прыжок становится невозможен
+            self.press_used = false
+        end
+        self.squash = 1.0
+        self.squash_axis = "y"
+        self.hero.apply_squash(self)
+        return
+    end
+    local direction = 0
+    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= THRESHOLD then
+        direction = self.pending_dir
+    end
+    self.pending_dir = 0
+    -- новый цикл отскока: разрешено одно нажатие
+    self.press_used = false
+    -- наклонная платформа: неуправляемый отскок в сторону наклона,
+    -- приоритет над любыми командами игрока (tz.txt: «шар неуправляемо отскакивает»);
+    -- направление определяется по повороту объекта платформы (компонент slope)
+    local slope_dir = slope_direction(row, self.col)
+    if slope_dir ~= 0 then
+        -- наклонная платформа: мяч неуправляемо прыгает в сторону наклона.
+        -- Если в стороне наклона стоит боковая стенка (border) — мяч прыгает
+        -- в её сторону и отскакивает обратно (hop_and_move → bounce_off_wall),
+        -- это бесконечная ловушка: мяч вечно мечется между платформой и стенкой
+        check_slope_trap(self, row, self.col, slope_dir)
+        hop_and_move(self, slope_dir)
+        self.press_used = true
+    elseif direction ~= 0 then
+        if self.sticky_rest then
+            -- на липкой платформе удержанная в момент касания клавиша даёт
+            -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
+            -- действие за это касание
+            self.sticky_action_used = true
+            self.sticky_rest = false
+        end
+        if hop_and_move(self, direction) then
+            self.press_used = true
+        end
+        clear_tap(self)
+    elseif (jump_active(self) or self.pending_jump)
+        and not self.high_jump_locked
+        and not (self.sticky_rest and self.sticky_action_used) then
+        -- высокий прыжок: постоянное движение вверх до платформы снизу или
+        -- верхнего края поля; во время полёта можно запрыгнуть на соседнюю
+        -- ячейку любого ряда. На липкой поверхности доступен, пока действие
+        -- за касание не израсходовано
+        if self.sticky_rest then
+            self.sticky_action_used = true
+            self.sticky_rest = false
+        end
+        start_high_jump(self)
+        clear_tap(self)
+    else
+        settle_or_stick(self)
+    end
+    self.pending_jump = false
+    self.squash = 1.0
+    self.squash_axis = "y"
+    self.hero.apply_squash(self)
+end
+
+-- Скриптовое приземление (swept-тест). Физика Box2D шагает один раз за кадр, и
+-- при большой скорости падения (с верхнего ряда) мяч за один шаг проникает в
+-- тонкую платформу (20 px) глубже её середины. Тогда ближайшей гранью контакта
+-- становится нижняя, нормаль смотрит вниз, и обработчик контакта принимает
+-- падение за удар снизу — приземление не выполняется, мяч «пролетает» платформу
+-- и теряет жизнь. Чтобы приземление не зависело от частоты кадров, каждый кадр
+-- проверяем, не пересёк ли мяч верхнюю грань платформы в его колонке при
+-- движении вниз (по позициям прошлого и текущего кадра), и приземляем скриптово
+local function swept_land(self, dt)
+    -- после смерти мяч не взаимодействует с уровнем (см. lose_life)
+    if self.game_over then
+        return false
+    end
+    -- только свободное падение: смещение/отскок/высокий прыжок ведут себя иначе
+    if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return false
+    end
+    local prev_y = self.prev_pos_y
+    if not prev_y then
+        return false
+    end
+    -- защита от повторного срабатывания на месте
+    if self.time - (self.swept_time or -math.huge) < 0.1 then
+        return false
+    end
+    local pos = go.get_position()
+    -- падение вниз: при движении вверх/в покое приземления быть не может
+    if go.get("#collision_object", "linear_velocity").y > 0.0 then
+        return false
+    end
+    -- проверяем фактический интервал кадра [prev_y, pos.y]: если низ мяча пересёк
+    -- верхнюю грань платформы (в предыдущем кадре был выше, сейчас ниже) —
+    -- физика «проскочила» её и нужно приземлить мяч скриптово. Обычное
+    -- приземление (физика остановила мяч на поверхности) не срабатывает: там
+    -- pos.y ≈ top, а не ниже грани
+    -- среди пересёкших грань берём самую верхнюю (при падении вниз мяч встречает её первой).
+    -- ячейки с кирпичной кладкой (block) пропускаем: кладка регистрируется в реестре
+    -- платформ, но садиться на уровень её ряда нельзя — её верх/низ определяются
+    -- скриптово (block_bottom_face/land_on_block_top), а не BOUNCE_Y.
+    -- исчезнувшие (схлопнувшиеся) расходуемые платформы тоже пропускаем: они
+    -- остаются в реестре, но коллизия у них отключена — мяч должен провалиться
+    local land_row = nil
+    for row = 0, COLS - 1 do
+        if platform_id(row, self.col) and not block_state(row, self.col)
+            and not is_platform_gone(row, self.col) then
+            local top = BOUNCE_Y[row]
+            if prev_y > top + 0.1 and pos.y < top - 0.1 then
+                if not land_row or top > BOUNCE_Y[land_row] then
+                    land_row = row
+                end
+            end
+        end
+    end
+    if not land_row then
+        return false
+    end
+    self.swept_time = self.time
+    self.last_contact_time = self.time
+    self.contact_processed = true
+    print(string.format("SWEPT LAND cell=(%d, %d) prev_y=%.1f y=%.1f", self.col, land_row, prev_y, pos.y))
+    -- снап на верхнюю грань и общая логика приземления
+    go.set_position(vmath.vector3(pos.x, BOUNCE_Y[land_row], pos.z))
+    land_on_platform(self, land_row)
+    return true
+end
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+    physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
+    self.squash = 0.0
+    self.squash_axis = "y"
+    self.move_t = 0.0
+    self.move_duration = MOVE_DURATION
+    self.action_time = -math.huge
+    self.game_over = false
+    self.time = 0.0
+    self.touch_time = -math.huge
+    self.last_contact_time = -math.huge
+    self.next_touch_time = nil
+    self.ground_y = nil
+    self.pending_dir = 0
+    self.pending_time = 0.0
+    self.pending_jump = false
+    self.bounce_t = 0.0
+    self.bounce_duration = MOVE_DURATION
+    self.bounce_squash_pending = false
+    self.bounce_hit_pending = false
+    self.bounce_hit_dir = 0
+    self.press_used = false
+    -- бесконечная ловушка (наклонная платформа без выхода): плашка и отсчёт
+    self.trap_active = false
+    self.trap_timer = 0.0
+    self.trap_shown = nil
+    -- id кирпичной стены, за удар по которой уже потрачен молоток (молоток
+    -- расходуется один раз на стену, дальнейшие удары по ней молотков не тратят)
+    self.hammer_wall_id = nil
+    -- id стены и время последнего сноса ряда: защита от двойного сноса в кадре
+    self.block_hit_id = nil
+    self.block_hit_time = -math.huge
+    -- время последнего приземления на верх кладки (защита от повторов)
+    self.block_top_time = -math.huge
+    self.left_held = false
+    self.right_held = false
+    self.jump_held = false
+    -- тач-управление. Удержания (touch_*) живут, пока палец на экране, и работают
+    -- как удержание соответствующей клавиши: свайп вправо/влево с удержанием —
+    -- удержание «вправо»/«влево», свайп вверх с удержанием — «высокий прыжок».
+    -- Одноразовые тапы (tap_*) ставятся при отпускании пальца на короткое время
+    -- (TOUCH_CMD_TIMEOUT) и снимаются после выполнения действия.
+    -- touch_state хранит начало/текущую точку активного касания по его id
+    self.touch_left = false
+    self.touch_right = false
+    self.touch_jump = false
+    self.tap_left = false
+    self.tap_right = false
+    self.tap_jump = false
+    self.touch_timer = 0.0
+    self.touch_state = {}
+    self.rising = false
+    self.high_jump = false
+    -- липкая поверхность: мяч лежит на ней (sticky_rest) и за одно касание может
+    -- совершить РОВНО одно действие — высокий прыжок ИЛИ соскок в сторону
+    -- (sticky_action_used); sticky_cell — ячейка липкой платформы, к которой мяч
+    -- уже прилипал (чтобы возврат на неё не считался новым касанием);
+    -- high_jump_locked — верх кирпичной кладки: мяч пружинит как обычно, но
+    -- высоко не прыгает
+    self.sticky_rest = false
+    self.sticky_action_used = false
+    self.sticky_cell = nil
+    self.high_jump_locked = false
+    self.hj_row = nil
+    -- стартовая ячейка по умолчанию (уровень 1); level.script уточнит её
+    -- сообщением "level_start" после генерации уровня
+    start_at(self, state.start_cell)
+    -- до первого "level_start" игра заморожена: коллизия выключена, update
+    -- ничего не делает (см. ready_wait) — ждём плашку "READY FOR LEVEL N?"
+    self.ready_wait = true
+    msg.post("#collision_object", "disable")
+    -- внутренние счётчики (карманы): количество собранных капель, ключей и
+    -- молотков — раздельные; collectibles — собираемые для выхода,
+    -- exit_open/level_complete — состояние перехода уровня
+    self.pocket = 0
+    self.key_pocket = 0
+    self.hammer_pocket = 0
+    -- снимок кармана на старте уровня: к нему карман откатывается при смерти
+    self.start_pocket = 0
+    self.start_keys = 0
+    self.start_hammers = 0
+    self.collectibles = 0
+    self.exit_open = false
+    self.level_complete = false
+    self.lives = START_LIVES -- жизни: теряются при смерти, перезапускают уровень
+    self.restart_pending = false -- GAME OVER: нажатие запросило новую игру
+    self.collected = {} -- id уже собранных предметов (защита от двойного счёта)
+    self.rising_moved = false
+    self.contact_processed = false
+    -- прошлая Y мяча (для swept-теста приземления, см. swept_land)
+    self.prev_pos_y = nil
+    -- время последнего скриптового приземления (защита от повторов)
+    self.swept_time = -math.huge
+    -- герои: мячик (по умолчанию) и Slinky; активный выбирается клавишей T.
+    -- Оба инициализируются сразу, чтобы можно было переключаться в любой момент
+    hero_ball.setup(self, ENV)
+    hero_slinky.setup(self, ENV)
+    self.character = "ball"
+    self.hero = hero_ball
+    self.hero.reset(self)
+    self.hero.activate(self)
+    hero_slinky.deactivate(self)
+    -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
+    msg.post("/pocket", "set_lives", { count = self.lives })
+    -- восстановление прогресса после закрытия браузера: если есть сохранение с
+    -- нерастраченными жизнями, продолжаем с сохранёнными жизнями и карманом.
+    -- lives = 0 означает, что жизни кончились — начинаем новую игру с нуля
+    local data = save.load()
+    if data and (data.lives or 0) > 0 then
+        self.lives = data.lives
+        self.pocket = data.drops or 0
+        self.key_pocket = data.keys or 0
+        self.hammer_pocket = data.hammers or 0
+        -- восстановленный карман — это ровно тот набор, с которым игрок попал
+        -- на сохранённый уровень: сразу фиксируем его как снимок, чтобы потеря
+        -- жизни откатывала карман к нему, даже если level_start придёт раньше
+        -- (или не придёт вовсе при ошибке загрузки уровня)
+        self.start_pocket = self.pocket
+        self.start_keys = self.key_pocket
+        self.start_hammers = self.hammer_pocket
+        msg.post("/pocket", "set_lives", { count = self.lives })
+        msg.post("/pocket", "set_items", {
+            drops = self.pocket,
+            keys = self.key_pocket,
+            hammers = self.hammer_pocket,
+        })
+        print(string.format("RESUME: lives=%d pocket=(%d, %d, %d) level=%d",
+            self.lives, self.pocket, self.key_pocket, self.hammer_pocket, data.level or 1))
+    end
+end
+
+function update(self, dt)
+    -- плашка "READY FOR LEVEL N?": пока она показана, игра не начинается —
+    -- мяч заморожен (коллизия выключена), физика и логика не выполняются
+    if self.ready_wait then
+        return
+    end
+    self.time = self.time + dt
+
+    -- тайм-аут одноразовых тап-команд: тап держится чуть дольше одного отскока,
+    -- затем снимается, чтобы жест не сработал повторно. Удержания (touch_*) при
+    -- этом не снимаются — они живут, пока палец на экране
+    if self.touch_timer > 0.0 then
+        self.touch_timer = math.max(0.0, self.touch_timer - dt)
+        if self.touch_timer == 0.0 then
+            clear_tap(self)
+        end
+    end
+
+    -- бесконечная ловушка: идёт обратный отсчёт на плашке «YOU ARE TRAPPED»,
+    -- ввод игрока при этом игнорируется (см. on_input), а мяч продолжает
+    -- метаться в ловушке. По завершении отсчёта теряется жизнь (уровень
+    -- перезапускается). Плашка скрывается в момент потери жизни (см. lose_life)
+    if self.trap_active then
+        self.trap_timer = self.trap_timer - dt
+        local shown = math.max(1, math.ceil(self.trap_timer))
+        if shown ~= self.trap_shown then
+            self.trap_shown = shown
+            msg.post("/trap", "count", { count = shown })
+        end
+        if self.trap_timer <= 0.0 then
+            lose_life(self, "stuck in slope trap")
+            return
+        end
+    end
+
+    -- выход за пределы поля (вниз или по бокам) равносилен падению вниз:
+    -- теряется жизнь, уровень перезапускается
+    local position = go.get_position()
+    if not self.game_over and (position.y < -SIZE or position.x < -SIZE or position.x > SCREEN_W + SIZE) then
+        lose_life(self, "ball left the screen")
+        return
+    end
+    if self.game_over then
+        return
+    end
+
+    -- высокий прыжок: первый уровень — гравитационное замедление (как при прыжке
+    -- на один этаж), выше — постоянная скорость обычного отскока; подъём
+    -- прекращается при ударе о платформу снизу или верхний край поля
+    if self.high_jump then
+        local level_y = self.row + 1 < COLS and BOUNCE_Y[self.row + 1] or math.huge
+        if position.y >= level_y then
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
+        end
+        -- верхний край поля: подъём прекращается, мяч начинает падать
+        if position.y + RADIUS >= SCREEN_H then
+            self.high_jump = false
+            self.rising = false
+            go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+            print("CEILING: high jump stopped at the top edge of the field")
+        end
+        -- стена (блок) выше в колонке: мяч упирается в её нижнюю грань — подъём
+        -- прекращается, мяч начинает падать (коллизия с блоком не настроена,
+        -- поэтому проверка скриптовая)
+        if self.high_jump then
+            for r = self.row + 1, COLS - 1 do
+                local block_bottom = block_bottom_face(r, self.col)
+                if block_bottom then
+                    if position.y + RADIUS >= block_bottom then
+                        self.high_jump = false
+                        self.rising = false
+                        go.set_position(vmath.vector3(position.x, block_bottom - RADIUS, position.z))
+                        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+                        -- удар мяча снизу по кирпичной кладке: сносит один ряд,
+                        -- а самый первый удар по стене расходует один молоток
+                        -- (без молотка кладка остаётся целой)
+                        hit_block_from_below(self, r, self.col)
+                        print(string.format("CEILING: high jump hit the bottom of block cell=(%d, %d)", self.col, r))
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
+    self.contact_processed = false
+
+    -- высокий прыжок: учитывается только движение вверх. В момент пересечения
+    -- нижней частью мяча уровня BOUNCE_Y[row] проверяется удержание влево/вправо;
+    -- если нажата — запускается смещение (запрыгивание) и начинается падение
+    if self.high_jump and self.hj_row then
+        local velocity = go.get("#collision_object", "linear_velocity")
+        if velocity.y > 0.0 then
+            local bottom = position.y - RADIUS
+            while self.hj_row < COLS and bottom >= BOUNCE_Y[self.hj_row] do
+                local rdir = held_direction(self)
+                if rdir ~= 0 then
+                    -- запрыгивание: та же траектория, что и обычное смещение —
+                    -- парабола с вершиной на HEIGHT над платформой нового ряда;
+                    -- приземление точно в центр целевой платформы
+                    self.row = self.hj_row
+                    self.ground_y = BOUNCE_Y[self.hj_row]
+                    hop_and_move(self, rdir)
+                    self.high_jump = false
+                    self.rising = false
+                    -- нажатие потрачено: следующее смещение только после нового цикла отскока
+                    self.press_used = true
+                    -- смещение уже сделано во время полёта: приземление не должно
+                    -- добавлять второе (иначе мяч улетит сразу на 2 платформы)
+                    self.rising_moved = true
+                    break
+                end
+                self.hj_row = self.hj_row + 1
+            end
+        end
+    end
+
+    -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
+    -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
+    -- момент, пока он находится в покое. На липкой поверхности мяч лежит и ждёт
+    -- команды: влево/вправо для него — соскок на соседнюю ячейку
+    local dir = held_direction(self)
+    -- сброс блокировки действия при отпускании клавиши: удержание даёт ровно
+    -- одно действие (соскок/прыжок), следующее — только по новому нажатию
+    if dir == 0 and not jump_active(self) then
+        self.sticky_action_used = false
+    end
+    -- команды не принимаются в середине действия (соскок/отскок): X уже
+    -- доводится до цели, новое нажатие иначе удвоило бы смещение
+    if dir ~= 0 and not self.press_used and not self.high_jump
+        and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
+        if self.sticky_rest then
+            -- мяч лежит на липкой платформе: влево/вправо — обычный соскок на
+            -- соседнюю ячейку (мяч отталкивается и прыгает, а не скатывается).
+            -- За одно касание — ровно одно действие
+            if not self.sticky_action_used then
+                self.sticky_action_used = true
+                self.sticky_rest = false
+                self.pending_dir = 0
+                hop_and_move(self, dir)
+                self.press_used = true
+            end
+        else
+            local since_touch = self.time - self.touch_time
+            local from_rest = self.hero.allow_from_rest(self)
+            if since_touch <= THRESHOLD or from_rest then
+                -- клавиша удерживается сразу после касания: подскок и смещение сейчас;
+                -- нажатие тратится даже если перегородка отбила прыжок (отскок обратно)
+                hop_and_move(self, dir)
+                self.press_used = true
+                self.pending_dir = 0
+            else
+                local until_next = math.huge
+                if self.next_touch_time then
+                    until_next = self.next_touch_time - self.time
+                end
+                if until_next <= THRESHOLD then
+                    -- клавиша удерживается перед следующим касанием: ждем контакта
+                    self.pending_dir = dir
+                    self.pending_time = self.time
+                    self.press_used = true
+                end
+            end
+        end
+    end
+
+    -- высокий прыжок: то же окно threshold вокруг касания, что и смещение —
+    -- учитывается состояние клавиши (нажата/отжата), а не событие нажатия.
+    -- На липкой поверхности высокий прыжок доступен ТОЛЬКО в момент первого
+    -- касания: как при падении на неё с уровня выше, так и при параллельном
+    -- перемещении с платформы того же ряда. Пока мяч лежит (sticky_rest) —
+    -- высоко не прыгает
+    local from_rest = self.hero.allow_from_rest(self)
+    -- высокий прыжок запрещён на верху кирпичной кладки (high_jump_locked) и
+    -- на липкой платформе, если действие за это касание уже израсходовано
+    local can_high_jump = not self.high_jump_locked
+        and not (self.sticky_rest and self.sticky_action_used)
+    if jump_active(self) and not self.press_used and not self.high_jump and can_high_jump
+        and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
+        local since_touch = self.time - self.touch_time
+        if since_touch <= THRESHOLD or from_rest then
+            -- клавиша удерживается сразу после касания: высокий прыжок сейчас;
+            -- на липкой поверхности расходует единственное действие за касание
+            if self.sticky_rest then
+                self.sticky_action_used = true
+                self.sticky_rest = false
+            end
+            start_high_jump(self)
+            self.press_used = true
+            self.squash = 1.0
+            self.squash_axis = "y"
+            self.hero.apply_squash(self)
+        elseif not self.sticky_rest then
+            -- липкая поверхность: окно первого касания прошло — высокий прыжок
+            -- больше не «копится», команда игнорируется (мяч прилип)
+            local until_next = math.huge
+            if self.next_touch_time then
+                until_next = self.next_touch_time - self.time
+            end
+            if until_next <= THRESHOLD then
+                -- клавиша удерживается перед следующим касанием: ждем контакта
+                self.pending_jump = true
+                self.press_used = true
+            end
+        end
+    end
+
+    -- одноразовость тап-команд: как только действие выполнено (press_used),
+    -- снимаем тап-флаги, иначе жест сработал бы ещё раз в пределах тайм-аута.
+    -- Удержания (touch_*) сохраняются — они продолжают действовать как
+    -- удержание клавиши, пока палец на экране
+    if self.press_used then
+        clear_tap(self)
+    end
+
+    -- смещение по X линейно во времени: вместе с физической параболой по Y это
+    -- даёт естественную траекторию полёта (X и Y проходятся за время полёта)
+    if self.move_t > 0.0 then
+        self.move_t = math.max(0.0, self.move_t - dt)
+        local k = 1.0 - self.move_t / self.move_duration
+        local x = self.move_from + (self.move_to - self.move_from) * k
+        local pos = go.get_position()
+        go.set_position(vmath.vector3(x, pos.y, pos.z))
+        if self.move_t == 0.0 then
+            local velocity = go.get("#collision_object", "linear_velocity")
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, velocity.y, 0.0))
+        end
+    end
+
+    -- отскок от перегородки: X линейно — до касания перегородки (в верхней точке
+    -- дуги) и обратно в центр колонки; Y остаётся физической параболой
+    if self.bounce_t > 0.0 then
+        self.bounce_t = math.max(0.0, self.bounce_t - dt)
+        local k = self.bounce_t / self.bounce_duration -- 1 (старт) -> 0 (приземление)
+        -- момент касания перегородки (k = 0.5): сплющивание по X в момент удара
+        if self.bounce_squash_pending and k <= 0.5 then
+            self.bounce_squash_pending = false
+            self.squash = 1.0
+            self.squash_axis = "x"
+            self.hero.apply_squash(self)
+        end
+        -- удар по разрушаемой перегородке наносится именно в момент касания,
+        -- а не в начале отскока — вид меняется после удара
+        if self.bounce_hit_pending and k <= 0.5 then
+            self.bounce_hit_pending = false
+            hit_destructible_wall(self, self.bounce_hit_dir)
+        end
+        local x
+        if k >= 0.5 then
+            -- первая половина: от старта к перегородке
+            local u = (1.0 - k) * 2.0
+            x = self.bounce_x_start + (self.bounce_x_wall - self.bounce_x_start) * u
+        else
+            -- вторая половина: от перегородки обратно в центр колонки
+            local u = (0.5 - k) * 2.0
+            x = self.bounce_x_wall + (self.bounce_x_end - self.bounce_x_wall) * u
+        end
+        local pos = go.get_position()
+        go.set_position(vmath.vector3(x, pos.y, pos.z))
+    end
+
+    -- приземление на верх кирпичной стены (физики у кладки нет — проверка
+    -- скриптовая): мяч встаёт на кладку и «прилипает», как на липкую платформу
+    if not land_on_block_top(self) then
+        -- скриптовое приземление на платформу (swept-тест): страхует от «пролёта»
+        -- тонкой платформы при большой скорости падения (см. swept_land)
+        swept_land(self, dt)
+    end
+
+    -- затухание «удара» — общая величина self.squash для визуала героев
+    if self.squash > 0.0 then
+        self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
+    end
+
+    -- анимация визуала героя: у мяча — сплющивание и переворот,
+    -- у Slinky — пружина (растяжение/сжатие) и раскладка колец
+    self.hero.update(self, dt)
+
+    -- сбор предметов по фактической ячейке мяча: кандидат — предмет в той же
+    -- ячейке (в том числе при пролёте ячейки без платформы), но берётся он
+    -- только при фактическом касании мяча (см. goodie_touched)
+    if not self.game_over then
+        local crow, ccol = cell_at(go.get_position())
+        collect_goodie(self, crow, ccol)
+    end
+
+    -- событие выхода: ЛЮБОЙ контакт мяча с табличкой EXIT завершает уровень —
+    -- как при приземлении на платформу в финишной ячейке, так и при пролёте
+    -- через ячейку без платформы (геометрическая проверка круг × прямоугольник).
+    -- После смерти уровень уже не завершается: он перезапускается
+    if not self.game_over and self.exit_open and not self.level_complete and state.exit_id then
+        if exit_touched(state.exit_id) then
+            self.level_complete = true
+            print("ball touched exit sign: level complete")
+            msg.post("/level", "level_complete")
+        end
+    end
+
+    -- запомнить текущую Y мяча: в следующем кадре swept-тест сравнит с ней позицию
+    -- и поймает пересечение верхней грани платформы (см. swept_land)
+    self.prev_pos_y = go.get_position().y
+end
+
+function on_input(self, action_id, action)
+    -- плашка "READY FOR LEVEL N?": любое нажатие клавиши убирает её и
+    -- запускает игру — мяч снова подчиняется физике
+    if self.ready_wait then
+        if action.pressed then
+            self.ready_wait = false
+            msg.post("/ready", "hide")
+            -- включить физику мяча: старт уровня начинается только теперь
+            msg.post("#collision_object", "enable")
+            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+            print("READY: level " .. tostring(state.index) .. " started")
+        end
+        return
+    end
+    -- ловушка: пока идёт обратный отсчёт «YOU LOCK IN TRAP», ввод игрока
+    -- игнорируется — мяч неуправляемо мечется, вырваться из ловушки нельзя
+    if self.trap_active then
+        return
+    end
+    -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
+    -- начинает новую игру; ждём, пока уровень 1 пересоберётся.
+    -- ВАЖНО: пока жизни ещё есть, game_over означает лишь «уровень
+    -- перезапускается» — level.script пересоберёт его и пришлёт level_start,
+    -- который снимет флаг. Нажатие в этом окне не должно запускать новую игру:
+    -- restart_game обнуляет карман и снимок уровня, из-за чего перезапуск шёл
+    -- с пустым (фиксированным) набором предметов вместо набора на входе в уровень
+    if self.game_over then
+        if self.lives <= 0 and action.pressed and not self.restart_pending then
+            restart_game(self)
+        end
+        return
+    end
+    -- отслеживаем только состояние клавиш: нажата / отжата. Флаг «удерживается»
+    -- ставится только по свежему нажатию (pressed), а не по повторам (repeated):
+    -- удержание в момент потери жизни иначе переносится на перезапуск уровня —
+    -- пока клавиша физически зажата, repeated-события снова включают флаг, и
+    -- мяч запускает высокий прыжок при каждом отскоке нового уровня
+    if action_id == hash("jump") then
+        if action.pressed then
+            self.jump_held = true
+        elseif action.released then
+            self.jump_held = false
+        end
+    elseif action_id == hash("right") then
+        if action.pressed then
+            self.right_held = true
+        elseif action.released then
+            self.right_held = false
+        end
+    elseif action_id == hash("left") then
+        if action.pressed then
+            self.left_held = true
+        elseif action.released then
+            self.left_held = false
+        end
+    elseif action_id == hash("switch") then
+        -- T: переключить персонажа между мячиком и Slinky
+        if action.pressed then
+            toggle_character(self)
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("touch_control") then
+        if not self.ready_wait and not self.game_over and not self.trap_active then
+            local control = message and message.control
+            local pressed = (message and message.pressed) or false
+            if control == "left" then
+                self.touch_left = pressed
+            elseif control == "right" then
+                self.touch_right = pressed
+            elseif control == "high" then
+                self.touch_jump = pressed
+            end
+        end
+        return
+    end
+    -- level.script сообщает стартовую ячейку сгенерированного уровня
+    if message_id == hash("level_start") then
+        start_at(self, (message and message.cell) or 0)
+        -- плашка "READY FOR LEVEL N?": показываем её перед началом уровня и
+        -- замораживаем мяч — игра начнётся только после нажатия любой клавиши.
+        -- Сначала гасим скорость (пока компонент ещё активен), затем выключаем
+        -- коллизию: без неё физика не двигает мяч, пока плашка на экране
+        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+        msg.post("#collision_object", "disable")
+        self.ready_wait = true
+        msg.post("/ready", "show", { level = state.index })
+        -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
+        -- если собирать нечего — выход уже открыт level.script'ом.
+        -- game_over снимается: после потери жизни уровень перезапускается,
+        -- после GAME OVER — начинается новая игра
+        self.game_over = false
+        self.restart_pending = false
+        self.collectibles = 0
+        self.level_complete = false
+        self.exit_open = state.timer <= 0
+        self.collected = {}
+        -- снимок кармана на старте уровня: предметы сохраняются между уровнями,
+        -- но при смерти откатываются к этому состоянию
+        self.start_pocket = self.pocket
+        self.start_keys = self.key_pocket
+        self.start_hammers = self.hammer_pocket
+        print(string.format("POCKET snapshot level %d: drops=%d keys=%d hammers=%d",
+            state.index, self.start_pocket, self.start_keys, self.start_hammers))
+        -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
+        self.move_t = 0.0
+        self.bounce_t = 0.0
+        self.high_jump = false
+        self.rising = false
+        self.rising_moved = false
+        -- сброс swept-теста: после телепорта на стартовую ячейку прошлая
+        -- позиция невалидна, иначе первый кадр может дать ложное приземление
+        self.prev_pos_y = nil
+        self.swept_time = -math.huge
+        self.press_used = false
+        self.pending_dir = 0
+        self.pending_jump = false
+        -- ловушка с прошлого уровня не переносится: плашка и отсчёт сброшены
+        self.trap_active = false
+        self.trap_timer = 0.0
+        self.trap_shown = nil
+        msg.post("/trap", "hide")
+        self.sticky_rest = false
+        self.sticky_action_used = false
+        self.sticky_cell = nil
+        self.high_jump_locked = false
+        -- удержания клавиш с момента смерти не переносятся на новый уровень:
+        -- иначе нажатие Space в момент потери жизни запускало высокий прыжок
+        -- сразу после перезапуска, и мяч прыгал высоко при каждом отскоке
+        self.jump_held = false
+        self.left_held = false
+        self.right_held = false
+        -- тач-команды с прошлого уровня не переносятся на новый
+        clear_touch(self)
+        self.touch_state = {}
+        -- сбросить привязку «молоток потрачен на стену»: после пересборки
+        -- уровня у стен новые id, и молоток снова тратится на первый удар
+        self.hammer_wall_id = nil
+        self.block_hit_id = nil
+        self.block_hit_time = -math.huge
+        self.block_top_time = -math.huge
+        self.squash = 0.0
+        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+        -- сбросить деформации визуала и вернуть визуал активного героя
+        self.hero.reset(self)
+        self.hero.activate(self)
+        -- зафиксировать прогресс: при закрытии браузера игра возобновится с этого
+        -- уровня, с текущими жизнями и содержимым кармана. Сохраняем именно
+        -- снимок (start_*), к которому карман откатывается при потере жизни —
+        -- тогда переоткрытие вернёт то же состояние, что и перезапуск уровня
+        save.store({
+            level = state.index,
+            lives = self.lives,
+            drops = self.start_pocket,
+            keys = self.start_keys,
+            hammers = self.start_hammers,
+        })
+        return
+    end
+    if message_id == hash("contact_point_response") then
+        -- contact_point_response может приходить несколько раз за кадр (несколько точек контакта);
+        -- обрабатываем только первый контакт в кадре
+        if self.contact_processed then
+            return
+        end
+        self.contact_processed = true
+        -- дедупликация между кадрами: пока мяч ещё не оторвался от поверхности,
+        -- Box2D присылает контакт повторно в следующем шаге физики; один прыжок
+        -- должен дать ровно одну запись
+        if self.time - self.last_contact_time < CONTACT_DEDUP then
+            return
+        end
+        -- только что начали действие: контакт этого кадра ещё «до отрыва», не
+        -- считаем его приземлением (иначе мгновенно повторный шаг через платформу)
+        if self.time - (self.action_time or -math.huge) < CONTACT_GUARD then
+            return
+        end
+        self.last_contact_time = self.time
+        -- Slinky уже стоит на платформе: пока он в покое, повторные контакты
+        -- игнорируем (иначе каждые CONTACT_DEDUP секунд он бы «приземлялся» заново)
+        if self.hero.ignore_contacts(self) then
+            return
+        end
+        -- отладка: момент касания мяча платформы; координаты игровой ячейки (от левого нижнего угла)
+        local pos = go.get_position()
+        -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
+        local contact_y = message.normal.y > 0.0 and (pos.y - RADIUS) or (pos.y + RADIUS)
+        local row = vmath.clamp(math.floor(contact_y / CELL_H + 1e-6), 0, COLS - 1)
+        local side = message.normal.y > 0.0 and "сверху" or "снизу"
+        print(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
+        -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает;
+        -- платформа при этом упруго прогибается вверх (удар снизу). Шипы опасны
+        -- и снизу: контакт с нижней гранью тоже лопает мяч.
+        if message.normal.y <= 0.0 then
+            self.rising = false
+            self.high_jump = false
+            bend_platform(self, row, self.col, -1)
+            self.squash = 1.0
+            self.squash_axis = "y"
+            self.hero.apply_squash(self)
+            if is_spike(row, self.col) then
+                lose_life(self, "spikes")
+                return
+            end
+            -- наклонная платформа: удар снизу даёт отскок строго вниз, а не вбок
+            -- по склону (наклонная нормаль контакта иначе уводит мяч в сторону)
+            if slope_direction(row, self.col) ~= 0 then
+                rebound_straight_down(self)
+            end
+            return
+        end
+        -- приземление на платформу: вся логика (шипы/огонь/выход/липкость/действие
+        -- игрока) вынесена в land_on_platform — её же использует скриптовый
+        -- swept-тест, поэтому оба пути приземления ведут себя одинаково
+        land_on_platform(self, row)
+    end
+end
