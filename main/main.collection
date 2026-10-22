@@ -444,4 +444,9 @@ instances {
     z: 0.97
   }
 }
+# --- РЎРµРЅСЃРѕСЂРЅРѕРµ СѓРїСЂР°РІР»РµРЅРёРµ: С‚РѕС‡РєРё-РєСЂСѓР¶РєРё РїРѕРґ РїРѕР»РµРј (portrait) РёР»Рё СЃР±РѕРєСѓ (landscape) ---
+instances {
+  id: "controls"
+  prototype: "/main/controls/controls.go"
+}
 scale_along_z: 0
