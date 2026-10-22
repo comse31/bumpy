@@ -12,7 +12,8 @@
 --
 -- Items fly to the left part of the strip and are grouped by type:
 -- drops first (leftmost), keys right after them, hammers last. The layout is
--- dense: sprites overlap slightly within a group (SPACING < sprite width).
+-- very dense: each next item is placed half a sprite width to the right, so
+-- the sprites overlap by 50% and fan out one over another.
 -- Life hearts sit at the right end of the same strip, one per remaining life.
 --
 -- The number of displayed items is unbounded: each group starts with a small
@@ -21,8 +22,12 @@
 -- dynamic instances are deleted when freed.
 
 local MARGIN_X  = 40   -- margin at both ends of the strip
-local SPACING   = 12   -- dense step: pocket sprites (~21 px wide) overlap slightly
-local GROUP_GAP = 8    -- extra gap between groups (drops | keys | hammers)
+local ITEM_W    = 32   -- pocket sprite width in pixels (drop/key/hammer/heart)
+-- Смещение центров соседних предметов внутри группы: 16 px, то есть ровно
+-- половина ширины картинки (32). Никакого дополнительного шага/зазора нет,
+-- предметы наезжают друг на друга веером.
+local SPACING   = 8
+local GROUP_GAP = 20    -- extra gap between groups (drops | keys | hammers)
 local POCKET_Y  = 680  -- vertical center of the strip (field top is y=640)
 local SCREEN_W  = 960  -- display width (game.project), for right alignment
 local LIVES     = 3    -- default number of lives shown
