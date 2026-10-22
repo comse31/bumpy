@@ -1634,73 +1634,24 @@ function on_input(self, action_id, action)
         if action.pressed then
             toggle_character(self)
         end
-    elseif action_id == hash("touch") then
-        -- Тачскрин. Жесты работают как удержание клавиш:
-        --   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»;
-        --   свайп вверх с удержанием пальца — удержание высокого прыжка;
-        --   короткий тап без движения — разовый прыжок в сторону половины поля.
-        -- Удержание живёт, пока палец на экране, и снимается при отпускании.
-        -- Координаты приводим к долям экрана (0..1, y — вверх): touch приходит уже
-        -- нормированным, а мышь — в пикселях, поэтому значения больше 1 делим на
-        -- размер окна.
-        local x, y = action.x or 0.0, action.y or 0.0
-        if x > 1.0 or y > 1.0 then
-            local w, h = window.get_size()
-            if w > 0 then x = x / w end
-            if h > 0 then y = y / h end
-        end
-        local touch_id = action.touch_id or 0
-        local st = self.touch_state[touch_id]
-        if action.pressed then
-            st = { x0 = x, y0 = y, x = x, y = y, gesture = nil }
-            self.touch_state[touch_id] = st
-        elseif st then
-            st.x, st.y = x, y
-            -- жест определяем по смещению от начальной точки касания:
-            -- вверх (высокий прыжок) приоритетнее, если вертикаль доминирует
-            local dx, dy = x - st.x0, y - st.y0
-            local gesture = nil
-            if dy >= SWIPE_MIN_FRAC and dy >= math.abs(dx) then
-                gesture = "jump"
-            elseif dx >= SWIPE_MIN_FRAC then
-                gesture = "right"
-            elseif -dx >= SWIPE_MIN_FRAC then
-                gesture = "left"
-            end
-            -- появление/смена жеста: снимаем прежнее удержание и ставим новое
-            if gesture ~= st.gesture then
-                st.gesture = gesture
-                self.touch_jump = (gesture == "jump")
-                self.touch_right = (gesture == "right")
-                self.touch_left = (gesture == "left")
-                if gesture then
-                    print("TOUCH: hold " .. gesture)
-                end
-            end
-            if action.released then
-                if st.gesture then
-                    -- жест-удержание завершён: отпускаем «клавишу»
-                    self.touch_jump = false
-                    self.touch_right = false
-                    self.touch_left = false
-                else
-                    -- чистый тап без движения: разовая команда по половине экрана
-                    if st.x < 0.5 then
-                        self.tap_left = true
-                        print("TOUCH: tap left -> hop left")
-                    else
-                        self.tap_right = true
-                        print("TOUCH: tap right -> hop right")
-                    end
-                    self.touch_timer = TOUCH_CMD_TIMEOUT
-                end
-                self.touch_state[touch_id] = nil
-            end
-        end
     end
 end
 
 function on_message(self, message_id, message, sender)
+    if message_id == hash("touch_control") then
+        if not self.ready_wait and not self.game_over and not self.trap_active then
+            local control = message and message.control
+            local pressed = (message and message.pressed) or false
+            if control == "left" then
+                self.touch_left = pressed
+            elseif control == "right" then
+                self.touch_right = pressed
+            elseif control == "high" then
+                self.touch_jump = pressed
+            end
+        end
+        return
+    end
     -- level.script сообщает стартовую ячейку сгенерированного уровня
     if message_id == hash("level_start") then
         start_at(self, (message and message.cell) or 0)

@@ -1,0 +1,152 @@
+local GAME_W = 960
+local GAME_H = 720
+
+local function has_touch_controls()
+    local info = sys.get_sys_info()
+    local system = info.system_name or ""
+
+    if system == "Android" or system == "iPhone OS" or system == "iPadOS" then
+        return true
+    end
+
+    if system == "HTML5" then
+        local ok, result = pcall(html5.run,
+            "String((matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))")
+        return ok and result == "true"
+    end
+
+    return false
+end
+
+local function set_button(node, x, y, size, enabled)
+    gui.set_enabled(node, enabled)
+    if enabled then
+        gui.set_position(node, vmath.vector3(x, y, 0))
+        gui.set_size(node, vmath.vector3(size, size, 0))
+        gui.set_scale(node, vmath.vector3(1, 1, 1))
+    end
+end
+
+local function release_all(self)
+    for id, control in pairs(self.touches) do
+        gui.set_scale(control.node, vmath.vector3(1, 1, 1))
+        msg.post("/ball", "touch_control", { control = control.action, pressed = false })
+        self.touches[id] = nil
+    end
+end
+
+local function layout(self)
+    local w, h = window.get_size()
+    if w <= 0 or h <= 0 then
+        return
+    end
+
+    local zoom = math.min(w / GAME_W, h / GAME_H)
+    local band_x = math.max(0, (w / zoom - GAME_W) * 0.5)
+    local band_y = math.max(0, (h / zoom - GAME_H) * 0.5)
+
+    local portrait = h > w
+    self.active = {}
+
+    if portrait then
+        local size = math.min(GAME_W * 0.20, math.max(56, band_y * 0.80))
+        local margin = 24
+        local y = math.max(-band_y + size * 0.5, -band_y * 0.5)
+
+        set_button(self.left, margin + size * 0.5, y, size, true)
+        set_button(self.high_center, GAME_W * 0.5, y, size, true)
+        set_button(self.right, GAME_W - margin - size * 0.5, y, size, true)
+
+        set_button(self.high_left, 0, 0, size, false)
+        set_button(self.high_right, 0, 0, size, false)
+
+        self.active = {
+            { node = self.left, action = "left" },
+            { node = self.high_center, action = "high" },
+            { node = self.right, action = "right" },
+        }
+    else
+        local size = math.min(GAME_H * 0.24, math.max(56, band_x * 0.85))
+        local left_x = math.max(-band_x + size * 0.5, -band_x * 0.5)
+        local right_x = math.min(GAME_W + band_x - size * 0.5, GAME_W + band_x * 0.5)
+        local bottom_y = GAME_H * 0.25
+        local top_y = GAME_H * 0.75
+
+        set_button(self.left, left_x, bottom_y, size, true)
+        set_button(self.high_left, left_x, top_y, size, true)
+        set_button(self.right, right_x, bottom_y, size, true)
+        set_button(self.high_right, right_x, top_y, size, true)
+
+        set_button(self.high_center, GAME_W * 0.5, 0, size, false)
+
+        self.active = {
+            { node = self.left, action = "left" },
+            { node = self.high_left, action = "high" },
+            { node = self.right, action = "right" },
+            { node = self.high_right, action = "high" },
+        }
+    end
+end
+
+local function window_callback(self, event, data)
+    if event == window.WINDOW_EVENT_RESIZED then
+        layout(self)
+    elseif event == window.WINDOW_EVENT_FOCUS_LOST then
+        release_all(self)
+    end
+end
+
+function init(self)
+    self.left = gui.get_node("left")
+    self.right = gui.get_node("right")
+    self.high_center = gui.get_node("high_center")
+    self.high_left = gui.get_node("high_left")
+    self.high_right = gui.get_node("high_right")
+    self.touches = {}
+
+    self.touch_enabled = has_touch_controls()
+    if not self.touch_enabled then
+        gui.set_enabled(self.left, false)
+        gui.set_enabled(self.right, false)
+        gui.set_enabled(self.high_center, false)
+        gui.set_enabled(self.high_left, false)
+        gui.set_enabled(self.high_right, false)
+        return
+    end
+
+    layout(self)
+    window.set_listener(window_callback)
+    msg.post(".", "acquire_input_focus")
+end
+
+function final(self)
+    if self.touch_enabled then
+        window.set_listener(nil)
+    end
+end
+
+function on_input(self, action_id, action)
+    if action_id ~= hash("touch") then
+        return
+    end
+
+    local touch_id = action.touch_id or 0
+
+    if action.pressed then
+        for _, control in ipairs(self.active) do
+            if gui.pick_node(control.node, action.x, action.y) then
+                self.touches[touch_id] = control
+                gui.set_scale(control.node, vmath.vector3(0.92, 0.92, 1))
+                msg.post("/ball", "touch_control", { control = control.action, pressed = true })
+                return
+            end
+        end
+    elseif action.released then
+        local control = self.touches[touch_id]
+        if control then
+            self.touches[touch_id] = nil
+            gui.set_scale(control.node, vmath.vector3(1, 1, 1))
+            msg.post("/ball", "touch_control", { control = control.action, pressed = false })
+        end
+    end
+end

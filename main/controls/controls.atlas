@@ -1,0 +1,30 @@
+images {
+  image: "/main/controls/left.png"
+}
+images {
+  image: "/main/controls/right.png"
+}
+images {
+  image: "/main/controls/up.png"
+}
+animations {
+  id: "btn_left"
+  images {
+    image: "/main/controls/left.png"
+  }
+}
+animations {
+  id: "btn_right"
+  images {
+    image: "/main/controls/right.png"
+  }
+}
+animations {
+  id: "btn_up"
+  images {
+    image: "/main/controls/up.png"
+  }
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0
