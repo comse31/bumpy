@@ -76,6 +76,12 @@ local SWIPE_MIN_FRAC = 0.05
 -- отскока (PERIOD = 0.5 с) и сбрасывается, как только действие выполнено
 local TOUCH_CMD_TIMEOUT = 0.7
 
+-- сенсорное управление «тап по ячейке» (настройка bumpy.controls_mode = "cells"):
+-- нажатие на игровую ячейку ставит намерение, которое выполняется, как только
+-- мяч готов к действию (не в середине прыжка/отскока). Намерение живёт чуть
+-- дольше одного цикла отскока, чтобы тап в полёте сработал при приземлении
+local CELL_CMD_TIMEOUT = 1.5
+
 -- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
 -- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
 local CONTACT_DEDUP = 0.1
@@ -922,6 +928,153 @@ local function clear_touch(self)
     self.touch_jump = false
 end
 
+-- сенсорное управление «тап по ячейке» (bumpy.controls_mode = "cells").
+-- /controls присылает "cell_tap" с игровой ячейкой (row 0 — низ, col 0..5)
+-- либо с направлением dir = ±1 для тапа за боковой границей поля.
+-- Намерение живёт CELL_CMD_TIMEOUT и выполняется, когда мяч готов к действию.
+local function clear_cell_cmd(self)
+    self.cell_cmd = nil
+    self.cell_jump = nil
+end
+
+local function set_cell_cmd(self, message)
+    if type(message) ~= "table" then
+        return
+    end
+    local row = tonumber(message.row)
+    if not row then
+        return
+    end
+    local dir = tonumber(message.dir) or 0
+    if dir > 0 then
+        dir = 1
+    elseif dir < 0 then
+        dir = -1
+    else
+        dir = 0
+    end
+    local col = tonumber(message.col)
+    if col then
+        col = vmath.clamp(math.floor(col), -1, COLS)
+    end
+    -- цель допрыгивания по своему ряду: мяч шагает к нажатой ячейке на каждом
+    -- приземлении, пока не дойдёт до неё или не встретит препятствие
+    local side = message.side and true or false
+    if not side and col and col >= 0 and col < COLS then
+        self.target_col = col
+        self.target_row = vmath.clamp(math.floor(tonumber(message.row) or 0), 0, COLS - 1)
+    else
+        self.target_col = nil
+    end
+    self.cell_cmd = {
+        row = vmath.clamp(math.floor(row), 0, COLS - 1),
+        col = col,
+        dir = dir,
+        -- тап за боковой границей поля: подсвечена только боковая стенка;
+        -- мяч прыгает в её сторону на уровне нажатия и ударяется о перегородку
+        side = message.side and true or false,
+        time = self.time,
+    }
+    self.cell_jump = nil
+end
+
+-- выполнить отложенное намерение тапа по ячейке, когда мяч готов к действию.
+-- Возвращает true, если команда израсходована (действие выполнено или
+-- отброшено) — тогда обычная обработка удержаний в этом кадре не нужна.
+local function try_cell_command(self)
+    local cmd = self.cell_cmd
+    if not cmd then
+        return false
+    end
+    -- намерение устарело (мяч так и не получил возможности действовать)
+    if self.time - cmd.time > CELL_CMD_TIMEOUT then
+        clear_cell_cmd(self)
+        return false
+    end
+    -- высокий прыжок уже идёт: тап задаёт сторону соскока. Соскок выполняется
+    -- на уровне нажатой ячейки, но не ниже текущего ряда полёта (если мяч уже
+    -- пролетел этот ряд) — иначе он бы «спускался» вниз по траектории
+    if self.high_jump then
+        -- тап в собственную колонку во время полёта ничего не меняет
+        if cmd.dir ~= 0 then
+            local level = math.max(cmd.row, self.hj_row or self.row)
+            local dir = cmd.dir
+            -- cell_jump ставим после сброса: clear_cell_cmd обнуляет и его
+            clear_cell_cmd(self)
+            self.cell_jump = { row = level, dir = dir }
+            return true
+        end
+        clear_cell_cmd(self)
+        return true
+    end
+    -- команда принимается только когда мяч не в середине действия
+    if self.press_used or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return false
+    end
+    local since_touch = self.time - self.touch_time
+    local from_rest = self.hero.allow_from_rest(self)
+    if not (self.sticky_rest or since_touch <= THRESHOLD or from_rest) then
+        return false
+    end
+    -- направление: для тапа по ячейке поля — в сторону этой ячейки,
+    -- для тапа за границей поля — задано направлением нажатия (dir = ±1)
+    local dir = cmd.dir
+    if dir == 0 and cmd.col then
+        if cmd.col > self.col then
+            dir = 1
+        elseif cmd.col < self.col then
+            dir = -1
+        end
+    end
+    -- высокий прыжок недоступен с верха кладки и пока мяч лежит на липкой
+    -- платформе (как и для клавиатурного управления, см. обработку jump_active)
+    local can_high_jump = not self.high_jump_locked and not self.sticky_rest
+    -- ячейка (или боковая стенка) выше мяча: высокий прыжок, сторона задаётся
+    -- тапом и применяется при пересечении уровня нажатия (см. обработку
+    -- высокого прыжка). Для тапа за границей поля мяч поднимается до этого
+    -- уровня и там прыгает в сторону нажатия — на границе поля его встречает
+    -- боковая стенка, и он отскакивает от неё (флаг border в cell_jump)
+    if cmd.row > self.row and can_high_jump then
+        local jump_row = cmd.row
+        -- команда израсходована, но сторона соскока нужна уже во время полёта:
+        -- ставим cell_jump ПОСЛЕ сброса, иначе clear_cell_cmd его обнулит.
+        -- Тап в собственную колонку — просто высокий прыжок без соскока
+        clear_cell_cmd(self)
+        if dir ~= 0 then
+            self.cell_jump = { row = jump_row, dir = dir, border = cmd.side }
+        end
+        start_high_jump(self)
+        self.press_used = true
+        self.squash = 1.0
+        self.squash_axis = "y"
+        self.hero.apply_squash(self)
+        return true
+    end
+    -- тот же ряд или ниже: обычный подскок в сторону нажатия. Если нажатие
+    -- было за боковой границей поля, мяч прыгает в сторону стенки и
+    -- отскакивает от неё, оставаясь в своей колонке
+    if dir ~= 0 then
+        if self.sticky_rest then
+            self.sticky_action_used = true
+            self.sticky_rest = false
+        end
+        local at_edge = (dir > 0 and self.col >= COLS - 1)
+            or (dir < 0 and self.col <= 0)
+        if cmd.side and at_edge then
+            bounce_off_wall(self, dir)
+        else
+            hop_and_move(self, dir)
+        end
+        self.press_used = true
+        self.pending_dir = 0
+        clear_cell_cmd(self)
+        return true
+    end
+    -- тап в собственную ячейку движения не даёт
+    clear_cell_cmd(self)
+    return true
+end
+
 -- Приземление мяча на платформу ряда row. Общая логика для физического контакта
 -- (contact_point_response) и скриптового swept-теста (см. swept_land ниже):
 -- проверки поверхности (шипы/огонь/выход/липкость), снап в центр колонки и запуск
@@ -944,6 +1097,10 @@ local function land_on_platform(self, row)
     -- Y отскока для ряда — постоянная величина из массива (зависит от высоты платформы)
     self.row = row
     self.ground_y = BOUNCE_Y[row]
+    -- тап по ячейке, который не удалось выполнить в полёте (мяч упёрся в
+    -- препятствие/потолок), не переносится на следующий прыжок. Цель
+    -- допрыгивания по своему ряду сохраняется, пока мяч к ней идёт
+    self.cell_jump = nil
     -- шипы: контакт всегда разрушает мяч — теряется жизнь
     if is_spike(row, self.col) then
         lose_life(self, "spikes")
@@ -1038,6 +1195,8 @@ local function land_on_platform(self, row)
         hop_and_move(self, slope_dir)
         self.press_used = true
     elseif direction ~= 0 then
+        -- ручное управление отменяет отложенную цель допрыгивания
+        self.target_col = nil
         if self.sticky_rest then
             -- на липкой платформе удержанная в момент касания клавиша даёт
             -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
@@ -1049,6 +1208,27 @@ local function land_on_platform(self, row)
             self.press_used = true
         end
         clear_tap(self)
+    elseif self.target_col and self.target_row == row then
+        -- тап по ячейке своего ряда: мяч допрыгивает до неё, делая по одному
+        -- шагу за приземление. Если впереди перегородка/кладка — шаг
+        -- превращается в отскок, и цель снимается: дальше не пройти
+        if self.col ~= self.target_col then
+            local step = self.target_col > self.col and 1 or -1
+            if self.sticky_rest then
+                self.sticky_action_used = true
+                self.sticky_rest = false
+            end
+            if not hop_and_move(self, step) then
+                -- отскок от препятствия: цель недостижима
+                self.target_col = nil
+            end
+            self.press_used = true
+            clear_tap(self)
+        else
+            -- мяч дошёл до нажатой ячейки
+            self.target_col = nil
+            settle_or_stick(self)
+        end
     elseif (jump_active(self) or self.pending_jump)
         and not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used) then
@@ -1189,6 +1369,11 @@ function init(self)
     self.tap_jump = false
     self.touch_timer = 0.0
     self.touch_state = {}
+    -- тап по игровой ячейке (bumpy.controls_mode = "cells"): отложенное
+    -- намерение и сторона соскока во время высокого прыжка
+    self.cell_cmd = nil
+    self.cell_jump = nil
+    self.target_col = nil
     self.rising = false
     self.high_jump = false
     -- липкая поверхность: мяч лежит на ней (sticky_rest) и за одно касание может
@@ -1358,6 +1543,12 @@ function update(self, dt)
     -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
     self.contact_processed = false
 
+    -- сенсорное управление «тап по ячейке»: отложенное намерение выполняется,
+    -- как только мяч готов к действию (вне высокого прыжка и вне середины шага).
+    -- Вызывается ДО обработки высокого прыжка, чтобы сторона соскока,
+    -- назначенная тапом в этом кадре, применилась сразу
+    try_cell_command(self)
+
     -- высокий прыжок: учитывается только движение вверх. В момент пересечения
     -- нижней частью мяча уровня BOUNCE_Y[row] проверяется удержание влево/вправо;
     -- если нажата — запускается смещение (запрыгивание) и начинается падение
@@ -1367,13 +1558,31 @@ function update(self, dt)
             local bottom = position.y - RADIUS
             while self.hj_row < COLS and bottom >= BOUNCE_Y[self.hj_row] do
                 local rdir = held_direction(self)
+                -- тап по ячейке во время высокого прыжка: сторона соскока
+                -- задаётся нажатой ячейкой; выполняется на её уровне (или выше,
+                -- если мяч уже пролетел этот ряд)
+                local border = false
+                if self.cell_jump and rdir == 0
+                    and self.hj_row >= self.cell_jump.row then
+                    rdir = self.cell_jump.dir
+                    border = self.cell_jump.border and true or false
+                    self.cell_jump = nil
+                end
                 if rdir ~= 0 then
                     -- запрыгивание: та же траектория, что и обычное смещение —
                     -- парабола с вершиной на HEIGHT над платформой нового ряда;
-                    -- приземление точно в центр целевой платформы
+                    -- приземление точно в центр целевой платформы.
+                    -- Тап за границей поля: мяч прыгает в сторону боковой стенки
+                    -- и отскакивает от неё, не меняя колонку
                     self.row = self.hj_row
                     self.ground_y = BOUNCE_Y[self.hj_row]
-                    hop_and_move(self, rdir)
+                    local at_edge = (rdir > 0 and self.col >= COLS - 1)
+                        or (rdir < 0 and self.col <= 0)
+                    if border and at_edge then
+                        bounce_off_wall(self, rdir)
+                    else
+                        hop_and_move(self, rdir)
+                    end
                     self.high_jump = false
                     self.rising = false
                     -- нажатие потрачено: следующее смещение только после нового цикла отскока
@@ -1638,6 +1847,14 @@ function on_input(self, action_id, action)
 end
 
 function on_message(self, message_id, message, sender)
+    -- сенсорное управление «тап по ячейке» (bumpy.controls_mode = "cells"):
+    -- нажатие на игровую ячейку поля либо на боковую стенку за его границей
+    if message_id == hash("cell_tap") then
+        if not self.ready_wait and not self.game_over and not self.trap_active then
+            set_cell_cmd(self, message)
+        end
+        return
+    end
     if message_id == hash("touch_control") then
         if not self.ready_wait and not self.game_over and not self.trap_active then
             local control = message and message.control
@@ -1711,6 +1928,7 @@ function on_message(self, message_id, message, sender)
         -- тач-команды с прошлого уровня не переносятся на новый
         clear_touch(self)
         self.touch_state = {}
+        clear_cell_cmd(self)
         -- сбросить привязку «молоток потрачен на стену»: после пересборки
         -- уровня у стен новые id, и молоток снова тратится на первый удар
         self.hammer_wall_id = nil

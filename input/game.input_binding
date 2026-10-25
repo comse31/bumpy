@@ -25,6 +25,12 @@ touch_trigger {
   input: TOUCH_MULTI
   action: "touch"
 }
+# Мышь как источник того же действия: режим "тап по ячейке"
+# (bumpy.controls_mode = "cells") удобно проверять и на настольной сборке.
+mouse_trigger {
+  input: MOUSE_BUTTON_1
+  action: "touch"
+}
 # "any_key": прочие клавиши — нужны, чтобы по любому нажатию перезапустить
 # игру после GAME OVER (см. ball.script). Клавиши, уже занятые выше
 # (SPACE/UP/LEFT/RIGHT/T), сюда не дублируются: ball.on_input реагирует
