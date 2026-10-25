@@ -7,6 +7,12 @@ images {
 images {
   image: "/main/controls/up.png"
 }
+images {
+  image: "/main/controls/white.png"
+}
+images {
+  image: "/main/controls/cell_frame.png"
+}
 animations {
   id: "btn_left"
   images {
@@ -17,6 +23,18 @@ animations {
   id: "btn_right"
   images {
     image: "/main/controls/right.png"
+  }
+}
+animations {
+  id: "hl_frame"
+  images {
+    image: "/main/controls/cell_frame.png"
+  }
+}
+animations {
+  id: "hl_pixel"
+  images {
+    image: "/main/controls/white.png"
   }
 }
 animations {
