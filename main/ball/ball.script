@@ -2,12 +2,17 @@
 local state = require("main.level.level_state")
 -- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
 local save = require("main.save")
--- герои: вся специфика мячика и Slinky вынесена в отдельные модули
-local hero_ball = require("main.ball.hero_ball")
-local hero_slinky = require("main.ball.hero_slinky")
+-- герои: конкретные реализации берутся из реестра (main/heroes.lua); общая
+-- логика знает только интерфейс героя и не зависит от его анимаций
+local HEROES = require("main.heroes")
 
 local SIZE = 32.0
 local BPM = 120.0
+-- Коэффициент скорости действий героя: прыжки, шаги и отскоки растягиваются
+-- во времени в HERO_SPEED раз (1 — обычный темп). Высоты и кадры анимации
+-- не меняются — удобно для замедленного просмотра. На скорость самой
+-- анимации (SQUASH_DURATION) не влияет.
+local HERO_SPEED = 1.0
 
 -- сетка игрового экрана 6 на 6
 local COLS = 6
@@ -46,7 +51,7 @@ for c = 0, COLS - 1 do
     BOUNCE_Y[c] = PLATFORM_Y_BASE + PLATFORM_H / 2.0 + RADIUS + c * CELL_H
 end
 
-local PERIOD = 60.0 / BPM
+local PERIOD = 60.0 / BPM * HERO_SPEED
 -- высота обычного прыжка: в верхней точке мяч не должен касаться платформы выше,
 -- т.е. HEIGHT + 2*RADIUS < зазор между уровнями (48 + 32 < 106.7 - 20)
 local HEIGHT = 1.5 * SIZE
@@ -60,7 +65,7 @@ local HIGH_JUMP_HEIGHT = CELL_H + HEIGHT
 local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
 
 -- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
-local THRESHOLD_MS = 100.0
+local THRESHOLD_MS = 100.0 * HERO_SPEED
 local THRESHOLD = THRESHOLD_MS / 1000.0
 
 -- тач-управление (тачскрин). Жесты работают как удержание клавиш:
@@ -73,25 +78,25 @@ local THRESHOLD = THRESHOLD_MS / 1000.0
 local SWIPE_MIN_FRAC = 0.05
 -- «время жизни» разовой тап-команды: она принимается не мгновенно, а в окне
 -- threshold вокруг следующего касания, поэтому держится чуть дольше одного
--- отскока (PERIOD = 0.5 с) и сбрасывается, как только действие выполнено
-local TOUCH_CMD_TIMEOUT = 0.7
+-- отскока (PERIOD) и сбрасывается, как только действие выполнено
+local TOUCH_CMD_TIMEOUT = 0.7 * HERO_SPEED
 
 -- окно в с для дедупликации контактов между кадрами: пока мяч ещё не оторвался
 -- от поверхности, Box2D присылает контакт повторно в следующем шаге физики
-local CONTACT_DEDUP = 0.1
+local CONTACT_DEDUP = 0.1 * HERO_SPEED
 -- короткое окно после начала действия (шаг/отскок/прыжок), в котором контакты
--- игнорируются: иначе «залипший» контакт того же кадра снова усаживает Slinky на
+-- игнорируются: иначе «залипший» контакт того же кадра снова усаживает героя на
 -- платформу и следующий кадр запускает ещё один шаг — прыжок через платформу
-local CONTACT_GUARD = 0.05
+local CONTACT_GUARD = 0.05 * HERO_SPEED
 
--- затухание «удара»: общая величина состояния self.squash, герои читают её в
--- своём update (мяч — сплющивание, Slinky — сжатие пружины)
+-- затухание «удара»: общая величина self.squash, каждый герой читает её
+-- в своём update и сам решает, как отрисовать деформацию
 local SQUASH_DURATION = 0.15
 -- величина сплющивания мяча; нужна также в геометрии удара о перегородку
 local SQUASH_AMOUNT = 0.25
 
 local STEP = CELL_W
-local MOVE_DURATION = 0.25
+local MOVE_DURATION = 0.25 * HERO_SPEED
 
 -- общие значения, которые нужны героям; передаются им в setup
 local ENV = {
@@ -101,12 +106,12 @@ local ENV = {
     squash_amount = SQUASH_AMOUNT,
 }
 
--- переключение героя по клавише T: мячик <-> Slinky. Общий код знает только
--- интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
+-- переключение героя по клавише T: по кругу через реестр. Общий код знает
+-- только интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
 local function toggle_character(self)
     self.hero.deactivate(self)
-    self.character = self.character == "ball" and "slinky" or "ball"
-    self.hero = self.character == "ball" and hero_ball or hero_slinky
+    self.hero_index = self.hero_index % #HEROES + 1
+    self.hero = HEROES[self.hero_index]
     self.hero.reset(self)
     -- покой на липкой поверхности и «первый прыжок» относятся к прежнему герою
     self.sticky_rest = false
@@ -114,7 +119,7 @@ local function toggle_character(self)
     self.sticky_cell = nil
     self.high_jump_locked = false
     self.hero.activate(self)
-    print("CHARACTER: " .. self.character)
+    print("CHARACTER: " .. tostring(self.hero.name))
 end
 
 -- центр колонки (платформы) по X
@@ -224,7 +229,7 @@ local function is_platform_gone(row, col)
 end
 
 -- goodies (собираемые объекты): находятся в центре игровой ячейки и собираются
--- мячиком при приземлении на платформу этой ячейки; id берётся из реестра
+-- героем при приземлении на платформу этой ячейки; id берётся из реестра
 local function goodie_id(row, col)
     return state.goodie_id(row, col)
 end
@@ -673,8 +678,8 @@ local function land_platform(self, row, col)
     end
 end
 
--- поведение при приземлении без команды игрока делегируется герою:
--- мяч автоматически отскакивает, Slinky встаёт на платформу и стоит
+-- поведение при приземлении без команды игрока делегируется герою
+-- (см. settle в модуле героя)
 
 -- длительность смещения равна времени до приземления: мяч достигает
 -- центра целевой платформы ровно в момент касания (нижняя точка траектории)
@@ -693,7 +698,7 @@ local function move(self, direction, duration)
     self.move_duration = duration or MOVE_DURATION
     self.move_t = self.move_duration
     self.action_time = self.time
-    -- специфика героя: мяч переворачивается, Slinky запоминает сторону переката
+    -- специфика героя (поворот/перекат) — в его модуле
     self.hero.on_action(self, direction, self.move_duration)
 end
 
@@ -705,8 +710,7 @@ local function height_above_ground(self)
     return math.max(0.0, go.get_position().y - self.ground_y)
 end
 
--- высота подскока при смещении между платформами задаётся героем: мяч прыгает
--- на обычную высоту, Slinky «переступает» (минимальный подъём)
+-- высота подскока при смещении между платформами задаётся героем
 local function hop_height(self)
     return self.hero.hop_height(self)
 end
@@ -794,7 +798,7 @@ local function bounce_off_wall(self, direction)
     -- сплющивание по X (горизонтальное) включается в момент касания перегородки
     self.bounce_squash_pending = true
     self.action_time = self.time
-    -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
+    -- специфика героя (поворот/выгиб) — в его модуле
     self.hero.on_action(self, direction, self.bounce_duration)
 end
 
@@ -855,7 +859,7 @@ local function hop_and_move(self, direction)
     self.sticky_rest = false
     self.col = self.col + direction
     print(string.format("HOP dir=%d col %d->%d", direction, old_col, self.col))
-    -- масштаб длительности шага задаёт герой (Slinky перекатывается медленнее):
+    -- масштаб длительности шага задаёт герой:
     -- вертикальный импульс растягивается во времени, поэтому X-смещение и
     -- приземление остаются синхронными
     local vy = hop_velocity(self) * self.hero.step_scale(self)
@@ -1231,15 +1235,20 @@ function init(self)
     self.prev_pos_y = nil
     -- время последнего скриптового приземления (защита от повторов)
     self.swept_time = -math.huge
-    -- герои: мячик (по умолчанию) и Slinky; активный выбирается клавишей T.
-    -- Оба инициализируются сразу, чтобы можно было переключаться в любой момент
-    hero_ball.setup(self, ENV)
-    hero_slinky.setup(self, ENV)
-    self.character = "ball"
-    self.hero = hero_ball
+    -- герои из реестра; первый — активный по умолчанию, остальные инициализируются
+    -- и скрываются, чтобы переключаться клавишей T в любой момент
+    for _, hero in ipairs(HEROES) do
+        hero.setup(self, ENV)
+    end
+    self.hero_index = 1
+    self.hero = HEROES[self.hero_index]
     self.hero.reset(self)
     self.hero.activate(self)
-    hero_slinky.deactivate(self)
+    for i, hero in ipairs(HEROES) do
+        if i ~= self.hero_index then
+            hero.deactivate(self)
+        end
+    end
     -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
     msg.post("/pocket", "set_lives", { count = self.lives })
     -- восстановление прогресса после закрытия браузера: если есть сохранение с
@@ -1389,7 +1398,7 @@ function update(self, dt)
     end
 
     -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
-    -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
+    -- касания; стоящий герой не отскакивает, поэтому команда принимается в любой
     -- момент, пока он находится в покое. На липкой поверхности мяч лежит и ждёт
     -- команды: влево/вправо для него — соскок на соседнюю ячейку
     local dir = held_direction(self)
@@ -1546,7 +1555,7 @@ function update(self, dt)
     end
 
     -- анимация визуала героя: у мяча — сплющивание и переворот,
-    -- у Slinky — пружина (растяжение/сжатие) и раскладка колец
+    -- визуал героя обновляет его собственный модуль
     self.hero.update(self, dt)
 
     -- сбор предметов по фактической ячейке мяча: кандидат — предмет в той же
@@ -1630,7 +1639,7 @@ function on_input(self, action_id, action)
             self.left_held = false
         end
     elseif action_id == hash("switch") then
-        -- T: переключить персонажа между мячиком и Slinky
+        -- T: переключить героя на следующего из реестра
         if action.pressed then
             toggle_character(self)
         end
@@ -1754,7 +1763,7 @@ function on_message(self, message_id, message, sender)
             return
         end
         self.last_contact_time = self.time
-        -- Slinky уже стоит на платформе: пока он в покое, повторные контакты
+        -- герой уже стоит на платформе: пока он в покое, повторные контакты
         -- игнорируем (иначе каждые CONTACT_DEDUP секунд он бы «приземлялся» заново)
         if self.hero.ignore_contacts(self) then
             return

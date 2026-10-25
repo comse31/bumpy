@@ -1,6 +1,7 @@
 name: "main"
 # Уровень не прописан статически: его генерирует level.script из метаданных
-# (main/levels.json). Здесь остаются только загрузчик уровня, шар и HUD-карман.
+# (main/levels.json). Здесь остаются только загрузчик уровня, визуалы героев
+# и HUD-карман; логика и анимации каждого героя — в его собственных файлах.
 # --- пропорции поля: переключает рендер на fixed-fit проекцию (см. projection.script),
 # чтобы при любом размере окна игровое поле масштабировалось без искажения
 instances {
@@ -11,6 +12,7 @@ instances {
   id: "level"
   prototype: "/main/level/level.go"
 }
+# --- визуалы героев: каждый герой сам включает/выключает свой визуал ---
 instances {
   id: "ball_visual"
   prototype: "/main/ball/ball_visual.go"
@@ -24,7 +26,20 @@ instances {
     z: 0.0625
   }
 }
-# --- Slinky: пул сегментов-колец, из которых ball.script собирает пружинку ---
+instances {
+  id: "bumpy_visual"
+  prototype: "/main/bumpy/bumpy_visual.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.0625
+    y: 0.0625
+    z: 0.0625
+  }
+}
+# --- пул сегментов-колец для героя-пружинки (Slinky) ---
 instances {
   id: "si_1"
   prototype: "/main/slinky/slinky_ring.go"

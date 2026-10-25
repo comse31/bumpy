@@ -1,0 +1,4 @@
+tile_set: "/main/bumpy/bumpy.atlas"
+default_animation: "bumpy"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA
