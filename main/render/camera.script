@@ -10,11 +10,16 @@
 --   * в режиме READY (плашка "READY FOR LEVEL N?") показывает всю сцену
 --     целиком — игровое поле 960x640 и полосу HUD над ним (до y = 720), —
 --     так что перед стартом игрок всегда видит весь уровень;
---   * в игре масштабирует поле так, чтобы оно заполняло экран по длинному
---     краю: zoom = max(w/960, field_h/640), где field_h — высота экрана минус
---     полоса HUD. Одна из сторон поля всегда видна полностью, вторая
---     обрезается;
---   * в игре плавно ведёт центр экрана к центру ЯЧЕЙКИ, в которой сейчас
+--   * Приближение и слежение включаются ТОЛЬКО в полноэкранном режиме на
+--     устройстве (полноэкранный браузер на тач-смартфоне/планшете, нативная
+--     мобильная сборка). В оконном браузере и на десктопе игровое поле
+--     всегда показывается целиком (fit) — «Не в режиме fullscreen
+--     просматривается все игровое поле»;
+--   * в этом режиме масштабирует поле так, чтобы оно заполняло экран по
+--     длинному краю: zoom = max(w/960, field_h/640), где field_h — высота
+--     экрана минус полоса HUD. Одна из сторон поля всегда видна полностью,
+--     вторая обрезается;
+--   * в этом режиме плавно ведёт центр экрана к центру ЯЧЕЙКИ, в которой сейчас
 --     находится мяч: ячейка (клетка сетки 6x6) стремится оказаться ровно в
 --     середине видимой части. По той оси, где поле видно целиком, камера
 --     стоит по центру поля — там обрезки нет и мяч виден всегда;
@@ -63,6 +68,10 @@ local FAR = 1.0
 local ZOOM_TAU = 0.40
 local FOCUS_TAU = 0.35
 
+-- как часто в режиме "auto" перепроверять полноэкранный режим браузера.
+-- html5.run — дорогой вызов, поэтому опрос идёт не каждый кадр
+local COVER_REFRESH_SEC = 0.25
+
 -- Панорамирование свайпом: после последнего движения пальца камера держит
 -- ручной сдвиг ещё PAN_IDLE_SEC секунд, затем плавно возвращает фокус на
 -- ячейку мяча.
@@ -81,12 +90,11 @@ local OVERLAY_SCENE_Y = 320.0
 local HUD_SCREEN_FRAC = 80.0 / 960.0
 
 -- режим камеры из game.project (bumpy.camera_mode):
---   "auto"  — cover в HTML5 и на тач-устройствах, fit на нативном десктопе
---             (по умолчанию). Браузерное окно имеет произвольный размер, а
---             сборка рассчитана на мобильный форм-фактор, поэтому в вебе
---             всегда работает игровой режим с камерой за ячейкой мяча;
---   "cover" — всегда заполнять экран по длинному краю поля;
---   "fit"   — всегда показывать сцену целиком (прежнее поведение).
+--   "auto"  — приближение и слежение за мячом только в полноэкранном режиме
+--             на устройстве; во всех остальных случаях показывается всё поле
+--             (по умолчанию);
+--   "cover" — всегда приближать и следить за мячом (отладочный режим);
+--   "fit"   — всегда показывать сцену целиком (отладочный режим).
 local function config_mode()
     local ok, value = pcall(sys.get_config_string, "bumpy.camera_mode", "auto")
     local mode = (ok and type(value) == "string") and value or "auto"
@@ -97,23 +105,51 @@ local function config_mode()
     return "auto"
 end
 
--- Нужен ли игровой режим камеры (cover) в режиме "auto": в HTML5 он включён
--- всегда, на остальных платформах — только при сенсорном вводе
-local function wants_game_camera()
-    local info = sys.get_sys_info()
-    local system = info.system_name or ""
+-- Устройство + полноэкранный режим в HTML5. Одним JS-вызовом, потому что
+-- html5.run небесплатен и опрашивается несколько раз в секунду.
+--   * устройство — есть тач-экран (смартфон/планшет), а не десктоп;
+--   * fullscreen — Fullscreen API, standalone-PWA (window.navigator.standalone
+--     на iOS Safari, либо display-mode: standalone/fullscreen).
+local function html5_is_device_fullscreen()
+    if type(html5) ~= "table" or type(html5.run) ~= "function" then
+        return false
+    end
+    local ok, result = pcall(html5.run,
+        "String(!!( ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))" ..
+        " && (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement" ..
+        " || document.msFullscreenElement || window.navigator.standalone === true" ..
+        " || (window.matchMedia && (window.matchMedia('(display-mode: fullscreen)').matches" ..
+        " || window.matchMedia('(display-mode: standalone)').matches))) ))")
+    return ok and result == "true"
+end
+
+-- Платформа определяется один раз: sys.get_sys_info() вызывается из опроса
+-- полноэкранного режима несколько раз в секунду, а его результат неизменен.
+--   "html5"   — браузерная сборка, fullscreen нужно проверять через JS;
+--   "mobile"  — нативная мобильная сборка, она всегда занимает весь экран;
+--   "desktop" — всё остальное: показываем всё поле.
+local function detect_platform()
+    local ok, info = pcall(sys.get_sys_info)
+    local system = (ok and info and info.system_name) or ""
 
     if system == "HTML5" then
-        return true
+        return "html5"
     end
-
-    if system == "HTML5" then
-        local ok, result = pcall(html5.run,
-            "String((matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))")
-        return ok and result == "true"
+    if system == "Android" or system == "iPhone OS" or system == "iOS" then
+        return "mobile"
     end
+    return "desktop"
+end
 
-    return false
+-- Нужен ли игровой режим камеры (cover) в режиме "auto".
+-- Приближение и слежение за мячом разрешены ТОЛЬКО в полноэкранном режиме на
+-- устройстве: полноэкранный браузер на тач-смартфоне/планшете либо нативная
+-- мобильная сборка. В оконном браузере и на десктопе показывается всё поле.
+local function wants_game_camera(platform)
+    if platform == "html5" then
+        return html5_is_device_fullscreen()
+    end
+    return platform == "mobile"
 end
 
 -- экспоненциальное сглаживание: не зависит от частоты кадров
@@ -277,9 +313,13 @@ local function step(self, dt, snap)
         hud_x = left
         hud_y = bottom + field_view_h - HUD_LOCAL_Y * hud_s
     else
+        -- fit: полоса лежит на своём месте в сцене (x 0..960, y 640..720),
+        -- поэтому локальные дизайнерские координаты совпадают с мировыми.
+        -- Привязывать её к левому низу видимой области нельзя: при fit по
+        -- ширине окна left != 0 и полоса съехала бы вместе с полем.
         hud_s = 1.0
-        hud_x = left
-        hud_y = bottom
+        hud_x = 0.0
+        hud_y = 0.0
     end
 
     -- публикация видимой области мира и трансформа полосы HUD
@@ -334,20 +374,49 @@ function init(self)
     self.panning = false     -- ручной сдвиг камеры свайпом
     self.pan_idle = 0.0      -- время с последнего движения пальцем
 
-    local mode = config_mode()
-    if mode == "cover" then
+    self.platform = detect_platform()
+    self.mode = config_mode()
+    if self.mode == "cover" then
         self.cover = true
-    elseif mode == "fit" then
+    elseif self.mode == "fit" then
         self.cover = false
     else
-        self.cover = wants_game_camera()
+        self.cover = wants_game_camera(self.platform)
     end
+    self.cover_check = 0.0  -- таймер перепроверки fullscreen в режиме "auto"
 
     -- первый кадр: сразу валидная проекция всей сцены, чтобы не мигало
     step(self, 0.0, true)
 end
 
+-- в режиме "auto" перепроверяем полноэкранный режим: при входе в fullscreen
+-- включается приближение и слежение за мячом, при выходе — снова всё поле.
+-- Вход в cover происходит плавно (в fit-режиме видно всё поле, мяч не теряется),
+-- а выход из него выставляется сразу — чтобы после сворачивания окна кадр
+-- мгновенно показывал весь уровень, без «промежуточной» обрезки
+local function refresh_cover(self, dt)
+    if self.mode ~= "auto" then
+        return
+    end
+    self.cover_check = (self.cover_check or 0.0) + dt
+    if self.cover_check < COVER_REFRESH_SEC then
+        return
+    end
+    self.cover_check = 0.0
+    local cover = wants_game_camera(self.platform)
+    if cover ~= self.cover then
+        self.cover = cover
+        self.panning = false
+        self.pan_idle = 0.0
+        if not cover then
+            -- выход из fullscreen: кадр fit-режима выставляем сразу
+            self.snap = true
+        end
+    end
+end
+
 function update(self, dt)
+    refresh_cover(self, dt)
     local snap = self.snap
     self.snap = false
     step(self, dt, snap)
