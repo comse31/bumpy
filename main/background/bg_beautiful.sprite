@@ -1,0 +1,4 @@
+tile_set: "/main/background/bg_beautiful.atlas"
+default_animation: "bg_beautiful"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

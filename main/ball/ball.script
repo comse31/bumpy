@@ -537,6 +537,23 @@ local function is_block_top(row, col)
     return row > 0 and has_block(row - 1, col)
 end
 
+-- есть ли удерживаемая/заказанная горизонтальная команда (без учёта окон ввода):
+-- нужно герою при приземлении, чтобы решить, переворачиваться ли на месте
+local function has_move_input(self)
+    return self.left_held or self.right_held or self.touch_left or self.touch_right
+        or self.tap_left or self.tap_right
+end
+
+-- универсальный хук удара о потолок/низ платформы: герой сам решает,
+-- отскочить (Bumpy) или остановиться (поведение по умолчанию)
+local function hero_bounce_ceiling(self)
+    local fn = self.hero.on_ceiling
+    if fn then
+        return fn(self) == true
+    end
+    return false
+end
+
 -- приземление без команды игрока: обычный герой пружинит (settle), а мяч на
 -- липкой поверхности не прыгает — просто лежит на ней и ждёт команды игрока
 local function settle_or_stick(self)
@@ -544,7 +561,7 @@ local function settle_or_stick(self)
         go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
         self.next_touch_time = nil
     else
-        self.hero.settle(self)
+        self.hero.settle(self, has_move_input(self))
     end
 end
 
@@ -636,7 +653,7 @@ local function land_on_block_top(self)
     self.press_used = false
     self.block_top_time = self.time
     go.set_position(vmath.vector3(column_center(self.col), land_y, pos.z))
-    self.hero.settle(self)
+    self.hero.settle(self, has_move_input(self))
     self.squash = 1.0
     self.squash_axis = "y"
     self.hero.apply_squash(self)
@@ -821,11 +838,9 @@ local function bounce_off_block(self, direction)
     self.next_touch_time = self.time + self.bounce_duration
     -- сплющивание по X (горизонтальное) включается в момент касания блока
     self.bounce_squash_pending = true
-    -- мяч переворачивается на 180° в сторону прыжка за время отскока
-    self.rot_from = self.rot
-    self.rot_to = self.rot - direction * math.pi
-    self.rot_duration = self.bounce_duration
-    self.rot_t = self.bounce_duration
+    self.action_time = self.time
+    -- специфика героя (поворот/выгиб) — в его модуле, как и для перегородки
+    self.hero.on_action(self, direction, self.bounce_duration)
 end
 
 -- подскок на обычную высоту отскока со смещением в заданном направлении: смещение
@@ -1332,13 +1347,19 @@ function update(self, dt)
         if position.y >= level_y then
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, JUMP_SPEED, 0.0))
         end
-        -- верхний край поля: подъём прекращается, мяч начинает падать
+        -- верхний край поля: подъём прекращается; герой может отскочить вниз
         if position.y + RADIUS >= SCREEN_H then
+            go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
+            self.squash = 1.0
+            self.squash_axis = "y"
+            self.hero.apply_squash(self)
+            local bounced = hero_bounce_ceiling(self)
             self.high_jump = false
             self.rising = false
-            go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
-            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-            print("CEILING: high jump stopped at the top edge of the field")
+            if not bounced then
+                go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+            end
+            print("CEILING: high jump hit the top edge of the field")
         end
         -- стена (блок) выше в колонке: мяч упирается в её нижнюю грань — подъём
         -- прекращается, мяч начинает падать (коллизия с блоком не настроена,
@@ -1348,14 +1369,20 @@ function update(self, dt)
                 local block_bottom = block_bottom_face(r, self.col)
                 if block_bottom then
                     if position.y + RADIUS >= block_bottom then
-                        self.high_jump = false
-                        self.rising = false
                         go.set_position(vmath.vector3(position.x, block_bottom - RADIUS, position.z))
-                        go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
                         -- удар мяча снизу по кирпичной кладке: сносит один ряд,
                         -- а самый первый удар по стене расходует один молоток
                         -- (без молотка кладка остаётся целой)
                         hit_block_from_below(self, r, self.col)
+                        self.squash = 1.0
+                        self.squash_axis = "y"
+                        self.hero.apply_squash(self)
+                        local bounced = hero_bounce_ceiling(self)
+                        self.high_jump = false
+                        self.rising = false
+                        if not bounced then
+                            go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
+                        end
                         print(string.format("CEILING: high jump hit the bottom of block cell=(%d, %d)", self.col, r))
                     end
                     break
@@ -1549,9 +1576,14 @@ function update(self, dt)
         swept_land(self, dt)
     end
 
-    -- затухание «удара» — общая величина self.squash для визуала героев
+    -- затухание «удара» — общая величина self.squash для визуала героев.
+    -- Герой может задать свой коэффициент длительности (Bumpy мягче и медленнее).
     if self.squash > 0.0 then
-        self.squash = math.max(0.0, self.squash - dt / SQUASH_DURATION)
+        local scale = 1.0
+        if self.hero.squash_time_scale then
+            scale = self.hero.squash_time_scale(self)
+        end
+        self.squash = math.max(0.0, self.squash - dt / (SQUASH_DURATION * scale))
     end
 
     -- анимация визуала героя: у мяча — сплющивание и переворот,
@@ -1793,6 +1825,10 @@ function on_message(self, message_id, message, sender)
             -- по склону (наклонная нормаль контакта иначе уводит мяч в сторону)
             if slope_direction(row, self.col) ~= 0 then
                 rebound_straight_down(self)
+            else
+                -- обычный потолок: герой может отскочить вниз (Bumpy), иначе
+                -- мяч просто останавливается и падает под гравитацией
+                hero_bounce_ceiling(self)
             end
             return
         end

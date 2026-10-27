@@ -29,3 +29,6 @@ desktop.ini
 /.internal
 /build
 /bumpy_save
+
+# Временная папка для входящего арта
+/art_inbox/

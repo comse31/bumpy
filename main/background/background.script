@@ -1,0 +1,34 @@
+-- Фоновый слой для предпросмотра: 4 готовых AI-фона из art/raw.
+-- Пока тема 1..4 — соответствующий фон, остальные темы остаются без фона.
+-- Когда появятся все 12 миров, здесь будет выбор слоя по theme.
+local state = require("main.level.level_state")
+
+local IDS = { "#bg1", "#bg2", "#bg3", "#bg4" }
+local BY_THEME = {
+    [1] = "#bg1",
+    [2] = "#bg2",
+    [3] = "#bg3",
+    [4] = "#bg4",
+}
+
+function init(self)
+    for _, id in ipairs(IDS) do
+        msg.post(id, "disable")
+    end
+end
+
+function update(self, dt)
+    local theme = state.theme or 1
+    if theme == self.theme then
+        return
+    end
+    self.theme = theme
+    local active = BY_THEME[theme]
+    for _, id in ipairs(IDS) do
+        if id == active then
+            msg.post(id, "enable")
+        else
+            msg.post(id, "disable")
+        end
+    end
+end
