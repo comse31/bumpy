@@ -139,6 +139,27 @@ local function hide_highlight(self)
     self.cell_touch = nil
 end
 
+-- отправить мячу команду тапа по ячейке (row 0 — низ, col 0..5).
+-- id касания прикладывается, чтобы мяч мог отменить команду, если жест
+-- окажется свайпом-панорамированием (см. "cell_cancel" в ball.script).
+-- Одна команда на касание: повторный вызов для того же пальца игнорируется
+local function send_cell_tap(self, touch_id)
+    local tap = self.cell_tap
+    if not tap or self.cell_sent then
+        return
+    end
+    self.cell_sent = true
+    self.cell_cmd_id = touch_id
+    msg.post("/camera", "camera_focus")
+    msg.post("/ball", "cell_tap", {
+        row = tap.row,
+        col = tap.col,
+        dir = tap.dir,
+        side = tap.side,
+        id = touch_id,
+    })
+end
+
 -- Подсветка ячейки: рамка ровно по границам ячейки в GUI-единицах.
 local function show_cell_highlight(self, tap)
     local gx, gy, gw, gh = world_to_gui((tap.col + 0.5) * CELL_W, (tap.row + 0.5) * CELL_H, CELL_W, CELL_H)
@@ -283,6 +304,16 @@ local function window_callback(self, event, data)
     elseif event == window.WINDOW_EVENT_FOCUS_LOST then
         if self.mode == MODE_CELLS then
             hide_highlight(self)
+            -- незавершённый тап без отпускания пальца: команду отменяем,
+            -- иначе мяч среагирует на нажатие, которое игрок уже не завершил
+            if self.cell_cmd_id then
+                msg.post("/ball", "cell_cancel", { id = self.cell_cmd_id })
+                self.cell_cmd_id = nil
+            end
+            self.pan_touch = nil
+            self.pan_start = nil
+            self.pan_last = nil
+            self.cell_tap = nil
         else
             release_all(self)
         end
@@ -300,6 +331,14 @@ function init(self)
     self.wall_highlight = gui.get_node("wall_highlight")
     self.touches = {}
     self.cell_touch = nil
+    -- id тач-касания, по которому уже отправлена команда "cell_tap": нужен для
+    -- отмены команды, если жест окажется свайпом
+    self.cell_cmd_id = nil
+    -- команда текущего касания уже отправлена (не отправляем дважды)
+    self.cell_sent = false
+    -- мяч в высоком прыжке (/ball присылает "motion_state"): в полёте тап
+    -- отправляется сразу при нажатии, иначе — по отпусканию
+    self.high_flying = false
 
     gui.set_enabled(self.cell_highlight, false)
     gui.set_enabled(self.wall_highlight, false)
@@ -343,6 +382,14 @@ function final(self)
     end
 end
 
+-- состояние движения мяча: во время высокого прыжка тап по ячейке должен
+-- срабатывать мгновенно (палец не успеет отпустить), вне полёта — по отпусканию
+function on_message(self, message_id, message, sender)
+    if message_id == hash("motion_state") then
+        self.high_flying = (message and message.high) and true or false
+    end
+end
+
 function on_input(self, action_id, action)
     if action_id ~= hash("touch") then
         return
@@ -351,15 +398,21 @@ function on_input(self, action_id, action)
     local touch_id = action.touch_id or 0
 
     -- режим тапа по игровым ячейкам.
-    -- Нажатие запоминает и ячейку, и стартовую точку. Если палец сдвинулся
-    -- больше порога — это свайп (панорамирование камеры), и команда мячу НЕ
-    -- отправляется: тап по ячейке должен оставаться тапом.
+    -- Нажатие запоминает и ячейку, и стартовую точку. Если мяч сейчас в
+    -- высоком прыжке (self.high_flying — /ball сообщает это сообщением
+    -- "motion_state"), команда уходит СРАЗУ при нажатии: в полёте мяч
+    -- пролетает ячейку за доли секунды, и отпускание пальца могло бы опоздать.
+    -- Вне полёта команда уходит по отпусканию — так свайп-панорамирование не
+    -- превращается в команду мячу. Мимо цели (свайп) команда отменяется
+    -- сообщением "cell_cancel".
     if self.mode == MODE_CELLS then
         if action.pressed then
             self.pan_touch = touch_id
             self.pan_start = { x = action.x, y = action.y }
             self.pan_last = { x = action.x, y = action.y }
             self.pan_moved = false
+            -- новое касание: своя команда (мультитач не должен блокировать)
+            self.cell_sent = false
             local wx, wy = gui_to_world(action.x, action.y)
             self.cell_tap = wx and cell_from_world(wx, wy) or nil
             if self.cell_tap then
@@ -369,27 +422,27 @@ function on_input(self, action_id, action)
                     show_cell_highlight(self, self.cell_tap)
                 end
                 self.cell_touch = touch_id
+                if self.high_flying then
+                    send_cell_tap(self, touch_id)
+                end
             end
         elseif action.released then
             if self.cell_touch == touch_id then
                 hide_highlight(self)
             end
-            -- тап без заметного сдвига — отправляем команду мячу
-            if self.pan_touch == touch_id and not self.pan_moved and self.cell_tap then
-                local tap = self.cell_tap
-                msg.post("/camera", "camera_focus")
-                msg.post("/ball", "cell_tap", {
-                    row = tap.row,
-                    col = tap.col,
-                    dir = tap.dir,
-                    side = tap.side,
-                })
-            end
             if self.pan_touch == touch_id then
+                -- вне полёта короткий тап без сдвига — команда по отпусканию
+                if not self.pan_moved and self.cell_tap and not self.cell_sent then
+                    send_cell_tap(self, touch_id)
+                end
                 self.pan_touch = nil
                 self.pan_start = nil
                 self.pan_last = nil
                 self.cell_tap = nil
+                self.cell_sent = false
+                if self.cell_cmd_id == touch_id then
+                    self.cell_cmd_id = nil
+                end
             end
         elseif self.pan_touch == touch_id and self.pan_last then
             -- палец ведут по экрану — двигаем камеру
@@ -402,8 +455,15 @@ function on_input(self, action_id, action)
                     local tdy = action.y - self.pan_start.y
                     if math.sqrt(tdx * tdx + tdy * tdy) > pan_threshold() then
                         self.pan_moved = true
-                        -- это свайп, а не тап: подсветку ячейки убираем
+                        -- это свайп, а не тап: подсветку ячейки убираем,
+                        -- а отправленную команду отменяем. В полёте команда уже
+                        -- применена мячом мгновенно — её отмена была бы вредна,
+                        -- поэтому отменяем только неотправленную/непринятую
                         hide_highlight(self)
+                        if self.cell_cmd_id == touch_id and not self.high_flying then
+                            self.cell_cmd_id = nil
+                            msg.post("/ball", "cell_cancel", { id = touch_id })
+                        end
                     end
                 end
                 pan_camera(dx, dy)

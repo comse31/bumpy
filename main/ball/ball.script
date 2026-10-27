@@ -363,6 +363,12 @@ local function lose_life(self, cause)
         return
     end
     self.game_over = true
+    -- полёт прерван смертью: управление должно снова отправлять тап по
+    -- отпусканию, а не мгновенно при нажатии (см. report_motion)
+    if self.reported_high then
+        self.reported_high = false
+        msg.post("/controls", "motion_state", { high = false })
+    end
     -- ловушка (если была): скрыть плашку и снять отсчёт
     if self.trap_active then
         self.trap_active = false
@@ -876,11 +882,25 @@ end
 -- поля; во время полёта можно запрыгнуть на соседнюю ячейку любого ряда.
 -- Используется и с обычной платформы, и с липкой (там высокий прыжок доступен
 -- и при параллельном перемещении — см. sticky.script)
+-- Сообщить /controls, идёт ли сейчас высокий прыжок. Пока мяч летит вверх,
+-- сенсорное управление отправляет тап по ячейке СРАЗУ при нажатии (палец не
+-- успевает отпустить: ячейку мяч пролетает за доли секунды). Вне полёта тап
+-- отправляется по отпусканию — так свайп-панорамирование не превращается в
+-- команду мячу.
+local function report_motion(self)
+    local high = self.high_jump and true or false
+    if self.reported_high ~= high then
+        self.reported_high = high
+        msg.post("/controls", "motion_state", { high = high })
+    end
+end
+
 local function start_high_jump(self)
     bend_platform(self, self.row, self.col)
     go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, HIGH_JUMP_SPEED, 0.0))
     self.rising = true
     self.high_jump = true
+    report_motion(self)
     -- мяч оторвался от липкой поверхности: покой снят
     self.sticky_rest = false
     self.action_time = self.time
@@ -958,9 +978,14 @@ local function set_cell_cmd(self, message)
         col = vmath.clamp(math.floor(col), -1, COLS)
     end
     -- цель допрыгивания по своему ряду: мяч шагает к нажатой ячейке на каждом
-    -- приземлении, пока не дойдёт до неё или не встретит препятствие
+    -- приземлении, пока не дойдёт до неё или не встретит препятствие.
+    -- Тап во время высокого прыжка цель допрыгивания НЕ ставит: он либо меняет
+    -- траекторию полёта (запрыгивание на одну ячейку в сторону нажатия), либо
+    -- игнорируется, если мяч уже пролетел нажатую ячейку
     local side = message.side and true or false
-    if not side and col and col >= 0 and col < COLS then
+    if self.high_jump then
+        -- намерение полёта не должно превращаться в цель после приземления
+    elseif not side and col and col >= 0 and col < COLS then
         self.target_col = col
         self.target_row = vmath.clamp(math.floor(tonumber(message.row) or 0), 0, COLS - 1)
     else
@@ -974,8 +999,13 @@ local function set_cell_cmd(self, message)
         -- мяч прыгает в её сторону на уровне нажатия и ударяется о перегородку
         side = message.side and true or false,
         time = self.time,
+        -- id тач-касания: по нему команда отменяется, если жест окажется
+        -- свайпом-панорамированием (см. "cell_cancel")
+        id = message.id,
     }
-    self.cell_jump = nil
+    -- уже назначенная цель соскока (cell_jump) НЕ сбрасывается: если новый тап
+    -- придёт по уже пролётенной ячейке, он будет проигнорирован, а прежняя цель
+    -- останется в силе (см. try_cell_command)
 end
 
 -- выполнить отложенное намерение тапа по ячейке, когда мяч готов к действию.
@@ -991,20 +1021,52 @@ local function try_cell_command(self)
         clear_cell_cmd(self)
         return false
     end
-    -- высокий прыжок уже идёт: тап задаёт сторону соскока. Соскок выполняется
-    -- на уровне нажатой ячейки, но не ниже текущего ряда полёта (если мяч уже
-    -- пролетел этот ряд) — иначе он бы «спускался» вниз по траектории
+    -- высокий прыжок уже идёт: тап задаёт сторону соскока (запрыгивание).
+    -- Траекторию можно изменить, ТОЛЬКО пока мяч не долетел до целевой ячейки.
+    -- «Долетел» = нижняя часть мяча пересекла уровень отскока этого ряда
+    -- (BOUNCE_Y[row]); тот же признак ведёт счётчик hj_row в update. Проверяем
+    -- и по позиции, и по счётчику — команда может прийти из on_message до
+    -- ближайшего update, когда hj_row ещё не сдвинулся.
+    -- Тап по уже достигнутой ячейке игнорируется, а ранее назначенная цель
+    -- соскока сохраняется в силе.
     if self.high_jump then
-        -- тап в собственную колонку во время полёта ничего не меняет
-        if cmd.dir ~= 0 then
-            local level = math.max(cmd.row, self.hj_row or self.row)
-            local dir = cmd.dir
-            -- cell_jump ставим после сброса: clear_cell_cmd обнуляет и его
+        local passed = cmd.row < (self.hj_row or self.row)
+            or (go.get_position().y - RADIUS >= BOUNCE_Y[cmd.row])
+        -- направление соскока: для тапа по ячейке поля — в её сторону,
+        -- для тапа за боковой границей поля — задано знаком dir (±1)
+        local dir = cmd.dir
+        if dir == 0 and cmd.col then
+            if cmd.col > self.col then
+                dir = 1
+            elseif cmd.col < self.col then
+                dir = -1
+            end
+        end
+        if passed or dir == 0 then
+            -- ячейка пройдена либо тап в собственную колонку: траектория не
+            -- меняется, но уже поставленная цель соскока остаётся в силе
+            local keep = self.cell_jump
             clear_cell_cmd(self)
-            self.cell_jump = { row = level, dir = dir }
+            self.cell_jump = keep
+            -- пройденная ячейка не становится целью допрыгивания после падения
+            self.target_col = nil
+            self.target_row = nil
+            print(string.format("HIGH JUMP tap ignored row=%d passed=%s dir=%d",
+                cmd.row, tostring(passed), dir))
             return true
         end
+        -- до этой ячейки мяч ещё не долетел: команда меняет траекторию полёта.
+        -- Уровень соскока — нажатый ряд, но не ниже ряда, на котором мяч уже
+        -- находится (цикл подъёма сам применит цель, как только дотянется до него)
+        local level = math.max(cmd.row, self.hj_row or self.row)
+        -- цель допрыгивания по ряду относится к приземлению и здесь не нужна:
+        -- во время полёта команда задаёт именно сторону соскока
+        self.target_col = nil
+        self.target_row = nil
+        -- cell_jump ставим после сброса: clear_cell_cmd обнуляет и его
         clear_cell_cmd(self)
+        self.cell_jump = { row = level, dir = dir, border = cmd.side }
+        print(string.format("HIGH JUMP relocate row=%d dir=%d col=%d", level, dir, self.col))
         return true
     end
     -- команда принимается только когда мяч не в середине действия
@@ -1391,6 +1453,7 @@ function init(self)
     self.target_col = nil
     self.rising = false
     self.high_jump = false
+    self.reported_high = false
     -- липкая поверхность: мяч лежит на ней (sticky_rest) и за одно касание может
     -- совершить РОВНО одно действие — высокий прыжок ИЛИ соскок в сторону
     -- (sticky_action_used); sticky_cell — ячейка липкой платформы, к которой мяч
@@ -1793,6 +1856,9 @@ function update(self, dt)
         end
     end
 
+    -- высокий прыжок мог закончиться в этом кадре (потолок, кладка, соскок):
+    -- сообщаем сенсорному управлению актуальное состояние полёта
+    report_motion(self)
     -- запомнить текущую Y мяча: в следующем кадре swept-тест сравнит с ней позицию
     -- и поймает пересечение верхней грани платформы (см. swept_land)
     self.prev_pos_y = go.get_position().y
@@ -1870,6 +1936,27 @@ function on_message(self, message_id, message, sender)
     if message_id == hash("cell_tap") then
         if not self.ready_wait and not self.game_over and not self.trap_active then
             set_cell_cmd(self, message)
+            -- в высоком прыжке команда исполняется сразу, не дожидаясь
+            -- следующего update: на постоянной скорости мяч проходит ячейку
+            -- меньше чем за 0.2 с, и задержка на кадр заметно съедала окно
+            -- «мяч ещё не долетел до ячейки»
+            if self.high_jump then
+                try_cell_command(self)
+            end
+        end
+        return
+    end
+    -- жест оказался свайпом (панорамирование камеры): команда тапа отменяется.
+    -- Отменяем только ещё не исполненное намерение, и только своё касание:
+    -- в высоком прыжке команда применяется мгновенно (cell_cmd уже пуст), и
+    -- свайп после неё не должен сбрасывать назначенный соскок
+    if message_id == hash("cell_cancel") then
+        local id = message and message.id
+        if self.cell_cmd and (id == nil or self.cell_cmd.id == id) then
+            -- цель допрыгивания тоже снимаем: игрок тянул экран, а не целился
+            self.target_col = nil
+            self.target_row = nil
+            clear_cell_cmd(self)
         end
         return
     end
@@ -1925,6 +2012,10 @@ function on_message(self, message_id, message, sender)
         self.high_jump = false
         self.rising = false
         self.rising_moved = false
+        -- полёт сброшен: сообщаем управлению, что тап можно отправлять
+        -- по отпусканию (иначе флаг высокого прыжка остался бы включённым)
+        self.reported_high = false
+        msg.post("/controls", "motion_state", { high = false })
         -- сброс swept-теста: после телепорта на стартовую ячейку прошлая
         -- позиция невалидна, иначе первый кадр может дать ложное приземление
         self.prev_pos_y = nil
