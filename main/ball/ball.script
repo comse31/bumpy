@@ -1805,6 +1805,9 @@ function on_input(self, action_id, action)
         if action.pressed then
             self.ready_wait = false
             msg.post("/ready", "hide")
+            -- старт уровня: камера плавно переходит от полного вида поля
+            -- (как на плашке READY) к режиму игры — масштаб по длинному краю
+            msg.post("/camera", "play")
             -- включить физику мяча: старт уровня начинается только теперь
             msg.post("#collision_object", "enable")
             go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
@@ -1895,6 +1898,10 @@ function on_message(self, message_id, message, sender)
         msg.post("#collision_object", "disable")
         self.ready_wait = true
         msg.post("/ready", "show", { level = state.index })
+        -- камера на плашке READY всегда показывает всё игровое поле целиком;
+        -- после нажатия клавиши (см. on_input) она плавно перейдёт к масштабу
+        -- игры — по длинному краю экрана
+        msg.post("/camera", "ready")
         -- сброс состояния уровня: счётчик собираемых, флаг выхода и перехода;
         -- если собирать нечего — выход уже открыт level.script'ом.
         -- game_over снимается: после потери жизни уровень перезапускается,

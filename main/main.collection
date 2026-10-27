@@ -1,11 +1,12 @@
 name: "main"
 # Уровень не прописан статически: его генерирует level.script из метаданных
 # (main/levels.json). Здесь остаются только загрузчик уровня, шар и HUD-карман.
-# --- пропорции поля: переключает рендер на fixed-fit проекцию (см. projection.script),
-# чтобы при любом размере окна игровое поле масштабировалось без искажения
+# --- камера: на мобильных масштабирует поле по длинному краю экрана,
+# на плашке READY показывает поле целиком, плавно следует за мячом
+# (см. main/render/camera.script)
 instances {
-  id: "projection"
-  prototype: "/main/render/projection.go"
+  id: "camera"
+  prototype: "/main/render/camera.go"
 }
 instances {
   id: "level"

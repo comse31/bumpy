@@ -141,8 +141,8 @@
   `"cells"` (тап по игровым ячейкам), `"auto"` (cells на тач-устройствах,
   buttons на остальных).
 - [`controls.gui_script`](main/controls/controls.gui_script:1): режим `cells` —
-  тап в координатах окна переводится в игровую ячейку через проекцию
-  fixed-fit (та же, что в [`projection.script`](main/render/projection.script:1));
+  тап в координатах окна переводится в игровую ячейку через видимую область
+  мира из [`camera_state.lua`](main/render/camera_state.lua:1) (см. этап 13);
   нажатая ячейка подсвечивается тонкой рамкой (узел `cell_highlight`), тап за
   боковой границей поля (не дальше одной ячейки) подсвечивает только стенку
   (узел `wall_highlight`). Команда уходит в мяч сообщением `cell_tap`.
@@ -158,6 +158,54 @@
 - [`input/game.input_binding`](input/game.input_binding:1): к действию `touch`
   добавлен `MOUSE_BUTTON_1`, чтобы режим можно было проверять и на настольной
   сборке.
+
+## Этап 13. Камера: масштаб по длинному краю и плавный фокус — ВЫПОЛНЕНО
+- Поле больше не вписывается целиком в окно: на мобильных (тач-устройствах)
+  оно масштабируется так, чтобы заполнить экран по длинному краю — одна из
+  сторон поля видна полностью, вторая обрезается. На плашке «READY FOR LEVEL»
+  по-прежнему виден весь уровень целиком, а после старта масштаб плавно
+  меняется к игровому.
+- Камера — [`camera.script`](main/render/camera.script:1): каждый кадр
+  считает масштаб и видимый прямоугольник мира, плавно (экспоненциальное
+  сглаживание, ≈0.4 с) подводит масштаб к цели и следует за мячом с «мёртвой
+  зоной» (24% видимого размера) и небольшой задержкой. Центр ограничен полем,
+  поэтому за его краем не показывается пустота.
+- Собственный рендер-скрипт [`game.render_script`](main/render/game.render_script:1)
+  (форк `builtins/render/default.render_script`) принимает границы видимой
+  области числами через сообщение `set_camera_rect` и строит по ним
+  ортопроекцию. Матрицу (`matrix4`) в сообщении передать нельзя — отсюда
+  именно прямоугольник. Подключён через
+  [`game.render`](main/render/game.render:1) и `bootstrap.render` в
+  [`game.project`](game.project:3). GUI рисуется отдельной stretch-проекцией,
+  поэтому интерфейс не «раздувается» вместе с полем.
+- Общее состояние — [`camera_state.lua`](main/render/camera_state.lua:1):
+  видимый прямоугольник мира и трансформ полосы HUD. По нему
+  [`controls.gui_script`](main/controls/controls.gui_script:1) переводит тапы
+  в мировые координаты (раньше считался fixed-fit от размера окна), а
+  [`pocket_item.script`](main/pocket/pocket_item.script:1) каждый кадр
+  переводит локальные координаты полосы в мировые — карман остаётся
+  закреплённым за экраном и не уезжает вместе с полем.
+- Плашки READY / GAME OVER / TRAPPED камера держит по центру видимой части
+  поля и сохраняет их экранный размер (`scale = fit_zoom / zoom`).
+- Переключение режима — сообщения `ready` / `play` из
+  [`ball.script`](main/ball/ball.script:1) (по `level_start` и по первому
+  нажатию на плашке READY).
+- Настройка `bumpy.camera_mode` в [`game.project`](game.project:37):
+  `"auto"` (cover на тач-устройствах, fit на десктопе), `"cover"` (всегда
+  заполнять экран по длинному краю), `"fit"` (прежнее поведение — вся сцена
+  целиком).
+- Прежний [`projection.script`](main/render/projection.script:1) (fixed-fit
+  через `use_fixed_fit_projection`) удалён вместе с `projection.go`.
+- **Проверка в HTML5/Docker.** Бандл собирается через Defold Editor HTTP API
+  (`/bob`: `build` с `archive=true`, затем `bundle` с
+  `architectures=wasm-web` и `bundle-output=dist/web`), образ —
+  `docker build -f docker/Dockerfile -t bumpy-web .`, запуск —
+  `docker run -d --name bumpy-web -p 8080:80 bumpy-web:latest`,
+  игра открывается на <http://localhost:8080>. Проверено: на плашке READY
+  виден весь уровень, в режиме `cover` поле заполняет экран по длинному краю,
+  HUD-полоса растянута на всю ширину и прижата к верху.
+  Примечание: `docker compose build` на этой машине падает на баге BuildKit
+  (`changes out of order`), поэтому образ собирается с `DOCKER_BUILDKIT=0`.
 
 ## Что осталось
 1. **П. 19: проверка нехватки снаряжения → проигрыш.** Нужно на старте уровня

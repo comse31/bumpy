@@ -1,5 +1,6 @@
 [bootstrap]
 main_collection = /main/main.collectionc
+render = /main/render/game.renderc
 
 [script]
 shared_state = 1
@@ -31,8 +32,10 @@ use_fixed_timestep = 1
 scale_mode = stretch
 use_indexeddb = 1
 
+
 [bumpy]
 controls_mode = "auto"
+camera_mode = "auto"
 
 [project]
 title = bumpy

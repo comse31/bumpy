@@ -5,7 +5,13 @@
 --               если тап за границей поля) подсвечивается тонкой рамкой, и мяч
 --               прыгает в её сторону; тап по ячейке выше мяча — высокий прыжок;
 --   "auto"    — "cells" на тач-устройствах, "buttons" на остальных.
--- Текущее управление (кнопки) сохранено полностью.
+--
+-- Пересчёт координат нажатий в мир идёт через main/render/camera_state.lua:
+-- камера может масштабировать поле (на мобильных — по длинному краю экрана) и
+-- сдвигать видимую область за мячом, поэтому ни fixed-fit, ни фиксированный
+-- масштаб здесь больше не годятся.
+local camera_state = require("main.render.camera_state")
+
 local GAME_W = 960
 local GAME_H = 720
 
@@ -53,43 +59,31 @@ local function config_mode()
 end
 
 -- Мир и GUI-сцена проецируются ПО-РАЗНОМУ, хотя начала координат совпадают
--- (левый нижний угол сцены):
---   * МИР рендерится fixed-fit (main/render/projection.script): масштаб
---     zoom = min(w/960, h/720) и поля ox/oy по краям окна;
+-- (левый нижний угол видимой области):
+--   * МИР рисуется камерой (main/render/camera.script): она задаёт видимый
+--     прямоугольник мира — он может быть больше поля и сдвигаться за мячом;
 --   * GUI-сцена 960x720 растягивается на всё окно (stretch): 1 единица по X
 --     равна w/960 пикселя, по Y — h/720.
 -- В этих же GUI-единицах приходят action.x/action.y и работает gui.pick_node.
--- Поэтому пересчёт идёт в два шага: мир -> пиксели окна (fixed-fit),
--- затем пиксели -> GUI-единицы (обратный stretch).
-local function projection()
-    local w, h = window.get_size()
-    if w <= 0 or h <= 0 then
-        return nil
-    end
-    local zoom = math.min(w / GAME_W, h / GAME_H)
-    return w, h, zoom, (w - GAME_W * zoom) * 0.5, (h - GAME_H * zoom) * 0.5
-end
+-- Поэтому пересчёт идёт через camera_state: мир <-> дизайн 960x720.
 
 -- Мировой прямоугольник (центр cx,cy, размер ww,wh) -> позиция и размер узла UI
 local function world_to_gui(cx, cy, ww, wh)
-    local w, h, zoom, ox, oy = projection()
-    if not zoom then
+    if camera_state.width <= 0 or camera_state.height <= 0 then
         return nil
     end
-    return (ox + cx * zoom) * (GAME_W / w),
-        (oy + cy * zoom) * (GAME_H / h),
-        ww * zoom * (GAME_W / w),
-        wh * zoom * (GAME_H / h)
+    local gx, gy = camera_state.world_to_screen(cx, cy)
+    local usize = ww * GAME_W / camera_state.width
+    local vsize = wh * GAME_H / camera_state.height
+    return gx, gy, usize, vsize
 end
 
--- GUI-единицы -> мировая точка (обратное к world_to_gui)
+-- GUI-единицы -> мировая точка
 local function gui_to_world(gx, gy)
-    local w, h, zoom, ox, oy = projection()
-    if not zoom then
+    if camera_state.width <= 0 or camera_state.height <= 0 then
         return nil
     end
-    return (gx * (w / GAME_W) - ox) / zoom,
-        (gy * (h / GAME_H) - oy) / zoom
+    return camera_state.screen_to_world(gx, gy)
 end
 
 local function set_button(node, x, y, size, enabled)
@@ -182,10 +176,6 @@ local function layout(self)
         return
     end
 
-    local zoom = math.min(w / GAME_W, h / GAME_H)
-    local band_x = math.max(0, (w / zoom - GAME_W) * 0.5)
-    local band_y = math.max(0, (h / zoom - GAME_H) * 0.5)
-
     -- режим тапа по ячейкам: экранные кнопки не нужны
     if self.mode == MODE_CELLS then
         self.active = {}
@@ -197,17 +187,35 @@ local function layout(self)
         return
     end
 
+    -- Кнопки расставляются по ВИДИМОЙ части поля: камера масштабирует и
+    -- сдвигает поле, поэтому края берём из camera_state, а не из fixed-fit
+    -- масштаба окна. Видимый прямоугольник поля обрезаем границами GUI-экрана
+    -- 0..960 x 0..720 (вне их узлы не видны) и отступаем внутрь.
+    local field_left, field_bottom = camera_state.world_to_screen(0.0, 0.0)
+    local field_right, field_top = camera_state.world_to_screen(FIELD_W, FIELD_H)
+    local vis_left = math.max(0, field_left)
+    local vis_right = math.min(GAME_W, field_right)
+    local vis_bottom = math.max(0, field_bottom)
+    local vis_top = math.min(GAME_H, field_top)
+    if vis_right - vis_left < 1 or vis_top - vis_bottom < 1 then
+        vis_left, vis_right, vis_bottom, vis_top = 0, GAME_W, 0, GAME_H
+    end
+    local band_x = math.max((vis_right - vis_left) * 0.06, 0)
+    local band_y = math.max((vis_top - vis_bottom) * 0.06, 0)
+
     local portrait = h > w
     self.active = {}
 
+    local vis_w = vis_right - vis_left
+    local vis_h = vis_top - vis_bottom
+
     if portrait then
         local size = math.min(GAME_W * 0.20, math.max(56, band_y * 0.80))
-        local margin = 24
-        local y = math.max(-band_y + size * 0.5, -band_y * 0.5)
+        local y = vis_bottom + band_y + size * 0.5
 
-        set_button(self.left, margin + size * 0.5, y, size, true)
-        set_button(self.high_center, GAME_W * 0.5, y, size, true)
-        set_button(self.right, GAME_W - margin - size * 0.5, y, size, true)
+        set_button(self.left, vis_left + band_x + size * 0.5, y, size, true)
+        set_button(self.high_center, (vis_left + vis_right) * 0.5, y, size, true)
+        set_button(self.right, vis_right - band_x - size * 0.5, y, size, true)
 
         set_button(self.high_left, 0, 0, size, false)
         set_button(self.high_right, 0, 0, size, false)
@@ -219,17 +227,17 @@ local function layout(self)
         }
     else
         local size = math.min(GAME_H * 0.24, math.max(56, band_x * 0.85))
-        local left_x = math.max(-band_x + size * 0.5, -band_x * 0.5)
-        local right_x = math.min(GAME_W + band_x - size * 0.5, GAME_W + band_x * 0.5)
-        local bottom_y = GAME_H * 0.25
-        local top_y = GAME_H * 0.75
+        local left_x = vis_left + band_x + size * 0.5
+        local right_x = vis_right - band_x - size * 0.5
+        local bottom_y = vis_bottom + vis_h * 0.25
+        local top_y = vis_bottom + vis_h * 0.75
 
         set_button(self.left, left_x, bottom_y, size, true)
         set_button(self.high_left, left_x, top_y, size, true)
         set_button(self.right, right_x, bottom_y, size, true)
         set_button(self.high_right, right_x, top_y, size, true)
 
-        set_button(self.high_center, GAME_W * 0.5, 0, size, false)
+        set_button(self.high_center, (vis_left + vis_right) * 0.5, 0, size, false)
 
         self.active = {
             { node = self.left, action = "left" },
@@ -251,6 +259,7 @@ local function window_callback(self, event, data)
         end
     end
 end
+
 
 function init(self)
     self.left = gui.get_node("left")
@@ -281,6 +290,22 @@ function init(self)
     layout(self)
     window.set_listener(window_callback)
     msg.post(".", "acquire_input_focus")
+end
+
+-- Камера может сдвигать/масштабировать поле, поэтому раскладку кнопок
+-- периодически обновляем. Пересчитываем только при заметном изменении видимой
+-- области, чтобы не дёргать узлы каждый кадр.
+function update(self, dt)
+    if self.mode ~= MODE_BUTTONS or not self.touch_enabled then
+        return
+    end
+    local left, bottom = camera_state.world_to_screen(0.0, 0.0)
+    local right, top = camera_state.world_to_screen(FIELD_W, FIELD_H)
+    local sig = left + bottom * 3.0 + right * 7.0 + top * 11.0
+    if self.layout_sig == nil or math.abs(sig - self.layout_sig) > 0.5 then
+        self.layout_sig = sig
+        layout(self)
+    end
 end
 
 function final(self)
