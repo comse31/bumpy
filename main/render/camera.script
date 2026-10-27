@@ -14,8 +14,14 @@
 --     краю: zoom = max(w/960, field_h/640), где field_h — высота экрана минус
 --     полоса HUD. Одна из сторон поля всегда видна полностью, вторая
 --     обрезается;
---   * если мяч уходит к краю видимой части (за «мёртвую зону»), камера плавно
---     следует за ним с небольшой задержкой и не показывает пустоту за полем;
+--   * в игре плавно ведёт центр экрана к центру ЯЧЕЙКИ, в которой сейчас
+--     находится мяч: ячейка (клетка сетки 6x6) стремится оказаться ровно в
+--     середине видимой части. По той оси, где поле видно целиком, камера
+--     стоит по центру поля — там обрезки нет и мяч виден всегда;
+--   * мяч никогда не уходит за край экрана: если центрирование ячейки
+--     невозможно (мяч в крайней ячейке), камера прижимается к краю поля, а
+--     если мяч всё же оказался за видимой частью (высокий прыжок выше поля),
+--     камера сдвигается ровно настолько, чтобы вернуть его в кадр;
 --   * при переходе ready -> play масштаб меняется плавно.
 --
 -- Видимый прямоугольник мира и трансформ полосы HUD публикуются в общем
@@ -37,6 +43,18 @@ local SCENE_H = 720.0
 -- полоса HUD в дизайнерских координатах: низ y=640, высота 80
 local HUD_LOCAL_Y = 640.0
 
+-- сетка игрового поля 6x6 (совпадает с ball.script): размер одной ячейки
+local COLS = 6.0
+local CELL_W = FIELD_W / COLS
+local CELL_H = FIELD_H / COLS
+
+-- Отступ, на который камере разрешено показывать пустоту за краем поля —
+-- половина ячейки по каждой оси. В крайних ячейках поле не прижимается
+-- вплотную к краю экрана, поэтому мяч в них не «липнет» к границе кадра, а
+-- камера при переходе между крайними ячейками не дёргается.
+local MARGIN_X = CELL_W * 0.5
+local MARGIN_Y = CELL_H * 0.5
+
 local NEAR = -1.0
 local FAR = 1.0
 
@@ -45,9 +63,10 @@ local FAR = 1.0
 local ZOOM_TAU = 0.40
 local FOCUS_TAU = 0.35
 
--- «мёртвая зона»: мяч может отойти от центра на эту долю видимого размера,
--- и только тогда камера начинает за ним двигаться
-local DEADZONE = 0.24
+-- Панорамирование свайпом: после последнего движения пальца камера держит
+-- ручной сдвиг ещё PAN_IDLE_SEC секунд, затем плавно возвращает фокус на
+-- ячейку мяча.
+local PAN_IDLE_SEC = 1.0
 
 -- плашки поверх поля: в режиме cover — центр видимой части поля
 local OVERLAYS = { "/ready", "/game_over", "/trap" }
@@ -62,7 +81,10 @@ local OVERLAY_SCENE_Y = 320.0
 local HUD_SCREEN_FRAC = 80.0 / 960.0
 
 -- режим камеры из game.project (bumpy.camera_mode):
---   "auto"  — cover на тач-устройствах, fit на десктопе (по умолчанию);
+--   "auto"  — cover в HTML5 и на тач-устройствах, fit на нативном десктопе
+--             (по умолчанию). Браузерное окно имеет произвольный размер, а
+--             сборка рассчитана на мобильный форм-фактор, поэтому в вебе
+--             всегда работает игровой режим с камерой за ячейкой мяча;
 --   "cover" — всегда заполнять экран по длинному краю поля;
 --   "fit"   — всегда показывать сцену целиком (прежнее поведение).
 local function config_mode()
@@ -75,11 +97,13 @@ local function config_mode()
     return "auto"
 end
 
-local function has_touch_controls()
+-- Нужен ли игровой режим камеры (cover) в режиме "auto": в HTML5 он включён
+-- всегда, на остальных платформах — только при сенсорном вводе
+local function wants_game_camera()
     local info = sys.get_sys_info()
     local system = info.system_name or ""
 
-    if system == "Android" or system == "iPhone OS" or system == "iPadOS" then
+    if system == "HTML5" then
         return true
     end
 
@@ -101,24 +125,43 @@ local function smooth(current, target, dt, tau)
     return current + (target - current) * k
 end
 
--- целевой центр камеры по одной оси: пока мяч внутри центральной «мёртвой
--- зоны» — камера стоит; как только мяч подходит к краю видимой части, центр
--- сдвигается, удерживая мяч на границе зоны. Результат ограничен полем,
--- чтобы за его краем не показывалась пустота
-local function follow_axis(ball, cam, view, span)
+-- центр ячейки сетки, в которой находится точка (x, y). Ячейка индексируется
+-- от нижнего левого угла поля; индекс ограничен сеткой, поэтому упавший за
+-- поле мяч всё равно даёт валидную ячейку
+local function cell_center(x, y)
+    local col = math.floor(x / CELL_W)
+    local row = math.floor(y / CELL_H)
+    col = math.max(0, math.min(COLS - 1, col))
+    row = math.max(0, math.min(COLS - 1, row))
+    return (col + 0.5) * CELL_W, (row + 0.5) * CELL_H
+end
+
+-- Целевой центр камеры по одной оси.
+--   * по оси, где поле видно целиком, обрезки нет — центрируем само поле и
+--     НЕ корректируем по мячу: иначе камера дёргалась бы на каждом прыжке
+--     мяча внутри верхней ячейки (мяч приближается к краю кадра, страховка
+--     сдвигает камеру, мяч падает — камера возвращается). Поле в кадре
+--     целиком, поэтому мяч виден всегда;
+--   * иначе ведём центр к центру ячейки мяча. Границы, в которых может
+--     оказаться центр, раздвинуты за пределы поля на margin (половину
+--     ячейки): за краем поля показывается полоса пустоты шириной в половину
+--     ячейки, поэтому мяч в крайней ячейке не прижат к краю экрана, а камера
+--     не скачет при переходе между крайними ячейками.
+-- Страховка «мяч в кадре» здесь не нужна: при view >= span поле видно
+-- целиком, а при view < span кадр следует за ячейкой и мяч всегда внутри.
+local function follow_axis(cell, view, span, margin)
     if view >= span then
-        -- по этой оси поле видно целиком: центрируем его
         return span * 0.5
     end
     local half = view * 0.5
-    local dead = view * DEADZONE * 0.5
-    local target = cam
-    if ball < cam - half + dead then
-        target = ball + half - dead
-    elseif ball > cam + half - dead then
-        target = ball - half + dead
+    local lo = half - margin
+    local hi = span - half + margin
+    if lo > hi then
+        -- видимая часть почти равна полю: границы схлопнулись, показываем
+        -- поле по центру
+        return span * 0.5
     end
-    return vmath.clamp(target, half, span - half)
+    return vmath.clamp(cell, lo, hi)
 end
 
 -- позиция мяча (если объект ещё не создан — центр поля)
@@ -178,21 +221,35 @@ local function step(self, dt, snap)
     local hud_world_h = hud_px / self.zoom
     local field_view_h = math.max(1.0, view_h - hud_world_h)
 
+    -- ручное панорамирование: пока игрок двигал экран свайпом (и PAN_IDLE_SEC
+    -- после последнего движения), камера стоит там, куда её сдвинули, и не
+    -- следит за мячом
+    if self.panning then
+        self.pan_idle = (self.pan_idle or 0.0) + dt
+        if self.pan_idle >= PAN_IDLE_SEC or not cover then
+            self.panning = false
+        end
+    end
+
     -- целевой центр камеры
     local target_cx, target_cy
-    if cover then
-        -- игра: следим за мячом по обеим осям; по оси, где поле видно
-        -- целиком, камера стоит по центру поля
+    if self.panning then
+        -- ручной сдвиг: цель — текущее положение, движения нет
+        target_cx, target_cy = self.cx, self.cy
+    elseif cover then
+        -- игра: центр экрана ведём к центру ячейки мяча; по оси, где поле
+        -- видно целиком, камера стоит по центру поля
         local bx, by = ball_position()
-        target_cx = follow_axis(bx, self.cx, view_w, FIELD_W)
-        target_cy = follow_axis(by, self.cy, field_view_h, FIELD_H)
+        local ccx, ccy = cell_center(bx, by)
+        target_cx = follow_axis(ccx, view_w, FIELD_W, MARGIN_X)
+        target_cy = follow_axis(ccy, field_view_h, FIELD_H, MARGIN_Y)
     else
         -- плашка READY / режим fit: центр всей сцены (поле + HUD)
         target_cx = SCENE_W * 0.5
         target_cy = SCENE_H * 0.5
     end
 
-    if snap then
+    if snap or self.panning then
         self.cx, self.cy = target_cx, target_cy
     else
         self.cx = smooth(self.cx, target_cx, dt, FOCUS_TAU)
@@ -274,6 +331,8 @@ function init(self)
     self.zoom = nil          -- на первом кадре масштаб задаётся сразу
     self.cx = SCENE_W * 0.5  -- центр сцены по X
     self.cy = SCENE_H * 0.5  -- центр поля по Y
+    self.panning = false     -- ручной сдвиг камеры свайпом
+    self.pan_idle = 0.0      -- время с последнего движения пальцем
 
     local mode = config_mode()
     if mode == "cover" then
@@ -281,7 +340,7 @@ function init(self)
     elseif mode == "fit" then
         self.cover = false
     else
-        self.cover = has_touch_controls()
+        self.cover = wants_game_camera()
     end
 
     -- первый кадр: сразу валидная проекция всей сцены, чтобы не мигало
@@ -300,8 +359,57 @@ function on_message(self, message_id, message, sender)
         -- выставляются сразу, без промежуточных кадров
         self.ready = true
         self.snap = true
+        -- ручной сдвиг сбрасывается: на плашке виден весь уровень
+        self.panning = false
+        self.pan_idle = 0.0
     elseif message_id == hash("play") then
         -- старт уровня: дальше масштаб и центр меняются плавно
         self.ready = false
+    elseif message_id == hash("camera_focus") then
+        -- игрок снова управляет мячом (тап по ячейке, нажатие кнопки):
+        -- ручной сдвиг снимается, фокус сразу возвращается к мячу
+        self.panning = false
+        self.pan_idle = 0.0
+    elseif message_id == hash("camera_pan") then
+        -- Свайп по экрану: сдвигаем камеру на delta (в мировых единицах) и
+        -- продлеваем удержание фокуса. Пока идут движения, pan_idle = 0, затем
+        -- PAN_IDLE_SEC без свайпов — и камера плавно возвращается к мячу.
+        if not self.cover or self.ready or not self.zoom then
+            return
+        end
+        local dx = message.dx or 0.0
+        local dy = message.dy or 0.0
+        if dx == 0.0 and dy == 0.0 then
+            return
+        end
+        local w, h = window.get_size()
+        local view_w = w / self.zoom
+        local view_h = h / self.zoom
+        -- видимая часть поля по высоте (без полосы HUD) — так же, как в step
+        local hud_px = w * HUD_SCREEN_FRAC
+        local field_view_h = math.max(1.0, view_h - hud_px / self.zoom)
+
+        -- Границы те же, что при слежении: за краем поля показывается не
+        -- больше половины ячейки. По оси, где поле видно целиком, двигать
+        -- нечего — камера там жёстко по центру поля.
+        local moved = false
+        if view_w < FIELD_W then
+            local lo, hi = view_w * 0.5 - MARGIN_X, FIELD_W - view_w * 0.5 + MARGIN_X
+            if lo <= hi then
+                self.cx = vmath.clamp(self.cx + dx, lo, hi)
+                moved = true
+            end
+        end
+        if field_view_h < FIELD_H then
+            local lo, hi = field_view_h * 0.5 - MARGIN_Y, FIELD_H - field_view_h * 0.5 + MARGIN_Y
+            if lo <= hi then
+                self.cy = vmath.clamp(self.cy + dy, lo, hi)
+                moved = true
+            end
+        end
+        if moved then
+            self.panning = true
+            self.pan_idle = 0.0
+        end
     end
 end

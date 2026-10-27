@@ -28,6 +28,12 @@ local CELL_H = FIELD_H / ROWS
 local MODE_BUTTONS = "buttons"
 local MODE_CELLS = "cells"
 
+-- Свайп по свободной части экрана панорамирует камеру (см. camera.script,
+-- сообщение "camera_pan"). Порог — доля меньшей стороны окна, чтобы жест
+-- одинаково распознавался на телефоне и на десктопе; на нажатие кнопки или
+-- тап по ячейке свайп не влияет.
+local PAN_THRESHOLD_FRAC = 0.03
+
 local function has_touch_controls()
     local info = sys.get_sys_info()
     local system = info.system_name or ""
@@ -84,6 +90,29 @@ local function gui_to_world(gx, gy)
         return nil
     end
     return camera_state.screen_to_world(gx, gy)
+end
+
+-- Порог свайпа в пикселях окна: меньше — считаем тапом
+local function pan_threshold()
+    local w, h = window.get_size()
+    return math.min(w, h) * PAN_THRESHOLD_FRAC
+end
+
+-- Сдвиг камеры от перемещения пальца: экранные пиксели -> мировые единицы.
+-- Палец тянет «мир» за собой, поэтому знак обратный движению: палец вправо
+-- показывает то, что левее, — камера уходит влево.
+local function pan_camera(dx_px, dy_px)
+    if dx_px == 0.0 and dy_px == 0.0 then
+        return
+    end
+    local zoom = camera_state.zoom
+    if not zoom or zoom <= 0.0 then
+        return
+    end
+    msg.post("/camera", "camera_pan", {
+        dx = -dx_px / zoom,
+        dy = -dy_px / zoom,
+    })
 end
 
 local function set_button(node, x, y, size, enabled)
@@ -321,33 +350,63 @@ function on_input(self, action_id, action)
 
     local touch_id = action.touch_id or 0
 
-    -- режим тапа по игровым ячейкам
+    -- режим тапа по игровым ячейкам.
+    -- Нажатие запоминает и ячейку, и стартовую точку. Если палец сдвинулся
+    -- больше порога — это свайп (панорамирование камеры), и команда мячу НЕ
+    -- отправляется: тап по ячейке должен оставаться тапом.
     if self.mode == MODE_CELLS then
         if action.pressed then
+            self.pan_touch = touch_id
+            self.pan_start = { x = action.x, y = action.y }
+            self.pan_last = { x = action.x, y = action.y }
+            self.pan_moved = false
             local wx, wy = gui_to_world(action.x, action.y)
-            if not wx then
-                return
+            self.cell_tap = wx and cell_from_world(wx, wy) or nil
+            if self.cell_tap then
+                if self.cell_tap.side then
+                    show_wall_highlight(self, self.cell_tap)
+                else
+                    show_cell_highlight(self, self.cell_tap)
+                end
+                self.cell_touch = touch_id
             end
-            local tap = cell_from_world(wx, wy)
-            if not tap then
-                return
-            end
-            if tap.side then
-                show_wall_highlight(self, tap)
-            else
-                show_cell_highlight(self, tap)
-            end
-            self.cell_touch = touch_id
-            -- мяч сам решает, что делать: прыжок в сторону, высокий прыжок и т.д.
-            msg.post("/ball", "cell_tap", {
-                row = tap.row,
-                col = tap.col,
-                dir = tap.dir,
-                side = tap.side,
-            })
         elseif action.released then
             if self.cell_touch == touch_id then
                 hide_highlight(self)
+            end
+            -- тап без заметного сдвига — отправляем команду мячу
+            if self.pan_touch == touch_id and not self.pan_moved and self.cell_tap then
+                local tap = self.cell_tap
+                msg.post("/camera", "camera_focus")
+                msg.post("/ball", "cell_tap", {
+                    row = tap.row,
+                    col = tap.col,
+                    dir = tap.dir,
+                    side = tap.side,
+                })
+            end
+            if self.pan_touch == touch_id then
+                self.pan_touch = nil
+                self.pan_start = nil
+                self.pan_last = nil
+                self.cell_tap = nil
+            end
+        elseif self.pan_touch == touch_id and self.pan_last then
+            -- палец ведут по экрану — двигаем камеру
+            local dx = action.x - self.pan_last.x
+            local dy = action.y - self.pan_last.y
+            if dx ~= 0.0 or dy ~= 0.0 then
+                self.pan_last = { x = action.x, y = action.y }
+                if self.pan_start then
+                    local tdx = action.x - self.pan_start.x
+                    local tdy = action.y - self.pan_start.y
+                    if math.sqrt(tdx * tdx + tdy * tdy) > pan_threshold() then
+                        self.pan_moved = true
+                        -- это свайп, а не тап: подсветку ячейки убираем
+                        hide_highlight(self)
+                    end
+                end
+                pan_camera(dx, dy)
             end
         end
         return
@@ -359,16 +418,35 @@ function on_input(self, action_id, action)
             if gui.pick_node(control.node, action.x, action.y) then
                 self.touches[touch_id] = control
                 gui.set_scale(control.node, vmath.vector3(0.92, 0.92, 1))
+                -- управление мячом возвращает фокус камеры на него
+                msg.post("/camera", "camera_focus")
                 msg.post("/ball", "touch_control", { control = control.action, pressed = true })
                 return
             end
         end
+        -- нажатие вне кнопок — начало возможного свайпа по экрану
+        self.pan_touch = touch_id
+        self.pan_last = { x = action.x, y = action.y }
+        self.pan_moved = false
     elseif action.released then
         local control = self.touches[touch_id]
         if control then
             self.touches[touch_id] = nil
             gui.set_scale(control.node, vmath.vector3(1, 1, 1))
             msg.post("/ball", "touch_control", { control = control.action, pressed = false })
+        end
+        if self.pan_touch == touch_id then
+            self.pan_touch = nil
+            self.pan_last = nil
+        end
+    elseif self.pan_touch == touch_id and self.pan_last then
+        -- палец ведут по свободной части экрана — панорамируем камеру
+        local dx = action.x - self.pan_last.x
+        local dy = action.y - self.pan_last.y
+        if dx ~= 0.0 or dy ~= 0.0 then
+            self.pan_last = { x = action.x, y = action.y }
+            self.pan_moved = true
+            pan_camera(dx, dy)
         end
     end
 end

@@ -249,6 +249,140 @@ HTML5 не зашиваются: нужный однопоточный движ�
 | [`tools/api_bundle_html5.js`](tools/api_bundle_html5.js) | Бандлинг `wasm-web` через Defold Editor HTTP API |
 | [`.dockerignore`](.dockerignore) | Минимизация контекста сборки образа |
 
+## 6. Панель Services в IntelliJ IDEA (Ubuntu)
+
+Чтобы [`docker/docker-compose.yml`](docker/docker-compose.yml) отображался в
+окне **Services** (View → Tool Windows → Services) и контейнерами можно было
+управлять из IDE, нужны три вещи: доступ к Docker-сокету, включённый плагин
+Docker и добавленная конфигурация Docker/Compose.
+
+### 6.1 Доступ к `/var/run/docker.sock`
+
+Сокет принадлежит `root:docker` с правами `660`, поэтому пользователь должен
+входить в группу `docker`:
+
+```bash
+sudo usermod -aG docker "$USER"
+```
+
+Группы применяются только к **новым** процессам. После `usermod`:
+
+- перелогиньтесь в сессию (или выполните `newgrp docker` в терминале);
+- **обязательно перезапустите IDEA**, если она была запущена до `usermod` —
+  процесс наследует список групп на момент старта. Проверить, видит ли IDE
+  сокет, можно так:
+
+```bash
+cat /proc/$(pgrep -f idea-IU | head -1)/status | grep ^Groups
+getent group docker        # убедиться, что gid есть в списке Groups
+```
+
+Если gid группы `docker` в `Groups` процесса IDEA отсутствует — Docker-плагин
+будет показывать «Cannot connect» независимо от настроек.
+
+Временное решение без перелогина (ACL на сокет, действует до перезапуска
+Docker — после него сокет создаётся заново):
+
+```bash
+sudo setfacl -m "u:$USER:rw" /var/run/docker.sock
+```
+
+Проверка, что доступ есть именно через сокет, без группы:
+
+```bash
+env -i PATH=/usr/bin:/bin HOME="$HOME" docker ps
+```
+
+### 6.2 Плагин Docker
+
+Плагин **Docker** (`Docker`, id `Docker`) входит в состав IntelliJ IDEA
+Ultimate и обычно включён. Проверить: Settings → Plugins → Installed → вкладка
+Bundled, найти «Docker». Если выключен — включить и перезапустить IDE.
+
+Плагин **Dev Containers** (`org.jetbrains.plugins.docker.gateway`) для запуска
+compose не нужен; в логе он может ругаться
+`requires plugin with id=com.intellij.modules.ultimate` — на работу
+Docker/Compose это не влияет.
+
+### 6.3 Подключение Docker-демона
+
+Settings → Build, Execution, Deployment → Docker → **+** → Docker:
+
+| Поле | Значение |
+|------|----------|
+| Name | `Docker` |
+| Connect to Docker daemon with | Docker for Linux |
+| Docker executable | `/usr/bin/docker` |
+| Docker Compose executable | `/usr/libexec/docker/cli-plugins/docker-compose` либо `docker compose` |
+
+После **Apply** внизу окна появится «Connection successful». Если плагин
+использует CLI (`docker-compose`), а не плагин compose v2, путь нужно указать
+явно: отдельного бинарника `docker-compose` в системе нет, есть только
+`/usr/libexec/docker/cli-plugins/docker-compose` (Compose v5.6.0).
+
+### 6.4 Добавление compose-файла
+
+В окне **Services**: **+** → Docker → Docker Compose (или правый клик по
+`docker/docker-compose.yml` в Project → **Run 'docker-compose.yml'**).
+
+- Compose file: `docker/docker-compose.yml`
+- Project name / Environment: оставить по умолчанию (`name: bumpy` уже задан
+  в файле, `build.context: ..` разрешается относительно каталога compose-файла)
+- После первого запуска сервис `bumpy-web` появится в дереве Services: логи,
+  port bindings `8080→80`, кнопки Start/Stop/Restart/Down.
+
+Конфигурация запуска сохраняется в `.idea/` (каталог в `.gitignore`), поэтому
+каждому разработчику нужно добавить её один раз.
+
+### 6.5 Частые проблемы
+
+| Симптом | Причина / решение |
+|---------|-------------------|
+| «Cannot connect to Docker daemon» | пользователь не в группе `docker`, либо IDEA запущена до `usermod` — перезапустить IDE |
+| «Permission denied … docker.sock» | то же; проверить `/proc/<pid идеи>/status` → `Groups` |
+| Compose-файл открывается, но сервисы не видны | не добавлена конфигурация Docker Compose в Services |
+| «Docker Compose executable not found» | указать `/usr/libexec/docker/cli-plugins/docker-compose` |
+| После перезапуска Docker снова «permission denied» | слетел ACL — лечится группой `docker` (постоянное решение), а не `setfacl` |
+| Контейнер запущен, но порт занят | изменить `ports` в [`docker/docker-compose.yml`](docker/docker-compose.yml), у нашего CI занят `9999` |
+
+## 7. Управление и камера в HTML5
+
+### Камера
+
+В вебе камера всегда работает в игровом режиме (настройка
+`bumpy.camera_mode = "auto"` в [`game.project`](../game.project:38) трактуется
+как `cover` для платформы `HTML5`):
+
+- центр экрана плавно ведётся к центру **ячейки**, в которой находится мяч, —
+  камера зависит только от номера ячейки, но не от позиции мяча внутри неё;
+  поэтому при прыжках мяча в пределах одной ячейки камера не двигается;
+- отступ за краем поля — половина ячейки (`CELL_W/2 = 80`, `CELL_H/2 = 53.3`):
+  в крайней ячейке поле не упирается в край экрана, и камера там тоже стоит;
+- по оси, где поле видно целиком, камера зафиксирована по центру поля.
+
+### Панорамирование свайпом
+
+Свайп по экрану двигает камеру. Когда игрок отпускает палец и в течение
+**1 секунды** (`PAN_IDLE_SEC`) ничего не делает, фокус плавно возвращается к
+ячейке мяча. Любое игровое действие (тап по ячейке или нажатие экранной
+кнопки) возвращает фокус немедленно — сообщением `camera_focus`.
+
+| Параметр | Значение | Где |
+|---|---|---|
+| Порог свайпа | 3% меньшей стороны окна | `PAN_THRESHOLD_FRAC` в [`controls.gui_script`](../main/controls/controls.gui_script:35) |
+| Задержка возврата фокуса | 1.0 с | `PAN_IDLE_SEC` в [`camera.script`](../main/render/camera.script:69) |
+| Предел сдвига | половина ячейки за краем поля | `MARGIN_X` / `MARGIN_Y` в [`camera.script`](../main/render/camera.script:50) |
+
+Свайп не мешает управлению: в режиме `cells` команда мячу отправляется только
+при отпускании, если смещение пальца не превысило порог; в режиме `buttons`
+свайп начинается только при нажатии вне экранных кнопок. Сообщение
+`camera_pan` несёт сдвиг в мировых единицах, камера сама ограничивает его
+границами поля.
+
+Проверка на окне 1280×720 (видимая область 960×460): свайп на 200 px сдвигает
+камеру на 150 мировых единиц (упирается в предел 80 за краем поля), после 1 с
+бездействия камера возвращается к центру ячейки ≈1.2 с.
+
 ## Замечания
 
 - Игра должна открываться по HTTP (не через `file://`) — бандл рассчитан на загрузку с веб-сервера.
