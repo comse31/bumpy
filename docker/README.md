@@ -16,6 +16,19 @@
 node tools/api_bundle_html5.js
 ```
 
+Скрипт читает порт и токен из `.internal/editor.port` и `.internal/editor.token`
+(их создаёт открытый редактор Defold) и вызывает `resolve build bundle` с
+`--architectures wasm-web` — собирается только однопоточный движок, который
+лежит внутри `bob.jar` (движка `wasm_pthread-web` там нет, и за ним пришлось бы
+идти на `d.defold.com`). Доступные опции:
+
+| Опция | По умолчанию | Назначение |
+|-------|--------------|------------|
+| `--output <dir>` | `dist/web` | Каталог `--bundle-output` |
+| `--variant <v>` | `debug` | `debug` (быстрее) или `release` |
+| `--architectures <a>` | `wasm-web` | Архитектуры движка |
+| `--timeout <sec>` | `1800` | Таймаут запроса к `/bob` |
+
 Результат:
 - [`build/web/`](build/web) — кэш/промежуточные артефакты сборки (в `.gitignore`)
 - [`dist/web/bumpy/`](dist/web/bumpy) — готовый к раздаче бандл: `index.html`, `dmloader.js`, `*.wasm`, `archive/`
@@ -46,6 +59,44 @@ docker run --rm -p 8080:80 bumpy-web
 ```bash
 bash docker/build-and-run.sh
 ```
+
+Скрипт делает всё то же самое (бандл → образ → контейнер) и сам
+
+* проверяет, что `dist/web/bumpy/index.html` появился;
+* при сбое `docker compose build` откатывается на `DOCKER_BUILDKIT=0` и затем на
+  `docker build` (см. ниже);
+* удаляет старый контейнер `bumpy-web` перед созданием нового — иначе
+  `docker compose up` падает с `Conflict. The container name "/bumpy-web" is
+  already in use`, если контейнер был запущен вручную или другим
+  compose-проектом.
+
+### Windows/Docker Desktop: `changes out of order`
+
+На части конфигураций (Docker Compose 2.24 + BuildKit, контекст сборки — корень
+репозитория) `docker compose build` падает ещё до первого шага:
+
+```
+ERROR: changes out of order: "docker/nginx.conf" ""
+failed to solve: changes out of order
+```
+
+Это баг bake-ридера compose, а не Dockerfile: тот же контекст успешно
+собирается через `docker build` и `docker buildx build`. Обходные пути:
+
+```bash
+# 1) классический сборщик (быстрее всего)
+set DOCKER_BUILDKIT=0
+docker compose -f docker/docker-compose.yml build
+
+# 2) прямой docker build (без compose)
+docker build -f docker/Dockerfile -t bumpy-web:latest .
+
+# 3) buildx напрямую из каталога docker/
+cd docker && docker buildx build -f Dockerfile -t bumpy-web:latest .. && cd ..
+```
+
+После этого контейнер поднимается обычным
+`docker compose -f docker/docker-compose.yml up -d --force-recreate`.
 
 ## 3. Готовый комплект для передачи
 
