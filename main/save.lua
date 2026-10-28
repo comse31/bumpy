@@ -20,6 +20,8 @@
 --
 -- Модуль общий для всех скриптов (в game.project включён shared_state = 1),
 -- поэтому одна и та же таблица доступна и level.script, и ball.script.
+local test_mode = require("main.test_mode")
+
 local M = {}
 
 -- id приложения и имя файла для sys.get_save_file
@@ -45,8 +47,14 @@ end
 
 -- прочитать сохранение. Возвращает таблицу или nil, если сохранения нет,
 -- формат устарел либо данные повреждены. sys.load может бросить ошибку
--- (например, при первом запуске), поэтому оборачиваем в pcall
+-- (например, при первом запуске), поэтому оборачиваем в pcall.
+--
+-- В тестовом режиме (bumpy.test_level = 1) сохранение не читается: тестовый
+-- уровень всегда начинается с начала, а прогресс реальной игры не подмешивается
 function M.load()
+    if test_mode.is_enabled() then
+        return nil
+    end
     local p = path()
     if not p then
         return nil
@@ -69,8 +77,14 @@ end
 -- монтирует этот каталог с autoPersist: данные файла сбрасываются в IndexedDB
 -- при закрытии файлового дескриптора (close), т.е. сразу после sys.save.
 -- Отдельной функции синхронизации в API нет (sys.sync_fs не существует).
+--
+-- В тестовом режиме (bumpy.test_level = 1) запись не выполняется: прогон
+-- тестового уровня не должен затирать сохранение реальной игры
 function M.store(data)
     if type(data) ~= "table" then
+        return
+    end
+    if test_mode.is_enabled() then
         return
     end
     local p = path()

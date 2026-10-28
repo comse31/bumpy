@@ -36,7 +36,8 @@ use_indexeddb = 1
 [bumpy]
 controls_mode = "auto"
 camera_mode = "auto"
-levels_path = ""
+test_level = 0
+debug = 0
 
 [project]
 title = bumpy
