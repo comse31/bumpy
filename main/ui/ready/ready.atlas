@@ -1,11 +1,11 @@
 images {
-  image: "/main/ui/ready.png"
+  image: "/main/ui/ready/ready.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 animations {
   id: "idle"
   images {
-    image: "/main/ui/ready.png"
+    image: "/main/ui/ready/ready.png"
   }
 }
 margin: 0

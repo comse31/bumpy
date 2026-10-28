@@ -1,0 +1,289 @@
+-- Стартовое меню: приветствие с именем игрока, выбор режима и правка имени.
+--
+-- Показывается после загрузки игры и после GAME OVER (см. ball_progress.lua).
+-- Пока меню открыто, игра на паузе: game_mode.is_menu_open() == true, мяч
+-- заморожен, ввод получает меню, а не мяч.
+--
+-- Пункты:
+--   1. Classic game — основная игра с жизнями (game_mode.CLASSIC);
+--   2. Adventure    — игра без учёта жизней (game_mode.ADVENTURE).
+--
+-- Вверху — «hello PlayerN»: N — автоинкремент визитов (main/player_profile.lua).
+-- Имя можно изменить (клавиша F2 или тап по строке имени): ввод идёт через
+-- text-триггер (input/game.input_binding), Enter сохраняет, Esc/повторный F2 —
+-- отмена, Backspace стирает последний символ. Имя запоминается между сессиями.
+--
+-- Надписи задаются из скрипта, а не статикой в .gui: так текст легко менять без
+-- правки ресурсов. Шрифт Banty Bold содержит только латиницу, поэтому вся
+-- текстовая часть интерфейса — на английском.
+local profile = require("main.player_profile")
+local mode = require("main.game_mode")
+-- прогресс классической игры: текущий и максимально достигнутый уровень
+local save = require("main.save")
+
+-- имена узлов сцены (main/ui/menu/menu.gui)
+local NODES = {
+    "backdrop",
+    "title",
+    "greeting",
+    "btn_classic",
+    "btn_classic_label",
+    "btn_adventure",
+    "btn_adventure_label",
+    "name_box",
+    "name_hint",
+    "edit_hint",
+}
+
+local LABEL_CLASSIC = "Classic game"
+local LABEL_ADVENTURE = "Adventure"
+local HINT_EDIT = "F2 or tap the name to change"
+local HINT_SAVE = "Enter - save, Backspace - erase, Esc - cancel"
+local NAME_PREFIX = "Name: "
+local GREETING_PREFIX = "hello "
+
+-- допустимые символы имени: латиница, цифры, пробел, дефис и подчёркивание
+local function sanitize_char(ch)
+    if not ch or ch == "" then
+        return nil
+    end
+    if ch:match("^%s$") then
+        return " "
+    end
+    if ch:match("^[%w%-_%.]$") then
+        return ch
+    end
+    return nil
+end
+
+local function set_visible(self, visible)
+    self.visible = visible and true or false
+    for _, id in ipairs(NODES) do
+        gui.set_enabled(self.nodes[id], self.visible)
+    end
+    if self.visible then
+        msg.post(".", "acquire_input_focus")
+    elseif self.editing then
+        self.editing = false
+    end
+    -- ВАЖНО: фокус ввода НЕ отпускаем. GUI-скрипт меню продолжает получать
+    -- ввод, но при visible == false сразу возвращает false — событие идёт
+    -- дальше по стеку ввода к мячу. Отпускание фокуса ломало порядок стека:
+    -- после него события до /ball уже не доходили (не снималась плашка READY).
+end
+
+-- Подпись классического пункта: к названию добавляется текущий и максимально
+-- достигнутый уровень. У «Adventure» прогресс не учитывается, поэтому там
+-- остаётся только название.
+local function classic_label()
+    local level, max_level = save.progress()
+    return string.format("%s   lvl %d (max %d)", LABEL_CLASSIC, level, max_level)
+end
+
+-- текст приветствия и строки имени с учётом режима правки
+local function refresh(self)
+    local shown = self.editing and (self.buffer .. "|") or self.name
+    gui.set_text(self.nodes.greeting, GREETING_PREFIX .. self.name)
+    gui.set_text(self.nodes.name_hint, NAME_PREFIX .. shown)
+    gui.set_text(self.nodes.btn_classic_label, classic_label())
+    gui.set_text(self.nodes.btn_adventure_label, LABEL_ADVENTURE)
+    gui.set_text(self.nodes.edit_hint, self.editing and HINT_SAVE or HINT_EDIT)
+end
+
+local function begin_edit(self)
+    if self.editing then
+        return
+    end
+    self.editing = true
+    self.buffer = self.name
+    if gui.show_keyboard then
+        pcall(gui.show_keyboard, gui.KEYBOARD_TYPE_DEFAULT, true)
+    end
+    refresh(self)
+end
+
+local function end_edit(self, save)
+    if not self.editing then
+        return
+    end
+    self.editing = false
+    if save then
+        local saved = profile.set_name(self.buffer)
+        self.name = saved or self.name
+    end
+    if gui.hide_keyboard then
+        pcall(gui.hide_keyboard)
+    end
+    refresh(self)
+end
+
+-- открыть меню (старт игры или GAME OVER): игра ставится на паузу, сенсорное
+-- управление сбрасывает удержания, приветствие обновляется из профиля
+local function open_menu(self)
+    mode.set_menu_open(true)
+    msg.post("/controls", "reset")
+    self.name = profile.get_name()
+    self.editing = false
+    refresh(self)
+    set_visible(self, true)
+end
+
+-- запуск выбранного режима: меню закрывается, мяч получает сообщение
+local function start_mode(self, chosen)
+    end_edit(self, true)
+    mode.set_mode(chosen)
+    mode.set_menu_open(false)
+    set_visible(self, false)
+    -- мячу гарантированно нужен фокус ввода: он мог быть снят при открытии
+    -- меню, а без фокуса не снимается плашка READY и не работает управление
+    msg.post("/ball", "acquire_input_focus")
+    msg.post("/ball", "start_game", { mode = chosen })
+    print("menu: start mode " .. tostring(chosen))
+end
+
+-- тап/клик по меню: кнопки режимов и строка имени. Вызывается и для touch
+-- (тачскрин), и для click (мышь) — в Defold это разные действия, потому что
+-- touch- и mouse-триггеры не могут делить одно имя действия
+local function handle_pointer(self, x, y)
+    if not x or not y then
+        return
+    end
+    if gui.pick_node(self.nodes.btn_classic, x, y) then
+        start_mode(self, mode.CLASSIC)
+    elseif gui.pick_node(self.nodes.btn_adventure, x, y) then
+        start_mode(self, mode.ADVENTURE)
+    elseif gui.pick_node(self.nodes.name_box, x, y) then
+        if self.editing then
+            end_edit(self, true)
+        else
+            begin_edit(self)
+        end
+    elseif self.editing then
+        -- тап мимо поля имени завершает правку (сохраняя введённое)
+        end_edit(self, true)
+    end
+end
+
+-- добавить в буфер каждый допустимый символ из строки text
+local function append_text(self, text)
+    if not self.editing or type(text) ~= "string" then
+        return
+    end
+    local changed = false
+    for i = 1, #text do
+        local piece = sanitize_char(text:sub(i, i))
+        if piece then
+            self.buffer = self.buffer .. piece
+            changed = true
+        end
+    end
+    if changed then
+        self.buffer = profile.utf8_truncate(self.buffer, 16)
+        refresh(self)
+    end
+end
+
+local function backspace(self)
+    if not self.editing then
+        return
+    end
+    self.buffer = profile.utf8_remove_last(self.buffer)
+    refresh(self)
+end
+
+function init(self)
+    self.nodes = {}
+    for _, id in ipairs(NODES) do
+        self.nodes[id] = gui.get_node(id)
+    end
+    self.editing = false
+    self.buffer = ""
+    -- приветствие: имя из профиля (по умолчанию «PlayerN», N — номер визита)
+    -- profile.init увеличивает счётчик визитов один раз за запуск игры
+    self.name = profile.init()
+    -- меню появляется сразу после загрузки игры: игра стоит на паузе до
+    -- выбора пункта (game_mode.is_menu_open)
+    open_menu(self)
+end
+
+function final(self)
+    if self.editing and gui.hide_keyboard then
+        pcall(gui.hide_keyboard)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("open") then
+        -- меню открывается после GAME OVER (или по запросу): игра на паузе
+        open_menu(self)
+    elseif message_id == hash("hide") then
+        set_visible(self, false)
+    end
+end
+
+function on_input(self, action_id, action)
+    if not self.visible then
+        return false
+    end
+
+    -- ввод текста имени (text-триггер из game.input_binding)
+    if action_id == hash("text") then
+        local typed = action and action.text
+        -- вне режима правки цифры 1/2 выбирают режим: text-триггер перехватывает
+        -- все печатные клавиши раньше key-триггеров, поэтому отдельные
+        -- key_trigger для цифр до меню не доходят
+        if not self.editing and typed == "1" then
+            start_mode(self, mode.CLASSIC)
+            return true
+        elseif not self.editing and typed == "2" then
+            start_mode(self, mode.ADVENTURE)
+            return true
+        end
+        append_text(self, typed)
+        return true
+    end
+
+    if action_id == hash("edit_name") then
+        if action and action.pressed then
+            if self.editing then
+                end_edit(self, true)
+            else
+                begin_edit(self)
+            end
+        end
+        return true
+    end
+
+    if action_id == hash("name_backspace") then
+        if action and action.pressed then
+            backspace(self)
+        end
+        return true
+    end
+
+    if action_id == hash("name_enter") then
+        if action and action.pressed then
+            end_edit(self, true)
+        end
+        return true
+    end
+
+    if action_id == hash("name_cancel") then
+        if action and action.pressed then
+            end_edit(self, false)
+        end
+        return true
+    end
+
+    -- тап/клик по меню: кнопки режимов и строка имени. "touch" — тачскрин,
+    -- "click" — левая кнопка мыши (в Defold это разные действия с разными
+    -- именами). Координаты берём у любого нажатия с x/y, чтобы меню работало
+    -- и на платформах, где указатель приходит под иным именем действия.
+    if action and action.pressed and action.x ~= nil and action.y ~= nil then
+        handle_pointer(self, action.x, action.y)
+        return true
+    end
+
+    -- пока меню открыто, остальной ввод игре не передаём
+    return true
+end

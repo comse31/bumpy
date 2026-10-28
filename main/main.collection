@@ -418,7 +418,7 @@ instances {
 # --- GAME OVER: плашка по центру поля, поверх всех объектов (z ближе к камере) ---
 instances {
   id: "game_over"
-  prototype: "/main/ui/game_over.go"
+  prototype: "/main/ui/game_over/game_over.go"
   position {
     x: 480.0
     y: 320.0
@@ -428,7 +428,7 @@ instances {
 # --- READY FOR LEVEL N?: плашка перед началом уровня, поверх всех объектов ---
 instances {
   id: "ready"
-  prototype: "/main/ui/ready.go"
+  prototype: "/main/ui/ready/ready.go"
   position {
     x: 480.0
     y: 320.0
@@ -438,12 +438,17 @@ instances {
 # --- YOU LOCK IN TRAP: плашка ловушки с обратным отсчётом, поверх всех объектов ---
 instances {
   id: "trap"
-  prototype: "/main/ui/trap.go"
+  prototype: "/main/ui/trap/trap.go"
   position {
     x: 480.0
     y: 320.0
     z: 0.97
   }
+}
+# --- стартовое меню: GUI-сцена, рисуется поверх игрового мира ---
+instances {
+  id: "menu"
+  prototype: "/main/ui/menu/menu.go"
 }
 # --- РЎРµРЅСЃРѕСЂРЅРѕРµ СѓРїСЂР°РІР»РµРЅРёРµ: С‚РѕС‡РєРё-РєСЂСѓР¶РєРё РїРѕРґ РїРѕР»РµРј (portrait) РёР»Рё СЃР±РѕРєСѓ (landscape) ---
 instances {

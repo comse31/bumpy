@@ -23,6 +23,8 @@ local obstacles = require("main.ball.ball_obstacles")
 local trap = require("main.ball.ball_trap")
 -- жизни, карман предметов, сохранение и перезапуск игры
 local progress = require("main.ball.ball_progress")
+-- режим игры и флаг открытого стартового меню (общее состояние)
+local game_mode = require("main.game_mode")
 -- ввод: удержания и отложенный тап по игровой ячейке
 local input = require("main.ball.ball_input")
 -- движение: шаги, отскоки, высокий прыжок
@@ -144,10 +146,6 @@ end
 -- прежние имена вызовов
 local function lose_life(self, cause)
     progress.lose_life(self, cause)
-end
-
-local function restart_game(self)
-    progress.restart_game(self)
 end
 
 -- перегородки и кладка (ball_obstacles): то, что нужно общему коду кадра
@@ -713,6 +711,10 @@ local function update_exit(self)
 end
 
 function update(self, dt)
+    -- стартовое меню открыто: игра на паузе, физика и логика не выполняются
+    if game_mode.is_menu_open() then
+        return
+    end
     -- плашка "READY FOR LEVEL N?": пока она показана, игра не начинается —
     -- мяч заморожен (коллизия выключена), физика и логика не выполняются
     if self.ready_wait then
@@ -774,6 +776,30 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    -- стартовое меню открыто: ввод получает меню, мяч его не обрабатывает
+    if game_mode.is_menu_open() then
+        return
+    end
+    -- Ввод текста (text-триггер в input/game.input_binding нужен меню для
+    -- редактирования имени) перехватывает печатные клавиши раньше
+    -- key-триггеров. Пробел приходит сюда как текст " ", а не как action
+    -- "jump", поэтому переводим его обратно в прыжок.
+    if action_id == hash("text") then
+        local typed = action and action.text
+        if self.ready_wait then
+            -- плашка READY снимается любым нажатием, в том числе печатной
+            -- клавишей (она тоже приходит как текст)
+            action_id = hash("jump")
+            action = { pressed = true, released = false, value = 1.0 }
+        elseif typed == " " then
+            -- пробел — прыжок (в игре он тоже приходит как текст)
+            action_id = hash("jump")
+            action = { pressed = true, released = false, value = 1.0 }
+        else
+            -- прочий текст игре не нужен: он принадлежит меню
+            return
+        end
+    end
     -- плашка "READY FOR LEVEL N?": любое нажатие клавиши убирает её и
     -- запускает игру — мяч снова подчиняется физике
     if self.ready_wait then
@@ -795,17 +821,11 @@ function on_input(self, action_id, action)
     if self.trap_active then
         return
     end
-    -- GAME OVER: любое нажатие (любое связанное действие, включая any_key)
-    -- начинает новую игру; ждём, пока уровень 1 пересоберётся.
+    -- GAME OVER: новую игру запускает стартовое меню (/menu), а не мяч.
     -- ВАЖНО: пока жизни ещё есть, game_over означает лишь «уровень
     -- перезапускается» — level.script пересоберёт его и пришлёт level_start,
-    -- который снимет флаг. Нажатие в этом окне не должно запускать новую игру:
-    -- restart_game обнуляет карман и снимок уровня, из-за чего перезапуск шёл
-    -- с пустым (фиксированным) набором предметов вместо набора на входе в уровень
+    -- который снимет флаг. Ввод в этом окне игнорируется.
     if self.game_over then
-        if self.lives <= 0 and action.pressed and not self.restart_pending then
-            restart_game(self)
-        end
         return
     end
     -- отслеживаем только состояние клавиш: нажата / отжата. Флаг «удерживается»
@@ -970,7 +990,8 @@ function on_message(self, message_id, message, sender)
     -- сенсорное управление «тап по ячейке» (bumpy.controls_mode = "cells"):
     -- нажатие на игровую ячейку поля либо на боковую стенку за его границей
     if message_id == hash("cell_tap") then
-        if not self.ready_wait and not self.game_over and not self.trap_active then
+        if not game_mode.is_menu_open() and not self.ready_wait
+            and not self.game_over and not self.trap_active then
             set_cell_cmd(self, message)
             -- в высоком прыжке команда исполняется сразу, не дожидаясь
             -- следующего update: на постоянной скорости мяч проходит ячейку
@@ -1004,6 +1025,12 @@ function on_message(self, message_id, message, sender)
         end
         return
     end
+    -- запуск игры из стартового меню (main/ui/menu/menu.gui_script): режим уже
+    -- выставлен, уровень 1 пересобирается, его level_start покажет READY
+    if message_id == hash("start_game") then
+        progress.start_game(self, message and message.mode)
+        return
+    end
     -- level.script сообщает стартовую ячейку сгенерированного уровня
     if message_id == hash("level_start") then
         start_at(self, (message and message.cell) or 0)
@@ -1014,7 +1041,11 @@ function on_message(self, message_id, message, sender)
         phys.stop()
         phys.disable()
         self.ready_wait = true
-        msg.post("/ready", "show", { level = state.index })
+        -- стартовое меню перекрывает игру: READY покажем после выбора режима
+        -- (start_game пересоберёт уровень и пришлёт новый level_start)
+        if not game_mode.is_menu_open() then
+            msg.post("/ready", "show", { level = state.index })
+        end
         -- камера на плашке READY всегда показывает всё игровое поле целиком;
         -- после нажатия клавиши (см. on_input) она плавно перейдёт к масштабу
         -- игры — по длинному краю экрана

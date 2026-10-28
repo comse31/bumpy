@@ -14,8 +14,10 @@
 -- (например, %APPDATA%\bumpy\bumpy_save).
 --
 -- Хранится только то, что даёт право на продолжение:
---   level   — номер текущего уровня (1..level_count);
---   lives   — оставшиеся жизни (0 = игра окончена, восстановление запрещено);
+--   level     — номер текущего уровня (1..level_count);
+--   max_level — максимально достигнутый уровень (только растёт, служит для
+--               статистики в стартовом меню и не сбрасывается при GAME OVER);
+--   lives     — оставшиеся жизни (0 = игра окончена, восстановление запрещено);
 --   drops, keys, hammers — содержимое кармана (капли/ключи/молотки).
 --
 -- Модуль общий для всех скриптов (в game.project включён shared_state = 1),
@@ -69,8 +71,11 @@ function M.load()
     return data
 end
 
--- записать прогресс. Поля: level, lives, drops, keys, hammers.
+-- записать прогресс. Поля: level, max_level, lives, drops, keys, hammers.
 -- Неполные/битые значения приводим к безопасным умолчаниям.
+--
+-- max_level только растёт: перед записью сравниваем с уже сохранённым
+-- значением, чтобы GAME OVER или новая игра не уменьшили рекорд.
 --
 -- ВАЖНО (HTML5): пишем по пути из sys.get_save_file() — только он указывает
 -- внутрь каталога, смонтированного на IndexedDB (IDBFS, /data). Движок
@@ -91,9 +96,18 @@ function M.store(data)
     if not p then
         return
     end
+    local level = math.max(1, tonumber(data.level) or 1)
+    local max_level = math.max(1, tonumber(data.max_level) or level)
+    -- рекорд только растёт: сравниваем с уже сохранённым максимумом и с
+    -- текущим уровнем (если он больше записанного)
+    local prev = M.load()
+    local prev_max = prev and tonumber(prev.max_level) or 0
+    max_level = math.max(max_level, prev_max or 0, level)
+
     local record = {
         version = VERSION,
-        level = data.level or 1,
+        level = level,
+        max_level = max_level,
         lives = data.lives or 0,
         drops = data.drops or 0,
         keys = data.keys or 0,
@@ -104,9 +118,26 @@ function M.store(data)
 end
 
 -- обнулить сохранение: используется, когда продолжать нельзя (жизни кончились).
--- Записываем lives = 0 — при следующем запуске это означает «новая игра»
+-- Записываем lives = 0 — при следующем запуске это означает «новая игра».
+-- Рекорд (max_level) при этом сохраняется: его подставляет M.store.
 function M.clear()
     M.store({ level = 1, lives = 0 })
+end
+
+-- Прогресс для стартового меню: текущий уровень и максимально достигнутый.
+-- Если сохранения нет или жизни кончились (lives = 0), текущим считается
+-- 1-й уровень; рекорд берётся из сохранения и не сбрасывается.
+function M.progress()
+    local data = M.load()
+    local level = 1
+    local max_level = 1
+    if data then
+        max_level = math.max(1, tonumber(data.max_level) or 1, tonumber(data.level) or 1)
+        if (tonumber(data.lives) or 0) > 0 then
+            level = math.max(1, tonumber(data.level) or 1)
+        end
+    end
+    return level, max_level
 end
 
 return M

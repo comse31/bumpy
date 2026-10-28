@@ -1,7 +1,7 @@
-text: '3'
-font: '/main/ui/trap.font'
+text: 'READY FOR LEVEL 1?'
+font: '/main/ui/ready/ready.font'
 material: '/builtins/fonts/label-df.material'
-size { x: 200 y: 90 z: 0 }
+size { x: 620 y: 80 z: 0 }
 color { x: 1 y: 1 z: 1 w: 1 }
 outline { x: 0 y: 0 z: 0 w: 0 }
 shadow { x: 0 y: 0 z: 0 w: 0 }

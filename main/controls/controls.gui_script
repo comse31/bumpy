@@ -11,6 +11,9 @@
 -- сдвигать видимую область за мячом, поэтому ни fixed-fit, ни фиксированный
 -- масштаб здесь больше не годятся.
 local camera_state = require("main.render.camera_state")
+-- флаг открытого стартового меню: пока оно на экране, сенсорное управление
+-- не должно ни двигать мяч, ни панорамировать камеру под меню
+local game_mode = require("main.game_mode")
 
 local GAME_W = 960
 local GAME_H = 720
@@ -387,12 +390,34 @@ end
 function on_message(self, message_id, message, sender)
     if message_id == hash("motion_state") then
         self.high_flying = (message and message.high) and true or false
+    elseif message_id == hash("reset") then
+        -- стартовое меню открылось: сбрасываем удержания и подсветку, иначе
+        -- «зажатая» кнопка продолжила бы действовать после выбора режима
+        if self.mode == MODE_CELLS then
+            hide_highlight(self)
+        else
+            release_all(self)
+        end
+        self.pan_touch = nil
+        self.pan_start = nil
+        self.pan_last = nil
+        self.cell_tap = nil
+        self.cell_cmd_id = nil
+        self.cell_sent = false
     end
 end
 
 function on_input(self, action_id, action)
     if action_id ~= hash("touch") then
         return
+    end
+
+    -- стартовое меню открыто: касания принадлежат меню, а не управлению игрой.
+    -- Возвращаем false (НЕ потребляем событие), чтобы оно дошло до GUI меню,
+    -- которое стоит ниже в стеке ввода; мяч в это время тоже игнорирует ввод
+    -- (см. game_mode.is_menu_open в ball.script)
+    if game_mode.is_menu_open() then
+        return false
     end
 
     local touch_id = action.touch_id or 0

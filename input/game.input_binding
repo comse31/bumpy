@@ -1,3 +1,28 @@
+# --- Стартовое меню (main/ui/menu/menu.gui_script) ---
+# ввод произвольного текста для имени игрока: action.text содержит символ
+text_trigger {
+  input: TEXT
+  action: "text"
+}
+key_trigger {
+  input: KEY_F2
+  action: "edit_name"
+}
+key_trigger {
+  input: KEY_ENTER
+  action: "name_enter"
+}
+key_trigger {
+  input: KEY_BACKSPACE
+  action: "name_backspace"
+}
+key_trigger {
+  input: KEY_ESC
+  action: "name_cancel"
+}
+# Выбор пункта меню цифрами 1/2 обрабатывается в меню по действию "text":
+# text-триггер перехватывает печатные клавиши раньше key-триггеров, поэтому
+# отдельные key_trigger для цифр до скрипта меню не доходили бы.
 key_trigger {
   input: KEY_SPACE
   action: "jump"
@@ -30,6 +55,13 @@ touch_trigger {
 mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
+}
+# Клик левой кнопкой мыши для СТАРТОВОГО МЕНЮ. Отдельное имя действия, потому
+# что в Defold touch-триггер нельзя связать с тем же действием, что и
+# мышиный: с общим именем mouse-события до скрипта не доходят.
+mouse_trigger {
+  input: MOUSE_BUTTON_LEFT
+  action: "click"
 }
 # "any_key": прочие клавиши — нужны, чтобы по любому нажатию перезапустить
 # игру после GAME OVER (см. ball.script). Клавиши, уже занятые выше
@@ -157,14 +189,6 @@ key_trigger {
 }
 key_trigger {
   input: KEY_0
-  action: "any_key"
-}
-key_trigger {
-  input: KEY_1
-  action: "any_key"
-}
-key_trigger {
-  input: KEY_2
   action: "any_key"
 }
 key_trigger {
