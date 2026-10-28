@@ -36,9 +36,11 @@ use_indexeddb = 1
 [bumpy]
 controls_mode = "auto"
 camera_mode = "auto"
+test_level = 0
+debug = 0
 
 [project]
 title = bumpy
 version = 1.0.0
-custom_resources = /main/levels.json
+custom_resources = /main/levels.json,/main/test_levels.json
 

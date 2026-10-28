@@ -37,6 +37,8 @@
 local state = require("main.level.level_state")
 -- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
 local save = require("main.save")
+-- тестовый режим (bumpy.test_level = 1): тестовый набор уровней без сохранения
+local test_mode = require("main.test_mode")
 
 local COLS = 6
 local ROWS = 6
@@ -48,9 +50,12 @@ local PLATFORM_H = 20.0 -- высота игровой платформы (см.
 -- поэтому при спавне им нужен масштаб (раньше он задавался в main.collection)
 local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
 
-local LEVELS_PATH = "/main/levels.json"
+-- основной набор уровней игры. Тестовый уровень подключается настройкой
+-- bumpy.test_level = 1 в game.project (см. main/test_mode.lua) — в игровом
+-- процессе он не участвует
+local DEFAULT_LEVELS_PATH = "/main/levels.json"
 
-go.property("level", 1) -- TEMP-TEST: вернуть 1 после проверки
+go.property("level", 1)
 
 -- код слоя lo (0..12) -> id factory-компонента.
 -- 0 — пусто (платформа не создаётся).
@@ -297,18 +302,26 @@ local function open_exit()
     remove_exit_platform()
 end
 
--- прочитать и декодировать main/levels.json (custom resource)
+-- прочитать и декодировать метаданные уровней (custom resource):
+-- /main/levels.json — уровни игры, /main/test_levels.json — ручной тестовый набор
 local function load_model()
-    local data, err = sys.load_resource(LEVELS_PATH)
+    local path = test_mode.levels_path(DEFAULT_LEVELS_PATH)
+    local data, err = sys.load_resource(path)
     if not data then
-        print("level.script: cannot load " .. LEVELS_PATH .. ": " .. tostring(err))
+        print("level.script: cannot load " .. path .. ": " .. tostring(err))
         return nil
     end
     local ok, model = pcall(json.decode, data)
     if not ok or not model then
-        print("level.script: cannot decode " .. LEVELS_PATH .. ": " .. tostring(model))
+        print("level.script: cannot decode " .. path .. ": " .. tostring(model))
         return nil
     end
+    local count = tonumber(model.level_count) or 1
+    if not model.levels or #model.levels < count then
+        print("level.script: " .. path .. " has no level data")
+        return nil
+    end
+    print(string.format("level.script: loaded %s (%d levels)", path, count))
     return model
 end
 
@@ -426,17 +439,26 @@ local function load(self)
 end
 
 function init(self)
+    self.test = test_mode.is_enabled()
     self.model = load_model()
     if not self.model then
         return
     end
-    -- восстановление прогресса: если есть сохранение с нерастраченными жизнями,
-    -- продолжаем с сохранённого уровня (жизни и карман восстанавливает ball.script).
-    -- lives = 0 означает, что жизни кончились — начинаем новую игру с уровня 1
-    local data = save.load()
-    if data and (data.lives or 0) > 0 then
-        self.level = data.level or self.level
-        print("level.script: resume from save, level " .. tostring(self.level))
+    if self.test then
+        -- тестовый режим: всегда первый (единственный) уровень, сохранение
+        -- игнорируется (save.load в этом режиме уже возвращает nil)
+        self.level = 1
+        print("level.script: TEST MODE, save ignored")
+    else
+        -- восстановление прогресса: если есть сохранение с нерастраченными
+        -- жизнями, продолжаем с сохранённого уровня (жизни и карман
+        -- восстанавливает ball.script). lives = 0 означает, что жизни
+        -- кончились — начинаем новую игру с уровня 1
+        local data = save.load()
+        if data and (data.lives or 0) > 0 then
+            self.level = data.level or self.level
+            print("level.script: resume from save, level " .. tostring(self.level))
+        end
     end
     self.pending = false
     -- при старте удалять нечего — строим сразу
@@ -459,6 +481,13 @@ function on_message(self, message_id, message, sender)
         -- в финишной ячейке
         open_exit()
     elseif message_id == hash("level_complete") then
+        -- в тестовом режиме уровень один: переходить некуда, перезапускаем его,
+        -- чтобы можно было проверять прохождение повторно
+        if self.test then
+            print("level.script: TEST MODE, restarting the only level")
+            load(self)
+            return
+        end
         -- следующий уровень по кругу (после последнего — снова первый)
         self.level = (self.level % self.model.level_count) + 1
         load(self)
