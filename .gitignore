@@ -23,6 +23,10 @@ desktop.ini
 *.swo
 .idea/
 
+# Python
+__pycache__/
+*.pyc
+
 # Logs
 *.log
 /.editor_settings
