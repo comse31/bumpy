@@ -28,7 +28,7 @@ on:
       defold_sha1:
         description: "sha1 версии Defold (bob). Пусто — взять текущую stable с d.defold.com"
         required: false
-        default: "d295ed4edff2e49072719835713e625f409849f1"
+        default: "a81dbb0478e8b73931dc2d671563204f6ac0ef82"
 
 concurrency:
   group: build-bob-image
