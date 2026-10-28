@@ -48,9 +48,37 @@ local PLATFORM_H = 20.0 -- высота игровой платформы (см.
 -- поэтому при спавне им нужен масштаб (раньше он задавался в main.collection)
 local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
 
-local LEVELS_PATH = "/main/levels.json"
+-- основной набор уровней игры. Ручной тестовый уровень подключается сменой
+-- bumpy.levels_path в game.project (/main/test_levels.json) — в игровом
+-- процессе он не участвует
+local DEFAULT_LEVELS_PATH = "/main/levels.json"
 
-go.property("level", 1) -- TEMP-TEST: вернуть 1 после проверки
+go.property("level", 1)
+
+-- путь к метаданным уровней: свойство bumpy.levels_path из game.project,
+-- пустое значение — обычный набор уровней игры.
+--
+-- ВАЖНО: sys.get_config_string возвращает значение КАК ЕСТЬ, то есть строку
+-- вместе с кавычками из game.project ("/main/test_levels.json" -> 19 символов
+-- с кавычками, а "" -> два символа кавычек). Без срезания кавычек sys.load_resource
+-- получил бы невалидный путь и level.script не создал бы ни одной платформы.
+-- Тот же приём используется в main/controls/controls.gui_script (config_mode)
+local function clean_config_string(value)
+    if type(value) ~= "string" then
+        return ""
+    end
+    value = value:gsub('^%s*"(.*)"%s*$', "%1")
+    return (value:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function levels_path()
+    local ok, value = pcall(sys.get_config_string, "bumpy.levels_path", "")
+    local custom = ok and clean_config_string(value) or ""
+    if custom ~= "" then
+        return custom
+    end
+    return DEFAULT_LEVELS_PATH
+end
 
 -- код слоя lo (0..12) -> id factory-компонента.
 -- 0 — пусто (платформа не создаётся).
@@ -297,18 +325,26 @@ local function open_exit()
     remove_exit_platform()
 end
 
--- прочитать и декодировать main/levels.json (custom resource)
+-- прочитать и декодировать метаданные уровней (custom resource):
+-- /main/levels.json — уровни игры, /main/test_levels.json — ручной тестовый набор
 local function load_model()
-    local data, err = sys.load_resource(LEVELS_PATH)
+    local path = levels_path()
+    local data, err = sys.load_resource(path)
     if not data then
-        print("level.script: cannot load " .. LEVELS_PATH .. ": " .. tostring(err))
+        print("level.script: cannot load " .. path .. ": " .. tostring(err))
         return nil
     end
     local ok, model = pcall(json.decode, data)
     if not ok or not model then
-        print("level.script: cannot decode " .. LEVELS_PATH .. ": " .. tostring(model))
+        print("level.script: cannot decode " .. path .. ": " .. tostring(model))
         return nil
     end
+    local count = tonumber(model.level_count) or 1
+    if not model.levels or #model.levels < count then
+        print("level.script: " .. path .. " has no level data")
+        return nil
+    end
+    print(string.format("level.script: loaded %s (%d levels)", path, count))
     return model
 end
 
