@@ -20,11 +20,22 @@ local game_mode = require("main.game_mode")
 local M = {}
 
 local START_LIVES = C.START_LIVES
+-- «Приключение»: фиксированный набор на попытку — 3 жизни и по 5 предметов
+-- каждого вида в кармане (капли/ключи/молотки)
+local ADVENTURE_LIVES = 3
+local ADVENTURE_ITEMS = 5
 
 -- записать прогресс в сохранение. Всегда сохраняется снимок кармана на начало
 -- уровня (start_*), к которому карман откатывается при потере жизни: так
 -- переоткрытие браузера вернёт ровно то же состояние, что и перезапуск уровня
+--
+-- В «Приключении» сохранение не пишется: этот режим — отдельная попытка на
+-- выбранном уровне со своим набором, он не должен затирать прогресс
+-- классической игры (уровень, жизни и карман)
 function M.persist(self, level)
+    if game_mode.is_adventure() then
+        return
+    end
     save.store({
         level = level or state.index,
         lives = self.lives,
@@ -60,11 +71,12 @@ end
 
 -- потеря жизни: остановить мяч, скрыть визуал героя, вычесть жизнь и обновить
 -- HUD-карман. Если жизни остались — перезапустить текущий уровень (level.script
--- пришлёт level_start, и мяч вернётся в стартовую ячейку); иначе игра окончена.
+-- пришлёт level_start, и мяч вернётся в стартовую ячейку).
 --
--- В режиме «Приключение» (game_mode.ADVENTURE) жизни не учитываются: смерть
--- мяча не уменьшает их счётчик и никогда не приводит к GAME OVER — уровень
--- просто перезапускается, как при обычной потере жизни.
+-- В «Приключении» (game_mode.ADVENTURE) жизни тоже тратятся (их 3 на попытку),
+-- но по их исчерпании GAME OVER не показывается: игра просто возвращается в
+-- стартовое меню, где можно выбрать уровень и начать попытку заново. В
+-- классическом режиме при 0 жизней — GAME OVER и меню.
 function M.lose_life(self, cause)
     if self.game_over then
         return
@@ -89,14 +101,11 @@ function M.lose_life(self, cause)
     -- скрыть визуал активного героя (у спрайта нет свойства visible,
     -- скрываем сообщением disable)
     self.hero.deactivate(self)
-    if game_mode.lives_enabled() then
-        self.lives = self.lives - 1
-        msg.post("/pocket", "set_lives", { count = math.max(0, self.lives) })
-    end
+    self.lives = math.max(0, self.lives - 1)
+    msg.post("/pocket", "set_lives", { count = self.lives })
     dbg.always("LIFE LOST (%s): %d left, pocket now=(%d, %d, %d), level %d",
         cause or "?", self.lives, self.pocket, self.key_pocket, self.hammer_pocket, state.index)
-    -- в режиме «Приключение» жизни не тратятся: всегда перезапускаем уровень
-    if not game_mode.lives_enabled() or self.lives > 0 then
+    if self.lives > 0 then
         -- предметы в кармане откатываются к состоянию на старте текущего уровня:
         -- собранное на этом уровне не сохраняется, но накопленное между
         -- уровнями остаётся (см. снимок в level_start)
@@ -108,9 +117,19 @@ function M.lose_life(self, cause)
         msg.post("/level", "reload_level", { level = state.index })
         return
     end
-    -- жизни кончились: показать плашку GAME OVER и вернуть игрока в стартовое
-    -- меню. Обнуляем сохранение (lives = 0), иначе после переоткрытия браузера
-    -- игрок вернулся бы в проигранную игру
+    -- жизни кончились
+    if game_mode.is_adventure() then
+        -- «Приключение»: попытка окончена, но GAME OVER не показываем —
+        -- возвращаемся в стартовое меню, прогресс классики не трогаем
+        msg.post("/game_over", "hide")
+        game_mode.set_menu_open(true)
+        msg.post("/menu", "open")
+        dbg.always("ADVENTURE: no lives left (%s), back to menu", cause or "?")
+        return
+    end
+    -- классический режим: показать плашку GAME OVER и вернуть игрока в
+    -- стартовое меню. Обнуляем сохранение (lives = 0), иначе после переоткрытия
+    -- браузера игрок вернулся бы в проигранную игру
     save.clear()
     msg.post("/game_over", "show")
     -- меню открывается поверх плашки GAME OVER: игрок выбирает режим заново
@@ -132,13 +151,18 @@ function M.start_game(self, chosen)
     local data = save.load()
     local resumable = data and (data.lives or 0) > 0
     local level = 1
-    if resumable then
+    if game_mode.is_adventure() then
+        -- «Приключение»: выбранный в меню уровень и фиксированный набор —
+        -- 3 жизни и по 5 предметов каждого вида в кармане. Сохранение
+        -- классической игры (уровень, карман, жизни) не подмешивается
+        level = game_mode.get_adventure_level()
+        self.lives = ADVENTURE_LIVES
+        self.pocket = ADVENTURE_ITEMS
+        self.key_pocket = ADVENTURE_ITEMS
+        self.hammer_pocket = ADVENTURE_ITEMS
+    elseif resumable then
         level = data.level or 1
-        if game_mode.lives_enabled() then
-            self.lives = data.lives
-        else
-            self.lives = START_LIVES
-        end
+        self.lives = data.lives
         self.pocket = data.drops or 0
         self.key_pocket = data.keys or 0
         self.hammer_pocket = data.hammers or 0
@@ -171,13 +195,18 @@ end
 
 -- восстановление прогресса после закрытия браузера: если есть сохранение с
 -- нерастраченными жизнями, продолжаем с сохранёнными жизнями и карманом.
--- lives = 0 означает, что жизни кончились — начинаем новую игру с нуля
+-- lives = 0 означает, что жизни кончились — начинаем новую игру с нуля.
+-- Восстановление относится только к классическому режиму: «Приключение» —
+-- отдельная попытка и в сохранении не участвует
 function M.resume(self)
+    if game_mode.is_adventure() then
+        return false
+    end
     local data = save.load()
     if not data or (data.lives or 0) <= 0 then
         return false
     end
-    self.lives = game_mode.lives_enabled() and data.lives or START_LIVES
+    self.lives = data.lives
     self.pocket = data.drops or 0
     self.key_pocket = data.keys or 0
     self.hammer_pocket = data.hammers or 0

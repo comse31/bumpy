@@ -39,6 +39,8 @@ local state = require("main.level.level_state")
 local save = require("main.save")
 -- тестовый режим (bumpy.test_level = 1): тестовый набор уровней без сохранения
 local test_mode = require("main.test_mode")
+-- режим игры: в «Приключении» после прохождения уровня возвращаемся в меню
+local game_mode = require("main.game_mode")
 
 local COLS = 6
 local ROWS = 6
@@ -486,6 +488,20 @@ function on_message(self, message_id, message, sender)
         if self.test then
             print("level.script: TEST MODE, restarting the only level")
             load(self)
+            return
+        end
+        -- «Приключение»: одна попытка на выбранном уровне. После прохождения
+        -- следующий уровень НЕ загружается — игра возвращается в стартовое
+        -- меню, где можно выбрать любой открытый уровень и сыграть снова
+        if game_mode.is_adventure() then
+            print("level.script: ADVENTURE level complete, back to menu")
+            msg.post("/ready", "hide")
+            msg.post("/game_over", "hide")
+            -- заморозить мяч: игра уходит на паузу под меню, а физика не
+            -- должна продолжать двигать его за пределы поля
+            msg.post("/ball", "freeze")
+            game_mode.set_menu_open(true)
+            msg.post("/menu", "open")
             return
         end
         -- следующий уровень по кругу (после последнего — снова первый)

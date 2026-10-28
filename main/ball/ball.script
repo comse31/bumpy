@@ -1025,6 +1025,14 @@ function on_message(self, message_id, message, sender)
         end
         return
     end
+    -- заморозить мяч (например, при завершении уровня в «Приключении»):
+    -- игра уходит в меню, физика не должна продолжать двигать мяч
+    if message_id == hash("freeze") then
+        phys.stop()
+        phys.disable()
+        self.hero.deactivate(self)
+        return
+    end
     -- запуск игры из стартового меню (main/ui/menu/menu.gui_script): режим уже
     -- выставлен, уровень 1 пересобирается, его level_start покажет READY
     if message_id == hash("start_game") then
