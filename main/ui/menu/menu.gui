@@ -1,0 +1,383 @@
+script: "/main/ui/menu/menu.gui_script"
+fonts {
+  name: "big"
+  font: "/main/ui/menu/menu_big.font"
+}
+fonts {
+  name: "normal"
+  font: "/main/ui/menu/menu.font"
+}
+textures {
+  name: "menu"
+  texture: "/main/ui/menu/menu.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  color {
+    x: 0.05
+    y: 0.06
+    z: 0.11
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "backdrop"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+  alpha: 0.9
+}
+nodes {
+  position {
+    x: 480.0
+    y: 600.0
+    z: 0.1
+  }
+  size {
+    x: 760.0
+    y: 86.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+  }
+  type: TYPE_TEXT
+  text: "BUMPY"
+  font: "big"
+  id: "title"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 468.0
+  }
+  size {
+    x: 740.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "btn_classic"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 480.0
+    y: 468.0
+    z: 0.1
+  }
+  size {
+    x: 700.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "btn_classic_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 470.0
+    y: 362.0
+  }
+  size {
+    x: 520.0
+    y: 84.0
+  }
+  color {
+    x: 0.36
+    y: 0.27
+    z: 0.68
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "btn_adventure"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 470.0
+    y: 362.0
+    z: 0.1
+  }
+  size {
+    x: 490.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "btn_adventure_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 252.0
+  }
+  size {
+    x: 680.0
+    y: 66.0
+  }
+  color {
+    x: 0.11
+    y: 0.15
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "name_box"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 480.0
+    y: 252.0
+    z: 0.1
+  }
+  size {
+    x: 650.0
+    y: 46.0
+  }
+  color {
+    x: 0.8
+    y: 0.86
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "name_hint"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 172.0
+    z: 0.1
+  }
+  size {
+    x: 880.0
+    y: 40.0
+  }
+  color {
+    x: 0.6
+    y: 0.66
+    z: 0.78
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "edit_hint"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 520.0
+    z: 0.1
+  }
+  size {
+    x: 760.0
+    y: 74.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "big"
+  id: "adv_title"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 250.0
+    y: 420.0
+  }
+  size {
+    x: 96.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_prev"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 250.0
+    y: 420.0
+    z: 0.1
+  }
+  size {
+    x: 90.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_prev_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 420.0
+    z: 0.1
+  }
+  size {
+    x: 320.0
+    y: 62.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_level"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 710.0
+    y: 420.0
+  }
+  size {
+    x: 96.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_next"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 710.0
+    y: 420.0
+    z: 0.1
+  }
+  size {
+    x: 90.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_next_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 300.0
+  }
+  size {
+    x: 480.0
+    y: 84.0
+  }
+  color {
+    x: 0.36
+    y: 0.27
+    z: 0.68
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_play"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 480.0
+    y: 300.0
+    z: 0.1
+  }
+  size {
+    x: 450.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_play_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 480.0
+    y: 200.0
+  }
+  size {
+    x: 260.0
+    y: 64.0
+  }
+  color {
+    x: 0.11
+    y: 0.15
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_back"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 480.0
+    y: 200.0
+    z: 0.1
+  }
+  size {
+    x: 250.0
+    y: 46.0
+  }
+  color {
+    x: 0.8
+    y: 0.86
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_back_label"
+  inherit_alpha: true
+  shadow_alpha: 0.0
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 32

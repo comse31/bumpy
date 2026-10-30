@@ -1,0 +1,298 @@
+-- Pocket manager: HUD strip above the game field (y = 640..720).
+-- The strip is purely presentational: it takes part in neither game-cell
+-- math nor ball jump-height calculations.
+--
+-- Protocol (from /ball):
+--   "add"       {kind = 0|1|2, x = number, y = number} -- goodie collected at (x, y)
+--   "remove"    {kind = 0|1|2}                         -- goodie consumed
+--   "set_lives" {count = number}                       -- lives changed (default LIVES)
+--   "add_life"  {x, y, count}                          -- bonus life picked up at (x, y)
+--   "set_items" {drops, keys, hammers}                 -- rebuild the strip from counts
+-- kind: 0 = drop, 1 = key, 2 = hammer (same numbering as goodies).
+--
+-- Items fly to the left part of the strip and are grouped by type:
+-- drops first (leftmost), keys right after them, hammers last. The layout is
+-- very dense: each next item is placed half a sprite width to the right, so
+-- the sprites overlap by 50% and fan out one over another.
+-- Life hearts sit at the right end of the same strip, one per remaining life.
+--
+-- The number of displayed items is unbounded: each group starts with a small
+-- static pool (instance ids in main/main.collection) and grows on demand via
+-- factory components (#pi_drop / #pi_key / #pi_hammer / #pi_life); surplus
+-- dynamic instances are deleted when freed.
+
+local MARGIN_X  = 40   -- margin at both ends of the strip
+local ITEM_W    = 32   -- pocket sprite width in pixels (drop/key/hammer/heart)
+-- Смещение центров соседних предметов внутри группы: 16 px, то есть ровно
+-- половина ширины картинки (32). Никакого дополнительного шага/зазора нет,
+-- предметы наезжают друг на друга веером.
+local SPACING   = 8
+local GROUP_GAP = 20    -- extra gap between groups (drops | keys | hammers)
+local POCKET_Y  = 680  -- vertical center of the strip (field top is y=640)
+local SCREEN_W  = 960  -- display width (game.project), for right alignment
+local LIVES     = 3    -- default number of lives shown
+
+-- Static pool ids must match the instance ids in main/main.collection.
+local DROP_POOL   = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
+local KEY_POOL    = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+local HAMMER_POOL = { "pi_h1", "pi_h2", "pi_h3", "pi_h4", "pi_h5", "pi_h6" }
+-- Life hearts: three starting lives plus room for bonus lives picked up in the
+-- level (goodies of kind 4); beyond that the pool grows dynamically.
+local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3", "pi_l4", "pi_l5", "pi_l6", "pi_l7", "pi_l8", "pi_l9" }
+
+-- factory components on /pocket for dynamic pool growth (see pocket.go)
+local FACTORY_BY_KIND = { [0] = "#pi_drop", [1] = "#pi_key", [2] = "#pi_hammer" }
+local LIFE_FACTORY = "#pi_life"
+
+-- X coordinate of the i-th life heart (1-based, left to right); the group
+-- is pinned to the right edge of the strip.
+local function life_x(i)
+    return SCREEN_W - MARGIN_X - (i - 1) * SPACING
+end
+
+-- Allocate one item id: a free static slot first, then a new factory instance
+-- (unbounded growth). The created instance starts hidden at the strip level;
+-- its sprite is enabled by the "fly"/"show" message that follows.
+local function allocate(self, pool, factory_id)
+    for _, id in ipairs(pool) do
+        if not self.occupied[id] then
+            self.occupied[id] = true
+            return id
+        end
+    end
+    local id = factory.create(factory_id, vmath.vector3(0, POCKET_Y, 0))
+    if id then
+        self.occupied[id] = true
+        self.dynamic[id] = true
+    end
+    return id
+end
+
+-- Free one item id: hide it and delete the instance if it was created
+-- dynamically (static pool instances stay in the collection).
+local function free(self, id)
+    self.occupied[id] = nil
+    msg.post(id, "hide")
+    if self.dynamic[id] then
+        self.dynamic[id] = nil
+        go.delete(id)
+    end
+end
+
+-- Show/hide the right-aligned life hearts for the given count. Called from
+-- init with the default and later whenever a life is gained or lost.
+local function set_lives(self, count)
+    count = math.max(0, count or 0)
+    while #self.life_ids < count do
+        local id = allocate(self, LIFE_POOL, LIFE_FACTORY)
+        if not id then break end
+        self.life_ids[#self.life_ids + 1] = id
+        local i = #self.life_ids
+        msg.post(id, "show", { to = vmath.vector3(life_x(i), POCKET_Y, 0) })
+    end
+    while #self.life_ids > count do
+        local id = self.life_ids[#self.life_ids]
+        table.remove(self.life_ids)
+        free(self, id)
+    end
+end
+
+function init(self)
+    self.drops   = {} -- ordered list of occupied drop item ids
+    self.keys    = {} -- ordered list of occupied key item ids
+    self.hammers = {} -- ordered list of occupied hammer item ids
+    self.life_ids = {} -- ordered list of shown life heart ids
+    self.occupied = {} -- id -> true for every allocated item (static or dynamic)
+    self.dynamic  = {} -- id -> true for factory-created instances
+    for _, id in ipairs(DROP_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(KEY_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(HAMMER_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(LIFE_POOL) do
+        msg.post(id, "hide")
+    end
+    set_lives(self, LIVES) -- show the default life hearts on the right
+end
+
+-- A bonus life (heart goodie, kind 4) was picked up at (x, y): show the newly
+-- gained heart in the next free slot, flying it in from the pickup point.
+-- Already-visible hearts stay in place; only the new rightmost one animates.
+local function add_life(self, x, y, count)
+    local i = math.max(1, count or 0)
+    while #self.life_ids < i do
+        local id = allocate(self, LIFE_POOL, LIFE_FACTORY)
+        if not id then return end
+        self.life_ids[#self.life_ids + 1] = id
+        -- intermediate slots (count jumped by more than one) appear instantly;
+        -- only the new rightmost heart animates
+        if #self.life_ids < i then
+            msg.post(id, "show", { to = vmath.vector3(life_x(#self.life_ids), POCKET_Y, 0) })
+        end
+    end
+    local id = self.life_ids[i]
+    local to = vmath.vector3(life_x(i), POCKET_Y, 0)
+    msg.post(id, "fly", { from = vmath.vector3(x or to.x, y or to.y, 0), to = to })
+end
+
+-- X coordinate of the i-th drop (1-based), given the current drop count.
+local function drop_x(i)
+    return MARGIN_X + (i - 1) * SPACING
+end
+
+-- X coordinate of the j-th key (1-based); the key group starts after
+-- the drop group plus a gap, so it follows drops dynamically.
+local function key_x(j, drop_count)
+    local base = MARGIN_X
+    if drop_count > 0 then
+        base = base + (drop_count - 1) * SPACING + SPACING + GROUP_GAP
+    end
+    return base + (j - 1) * SPACING
+end
+
+-- X coordinate of the k-th hammer (1-based); the hammer group starts after
+-- the key group plus a gap, so it follows keys dynamically.
+local function hammer_x(k, drop_count, key_count)
+    local base = MARGIN_X
+    if drop_count > 0 then
+        base = base + (drop_count - 1) * SPACING + SPACING + GROUP_GAP
+    end
+    if key_count > 0 then
+        base = base + (key_count - 1) * SPACING + SPACING + GROUP_GAP
+    end
+    return base + (k - 1) * SPACING
+end
+
+-- Instant (non-animated) shift of the hammer group to its current slots.
+-- Adding a key pushes the hammer group right; settled hammers snap instead
+-- of animating. The newly added key is still flying and must not be touched,
+-- so it is excluded here (unlike snap_keys_and_hammers).
+local function snap_hammers(self)
+    for k, id in ipairs(self.hammers) do
+        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
+end
+
+-- Instant (non-animated) shift of the key and hammer groups to their current
+-- slots. Adding a drop pushes both groups right; already-settled items must
+-- not animate on add, so they snap to the new positions instead.
+local function snap_keys_and_hammers(self)
+    for j, id in ipairs(self.keys) do
+        msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
+    end
+    snap_hammers(self)
+end
+
+-- Snap all occupied items instantly to their grouped slots. Used on
+-- removal: the consumed item disappears and the rest compact in place
+-- with no animation.
+local function snap_all(self)
+    for i, id in ipairs(self.drops) do
+        msg.post(id, "snap", { to = vmath.vector3(drop_x(i), POCKET_Y, 0) })
+    end
+    for j, id in ipairs(self.keys) do
+        msg.post(id, "snap", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
+    end
+    for k, id in ipairs(self.hammers) do
+        msg.post(id, "snap", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
+end
+
+local function add(self, kind, x, y)
+    local list, pool, factory_id
+    if kind == 2 then
+        list, pool, factory_id = self.hammers, HAMMER_POOL, FACTORY_BY_KIND[2]
+    elseif kind == 1 then
+        list, pool, factory_id = self.keys, KEY_POOL, FACTORY_BY_KIND[1]
+    else
+        list, pool, factory_id = self.drops, DROP_POOL, FACTORY_BY_KIND[0]
+    end
+    local id = allocate(self, pool, factory_id)
+    if not id then return end
+    table.insert(list, id)
+    local from = vmath.vector3(x or 0, y or 0, 0)
+    local to
+    if kind == 2 then
+        -- Adding a hammer shifts nothing: drops and keys are untouched
+        -- and the new hammer is appended after the existing ones.
+        to = vmath.vector3(hammer_x(#self.hammers, #self.drops, #self.keys), POCKET_Y, 0)
+    elseif kind == 1 then
+        to = vmath.vector3(key_x(#self.keys, #self.drops), POCKET_Y, 0)
+        -- The hammer group shifts right behind the new key; snap it,
+        -- no animation (the key itself is still flying).
+        snap_hammers(self)
+    else
+        to = vmath.vector3(drop_x(#self.drops), POCKET_Y, 0)
+        snap_keys_and_hammers(self) -- the key/hammer groups shift right; snap, no animation
+    end
+    msg.post(id, "fly", { from = from, to = to })
+end
+
+local function remove(self, kind)
+    local list = (kind == 2) and self.hammers or ((kind == 1) and self.keys or self.drops)
+    -- защита от «минуса» при рассинхроне: убирать нечего — молча выходим
+    if #list <= 0 then
+        return
+    end
+    local id = list[1] -- take the leftmost item of the group
+    table.remove(list, 1)
+    free(self, id)
+    snap_all(self) -- remaining items compact instantly, no animation
+end
+
+-- Instant rebuild of the strip from explicit counts. Used when the ball rolls
+-- the pocket back after losing a life: items collected on the failed attempt
+-- disappear, the rest are placed without animation.
+local function set_items(self, drops, keys, hammers)
+    for _, id in ipairs(self.drops) do
+        free(self, id)
+    end
+    for _, id in ipairs(self.keys) do
+        free(self, id)
+    end
+    for _, id in ipairs(self.hammers) do
+        free(self, id)
+    end
+    self.drops = {}
+    self.keys = {}
+    self.hammers = {}
+    local nd = math.max(0, drops or 0)
+    local nk = math.max(0, keys or 0)
+    local nh = math.max(0, hammers or 0)
+    for i = 1, nd do
+        local id = allocate(self, DROP_POOL, FACTORY_BY_KIND[0])
+        if not id then break end
+        self.drops[i] = id
+        msg.post(id, "show", { to = vmath.vector3(drop_x(i), POCKET_Y, 0) })
+    end
+    for j = 1, nk do
+        local id = allocate(self, KEY_POOL, FACTORY_BY_KIND[1])
+        if not id then break end
+        self.keys[j] = id
+        msg.post(id, "show", { to = vmath.vector3(key_x(j, #self.drops), POCKET_Y, 0) })
+    end
+    for k = 1, nh do
+        local id = allocate(self, HAMMER_POOL, FACTORY_BY_KIND[2])
+        if not id then break end
+        self.hammers[k] = id
+        msg.post(id, "show", { to = vmath.vector3(hammer_x(k, #self.drops, #self.keys), POCKET_Y, 0) })
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("add") then
+        add(self, message.kind or 0, message.x or 0, message.y or 0)
+    elseif message_id == hash("remove") then
+        remove(self, message.kind or 0)
+    elseif message_id == hash("set_lives") then
+        set_lives(self, math.max(0, message.count or LIVES))
+    elseif message_id == hash("add_life") then
+        add_life(self, message.x, message.y, message.count)
+    elseif message_id == hash("set_items") then
+        set_items(self, message.drops or 0, message.keys or 0, message.hammers or 0)
+    end
+end

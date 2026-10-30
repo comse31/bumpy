@@ -1,0 +1,31 @@
+# Keep the Docker build context minimal. Only the HTML5 bundle (dist/web)
+# and docker/ files are actually needed by docker/Dockerfile.
+
+# Defold project sources and editor state
+main/
+input/
+origin/
+tools/
+com/
+org/
+google/
+*.project
+*.collection
+*.script
+*.lua
+*.go
+*.atlas
+*.sprite
+
+.internal/
+build/
+dist/*.json
+
+# bob.jar скачивается внутри образа (docker/bob-builder.Dockerfile),
+# на хосте он не нужен — исключаем из контекста сборки.
+bob.jar
+
+.vscode/
+.git/
+.gitignore
+*.log

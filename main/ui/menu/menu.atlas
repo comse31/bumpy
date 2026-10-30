@@ -1,0 +1,12 @@
+images {
+  image: "/main/controls/white.png"
+}
+animations {
+  id: "menu_white"
+  images {
+    image: "/main/controls/white.png"
+  }
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0

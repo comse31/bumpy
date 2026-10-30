@@ -1,0 +1,516 @@
+-- Загрузчик уровней: генерирует уровень из метаданных (main/levels.json)
+-- вместо статически прописанных экземпляров в main.collection.
+--
+-- Метаданные уровней лежат в main/levels.json (генерируются
+-- tools/extract_levels.py из BUMPY.TAP). Файл подключён как custom_resources
+-- в game.project и читается в рантайме через sys.load_resource + json.decode.
+-- Для каждого уровня есть сетка слоя lo (платформы), слоя hi (вертикальные
+-- перегородки) и сетка объектов (goodies), стартовая ячейка, счётчик выхода
+-- (timer) и финишная ячейка (timer_cell).
+--
+-- Платформы/предметы/выход создаются через factory-компоненты этого объекта,
+-- id экземпляров складываются в общий реестр main/level/level_state.lua,
+-- откуда их читает ball.script.
+--
+-- Соответствие кодов слоя lo оригинальной игры прототипам подтверждено
+-- по геймплею (см. origin/LEVELS.md): 1 — обычная платформа (default),
+-- 2 — shrinkable, 3 — уменьшенная на одно значение shrinkable, 4 — shrinkable
+-- с двумя уменьшениями, 5 — липкая (sticky), 6 — наклонная влево (sloped
+-- left), 7 — наклонная вправо (sloped right), 8 — горящая (burning),
+-- 9 — одновременно горящая и липкая (burning+sticky: горит, а при гашении
+-- каплей превращается в липкую), 10 — кирпичная стена (block), 12 — шипы
+-- (spike). Коды без сопоставления создаются как обычная платформа, чтобы
+-- сохранить геометрию уровня.
+--
+-- Вертикальные перегородки (стены) берутся из слоя hi метаданных: столбец gc
+-- описывает границу между вертикалями gc и gc+1, то есть b = gc + 1 — первый
+-- столбец это перегородки между 0 и 1 вертикалью (подтверждено по данным:
+-- последний столбец всегда пуст). Коды: 3 — целая разрушаемая, 4 —
+-- неразрушаемая, 2 — разрушаемая с одним ударом, 1 — с двумя (см.
+-- origin/LEVELS.md).
+--
+-- По внешним границам поля (b = 0 и b = COLS) всегда создаются статичные
+-- стеклянные перегородки border: в метаданных их нет, они есть на каждом
+-- уровне во всех рядах и не разрушаются. Регистрация в state.walls делает
+-- мяч отскакивать от края поля (см. ball.script).
+
+local state = require("main.level.level_state")
+-- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
+local save = require("main.save")
+-- тестовый режим (bumpy.test_level = 1): тестовый набор уровней без сохранения
+local test_mode = require("main.test_mode")
+-- режим игры: в «Приключении» после прохождения уровня возвращаемся в меню
+local game_mode = require("main.game_mode")
+
+local COLS = 6
+local ROWS = 6
+local CELL_W = 960.0 / COLS
+local CELL_H = 640.0 / COLS
+local PLATFORM_Y_BASE = 20.0 -- центр платформы нижнего ряда
+local PLATFORM_H = 20.0 -- высота игровой платформы (см. PLATFORM_SCALE ниже)
+-- прототипы платформ имеют меш/коллизию 960x80, а игровая платформа — 140x20,
+-- поэтому при спавне им нужен масштаб (раньше он задавался в main.collection)
+local PLATFORM_SCALE = vmath.vector3(140.0 / 960.0, 20.0 / 80.0, 1.0)
+
+-- основной набор уровней игры. Тестовый уровень подключается настройкой
+-- bumpy.test_level = 1 в game.project (см. main/test_mode.lua) — в игровом
+-- процессе он не участвует
+local DEFAULT_LEVELS_PATH = "/main/levels.json"
+
+go.property("level", 1)
+
+-- код слоя lo (0..12) -> id factory-компонента.
+-- 0 — пусто (платформа не создаётся).
+-- Подтверждено по геймплею: 1 — обычная платформа (default), 2 — сжимающаяся
+-- (shrinkable) платформа, 3 — та же, но уже уменьшенная на одно значение
+-- (предварительно повреждённая, см. PLATFORM_DATA), 4 — сжимающаяся с двумя
+-- уменьшениями (durability 2), 5 — липкая (sticky) платформа, 6 — наклонная
+-- влево (sloped left), 7 — наклонная вправо (sloped right), 8 — горящая
+-- (burning), 9 — горящая И липкая одновременно: горит как lo=8, но после
+-- гашения каплей становится липкой (sticky), а не обычной — платформа горит и,
+-- если мяч гасит её каплей, превращается в липкую; 10 — кирпичная стена
+-- (block), 12 — шипы (spike): контакт мяча с платформой лопает мяч
+-- (см. is_spike в ball.script).
+local PLATFORM_BY_CODE = {
+    [1] = "#platform_default",
+    [2] = "#platform_shrinkable",
+    [3] = "#platform_shrinkable",
+    [4] = "#platform_shrinkable",
+    [5] = "#platform_sticky",
+    [6] = "#platform_sloped_left",
+    [7] = "#platform_sloped_right",
+    [8] = "#platform_burning",
+    [9] = "#platform_burning_sticky",
+    [10] = "#platform_block",
+    [12] = "#platform_spike",
+}
+
+-- код слоя hi (0..4) -> id factory-компонента перегородки.
+-- 0 — пусто (перегородка не создаётся). Подтверждено по данным оригинала:
+-- коды 1 и 2 — разрушаемая уже с одним/двумя ударами (та же фабрика, но с
+-- уменьшенной прочностью, см. spawn_wall), 3 — целая разрушаемая,
+-- 4 — неразрушаемая.
+local WALL_BY_CODE = {
+    [1] = "#wall_destructible",
+    [2] = "#wall_destructible",
+    [3] = "#wall_destructible",
+    [4] = "#wall_indestructible",
+}
+
+-- оставшаяся прочность для предварительно повреждённых перегородок (коды hi)
+local WALL_DURABILITY = {
+    [1] = 1, -- два удара получено
+    [2] = 2, -- один удар получен
+}
+
+-- factory-данные для платформ с нестандартной прочностью (коды lo):
+-- initial_hits — сколько уменьшений платформа уже получила (первое касание
+-- мяча не уменьшает её); durability — сколько уменьшений она выдерживает
+local PLATFORM_DATA = {
+    [3] = { initial_hits = 1 }, -- shrinkable, уменьшенная на одно значение
+    [4] = { initial_hits = 2 }, -- shrinkable с двумя уменьшениями: уже узкая,
+                                -- один остаточный прыжок и исчезает (масштаб 1/3)
+}
+
+-- фрукты для собираемых объектов (коды >= 5): один атлас fruit.atlas,
+-- прототип goodie_fruit выбирает нужную анимацию по свойству anim.
+-- Порядок задаёт раскладку кодов по фруктам (см. fruit_for_code).
+local FRUITS = {
+    "mushroom", "strawberry", "apple", "pear", "cherry", "banana",
+    "orange", "grapes", "plum", "lemon", "carrot", "watermelon",
+}
+
+-- код объекта (>= 5) -> имя фрукта: распределяем коды по кругу, чтобы на
+-- уровне соседние разные объекты выглядели по-разному
+local function fruit_for_code(code)
+    local idx = ((code - 5) % #FRUITS) + 1
+    return FRUITS[idx]
+end
+
+-- код объекта (1..40) -> (id factory-компонента, kind скрипта goodie,
+-- имя анимации для фруктовых прототипов или nil).
+-- 1 — молоток (kind 2, подтверждено по геймплею), 2 — ключ (kind 1),
+-- 3 — капля (kind 0, подтверждено по геймплею), 4 — дополнительная жизнь
+-- (kind 4, спрайт-сердечко; при сборе увеличивает число жизней в кармане),
+-- коды >= 5 — собираемые объекты, открывающие выход (kind 3, спрайты-фрукты:
+-- гриб, клубника, яблоко, груша и т.п.). Остальные коды не реализованы.
+local function goodie_factory(code)
+    if code == 1 then return "#goodie_hammer", 2 end
+    if code == 3 then return "#goodie_drop", 0 end
+    if code == 2 then return "#goodie_key", 1 end
+    if code == 4 then return "#goodie_heart", 4 end
+    if code >= 5 then return "#goodie_fruit", 3, fruit_for_code(code) end
+    return nil
+end
+
+-- строка метаданных (0 — верх) -> строка экрана (0 — низ), как в ball.script
+local function screen_row(grid_row)
+    return (ROWS - 1) - grid_row
+end
+
+local function cell_center_x(col)
+    return (col + 0.5) * CELL_W
+end
+
+local function platform_y(row)
+    return PLATFORM_Y_BASE + row * CELL_H
+end
+
+local function grid_of(cell)
+    return math.floor(cell / COLS), cell % COLS
+end
+
+-- ключи таблицы-множества, отсортированные, через запятую (для отладочного вывода)
+local function sorted_keys(set)
+    local keys = {}
+    for k in pairs(set) do
+        keys[#keys + 1] = k
+    end
+    table.sort(keys)
+    return table.concat(keys, ",")
+end
+
+local function delete_all(store)
+    for _, row in pairs(store) do
+        for _, id in pairs(row) do
+            if id then
+                go.delete(id)
+            end
+        end
+    end
+end
+
+-- блок (кирпичная стена, код 10): родной меш 140x100 — ширина ровно в игровую
+-- ячейку (не задевает границы, где могли бы стоять перегородки), по высоте
+-- растягивается на высоту ряда (CELL_H). Масштаб по X = 1 (140 px как есть)
+local BLOCK_HEIGHT = 100.0
+local BLOCK_SCALE = vmath.vector3(1.0, CELL_H / BLOCK_HEIGHT, 1.0)
+-- верхний край кладки совпадает с поверхностью платформы ряда ВЫШЕ (row+1):
+-- центр блока = platform_y(row) + CELL_H + PLATFORM_H/2 - CELL_H/2
+local BLOCK_Y_OFFSET = CELL_H / 2.0 + PLATFORM_H / 2.0
+
+-- родной размер меша перегородки 20x70 (локальные y -15..55, центр y=20):
+-- толщина совпадает с WALL_THICKNESS в ball.script, поэтому X не масштабируем,
+-- а по Y растягиваем на высоту ряда ячеек; позиция смещена на локальный центр
+-- меша (20 * масштаб), чтобы перегородка заняла весь ряд
+local WALL_SCALE = vmath.vector3(1.0, CELL_H / 70.0, 1.0)
+
+local function spawn_platform(row, col, code)
+    local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
+    local pos, scale
+    if factory_id == "#platform_block" then
+        -- кладка шириной в ячейку; верх её на уровне верхней грани платформы ряда
+        pos = vmath.vector3(cell_center_x(col), platform_y(row) + BLOCK_Y_OFFSET, 0.0)
+        scale = BLOCK_SCALE
+    else
+        pos = vmath.vector3(cell_center_x(col), platform_y(row), 0.0)
+        scale = PLATFORM_SCALE
+    end
+    -- коды с предварительным повреждением передают данные в скрипт платформы
+    local id = factory.create(factory_id, pos, nil, PLATFORM_DATA[code], scale)
+    state.platforms[row] = state.platforms[row] or {}
+    state.platforms[row][col] = id
+    return id
+end
+
+local function spawn_goodie(row, col, code)
+    local factory_id, kind, anim = goodie_factory(code)
+    if not factory_id then
+        return nil
+    end
+    -- предмет в центре игровой ячейки: над платформой на половину высоты ячейки
+    local y = platform_y(row) + CELL_H / 2.0
+    -- anim передаётся только фруктовым прототипам (hash имени анимации)
+    local props = { kind = kind }
+    if anim then
+        props.anim = hash(anim)
+    end
+    local id = factory.create(factory_id,
+        vmath.vector3(cell_center_x(col), y, 0.0), nil, props)
+    state.goodies[row] = state.goodies[row] or {}
+    state.goodies[row][col] = id
+    return id
+end
+
+-- перегородка на границе b (между колонками b-1 и b): X — сама граница,
+-- Y — локальный центр меша, растянутого на высоту ряда
+local function spawn_wall(row, b, code)
+    local factory_id = WALL_BY_CODE[code]
+    if not factory_id then
+        return nil
+    end
+    local pos = vmath.vector3(b * CELL_W, platform_y(row) + 20.0 * WALL_SCALE.y, 0.0)
+    -- коды 1 и 2: перегородка уже повреждена — заводим оставшуюся прочность
+    -- (factory-данные попадают в свойство durability скрипта)
+    local data = WALL_DURABILITY[code] and { durability = WALL_DURABILITY[code] } or nil
+    local id = factory.create(factory_id, pos, nil, data, WALL_SCALE)
+    state.walls[row] = state.walls[row] or {}
+    state.walls[row][b] = id
+    return id
+end
+
+-- статичная стеклянная перегородка по внешней границе поля (b = 0 или b = COLS):
+-- геометрия и масштаб те же, что у стен из слоя hi; в levels.json их нет —
+-- они создаются всегда, для каждого ряда, во всех уровнях. Без компонента
+-- #destructible мяч считает её неразрушаемой (см. is_wall_destroyed в ball.script)
+local function spawn_border(row, b)
+    local pos = vmath.vector3(b * CELL_W, platform_y(row) + 20.0 * WALL_SCALE.y, 0.0)
+    local id = factory.create("#wall_border", pos, nil, nil, WALL_SCALE)
+    state.walls[row] = state.walls[row] or {}
+    state.walls[row][b] = id
+    return id
+end
+
+-- выход в финишной ячейке: табличка с надписью EXIT в рамке (текстура
+-- main/exit/exit.png генерируется tools/gen_exit_sign.py), скрыта, пока мяч не
+-- собрал timer объектов. Размер таблички уместается в игровой ячейку, не
+-- наезжая на платформу снизу (низ — на верхней грани платформы этой ячейки или
+-- виртуальную поверхность, если платформы нет) и на вертикальные перегородки
+-- по бокам (отступ 20 px против выступа перегородки 10 px)
+local EXIT_SIGN_W = 120.0 -- ширина таблички в мировых пикселях
+local EXIT_SIGN_H = 80.0  -- высота таблички в мировых пикселях
+local EXIT_TEX_W = 240.0  -- родной размер текстуры (см. tools/gen_exit_sign.py)
+local EXIT_TEX_H = 160.0
+
+local function spawn_exit(cell)
+    local gr, gc = grid_of(cell)
+    local row = screen_row(gr)
+    -- центр таблички: низ на верхней грани платформы ряда (platform_y + PLATFORM_H/2)
+    local y = platform_y(row) + PLATFORM_H / 2.0 + EXIT_SIGN_H / 2.0
+    local scale = vmath.vector3(EXIT_SIGN_W / EXIT_TEX_W, EXIT_SIGN_H / EXIT_TEX_H, 1.0)
+    return factory.create("#exit", vmath.vector3(cell_center_x(gc), y, 0.0), nil, nil, scale)
+end
+
+-- платформа в финишной ячейке исчезает при появлении выхода: снимаем её из
+-- реестра (мяч больше не может опираться на неё — см. platform_id в ball.script)
+-- и удаляем объект (go.delete отложен до конца кадра)
+local function remove_exit_platform()
+    local gr, gc = grid_of(state.exit_cell)
+    local row = screen_row(gr)
+    local id = state.platform_id(row, gc)
+    if not id then
+        return
+    end
+    state.platforms[row][gc] = nil
+    go.delete(id)
+end
+
+-- открыть выход: включить табличку EXIT и убрать платформу в её ячейке
+local function open_exit()
+    if not state.exit_id then
+        return
+    end
+    msg.post(state.exit_id, "open")
+    remove_exit_platform()
+end
+
+-- прочитать и декодировать метаданные уровней (custom resource):
+-- /main/levels.json — уровни игры, /main/test_levels.json — ручной тестовый набор
+local function load_model()
+    local path = test_mode.levels_path(DEFAULT_LEVELS_PATH)
+    local data, err = sys.load_resource(path)
+    if not data then
+        print("level.script: cannot load " .. path .. ": " .. tostring(err))
+        return nil
+    end
+    local ok, model = pcall(json.decode, data)
+    if not ok or not model then
+        print("level.script: cannot decode " .. path .. ": " .. tostring(model))
+        return nil
+    end
+    local count = tonumber(model.level_count) or 1
+    if not model.levels or #model.levels < count then
+        print("level.script: " .. path .. " has no level data")
+        return nil
+    end
+    print(string.format("level.script: loaded %s (%d levels)", path, count))
+    return model
+end
+
+-- удалить объекты текущего уровня и очистить реестр.
+-- go.delete() отложен до конца кадра, поэтому меши/спрайты освобождаются из
+-- общего пула (mesh.max_count / sprite.max_count) не сразу. Если создать новый
+-- уровень в том же кадре, старые и новые объекты учитываются одновременно, и
+-- при плотном уровне пул переполняется — часть мешей уже не добавляется.
+-- Поэтому очистка и генерация разнесены по разным кадрам (см. load ниже).
+local function clear_level()
+    delete_all(state.platforms)
+    delete_all(state.walls)
+    delete_all(state.goodies)
+    if state.exit_id then
+        go.delete(state.exit_id)
+    end
+    state.reset()
+    state.exit_id = nil
+end
+
+-- сгенерировать уровень self.level: создать объекты в очищенной сцене
+local function build_level(self)
+    local model = self.model
+    local index = vmath.clamp(self.level, 1, model.level_count)
+    local lvl = model.levels[index]
+    if not lvl then
+        print("level.script: level " .. tostring(self.level) .. " not found")
+        return
+    end
+    state.index = index
+    state.start_cell = lvl.start_cell
+    state.exit_cell = lvl.timer_cell
+    state.timer = lvl.timer
+
+    local platforms, walls, goodies = 0, 0, 0
+    local unknown_lo, unknown_hi, unknown_obj = {}, {}, {}
+    -- сетки в levels.json — вложенные 6x6 (grid_lo[gr+1][gc+1], gr=0 — верх)
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 1 do
+            local code = lvl.grid_lo[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not PLATFORM_BY_CODE[code] then
+                    unknown_lo[code] = true
+                end
+                spawn_platform(screen_row(gr), gc, code)
+                platforms = platforms + 1
+            end
+        end
+    end
+    -- слой hi: вертикальные перегородки; столбец gc — граница b = gc + 1,
+    -- последний столбец (gc = 5) в данных всегда пуст и не используется
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 2 do
+            local code = lvl.grid_hi[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not WALL_BY_CODE[code] then
+                    unknown_hi[code] = true
+                end
+                if spawn_wall(screen_row(gr), gc + 1, code) then
+                    walls = walls + 1
+                end
+            end
+        end
+    end
+    -- стеклянные перегородки по внешним границам поля: всегда, во всех рядах
+    for row = 0, ROWS - 1 do
+        spawn_border(row, 0)
+        spawn_border(row, COLS)
+    end
+    for gr = 0, ROWS - 1 do
+        for gc = 0, COLS - 1 do
+            local code = lvl.objects[gr + 1][gc + 1]
+            if code and code ~= 0 then
+                if not goodie_factory(code) then
+                    unknown_obj[code] = true
+                end
+                if spawn_goodie(screen_row(gr), gc, code) then
+                    goodies = goodies + 1
+                end
+            end
+        end
+    end
+
+    state.exit_id = spawn_exit(lvl.timer_cell)
+    -- если собирать нечего — выход открыт сразу (табличка + снятие платформы)
+    if state.timer <= 0 then
+        open_exit()
+    end
+
+    print(string.format("LEVEL %d loaded (theme %d): %d platforms, %d walls, %d goodies, start=%d exit=%d timer=%d",
+        index, lvl.theme, platforms, walls, goodies, lvl.start_cell, lvl.timer_cell, lvl.timer))
+    -- нераспознанные коды слоя lo / объектов: сопоставление пока не подтверждено
+    -- (см. origin/LEVELS.md), поэтому коды без прототипа создаются как обычная
+    -- платформа, а объекты пропускаются; выводим их, чтобы пробел был заметен
+    if next(unknown_lo) then
+        print("level.script: unmapped grid_lo codes -> default platform: " .. sorted_keys(unknown_lo))
+    end
+    if next(unknown_hi) then
+        print("level.script: unmapped grid_hi codes (skipped): " .. sorted_keys(unknown_hi))
+    end
+    if next(unknown_obj) then
+        print("level.script: unmapped object codes (skipped): " .. sorted_keys(unknown_obj))
+    end
+
+    -- стартовая ячейка шара: сообщаем явно, чтобы не зависеть от порядка init
+    msg.post("/ball", "level_start", { cell = lvl.start_cell })
+end
+
+-- переход на уровень self.level: старый уровень удаляется сейчас (меши
+-- освобождаются в конце кадра), а новый строится на следующем кадре, когда пул
+-- уже свободен
+local function load(self)
+    clear_level()
+    self.pending = true
+end
+
+function init(self)
+    self.test = test_mode.is_enabled()
+    self.model = load_model()
+    if not self.model then
+        return
+    end
+    if self.test then
+        -- тестовый режим: всегда первый (единственный) уровень, сохранение
+        -- игнорируется (save.load в этом режиме уже возвращает nil)
+        self.level = 1
+        print("level.script: TEST MODE, save ignored")
+    else
+        -- восстановление прогресса: если есть сохранение с нерастраченными
+        -- жизнями, продолжаем с сохранённого уровня (жизни и карман
+        -- восстанавливает ball.script). lives = 0 означает, что жизни
+        -- кончились — начинаем новую игру с уровня 1
+        local data = save.load()
+        if data and (data.lives or 0) > 0 then
+            self.level = data.level or self.level
+            print("level.script: resume from save, level " .. tostring(self.level))
+        end
+    end
+    self.pending = false
+    -- при старте удалять нечего — строим сразу
+    build_level(self)
+end
+
+function update(self, dt)
+    if self.pending then
+        self.pending = false
+        build_level(self)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if not self.model then
+        return
+    end
+    if message_id == hash("exit_open") then
+        -- мяч собрал timer объектов: включить табличку и убрать платформу
+        -- в финишной ячейке
+        open_exit()
+    elseif message_id == hash("level_complete") then
+        -- в тестовом режиме уровень один: переходить некуда, перезапускаем его,
+        -- чтобы можно было проверять прохождение повторно
+        if self.test then
+            print("level.script: TEST MODE, restarting the only level")
+            load(self)
+            return
+        end
+        -- «Приключение»: одна попытка на выбранном уровне. После прохождения
+        -- следующий уровень НЕ загружается — игра возвращается в стартовое
+        -- меню, где можно выбрать любой открытый уровень и сыграть снова
+        if game_mode.is_adventure() then
+            print("level.script: ADVENTURE level complete, back to menu")
+            msg.post("/ready", "hide")
+            msg.post("/game_over", "hide")
+            -- заморозить мяч: игра уходит на паузу под меню, а физика не
+            -- должна продолжать двигать его за пределы поля
+            msg.post("/ball", "freeze")
+            game_mode.set_menu_open(true)
+            msg.post("/menu", "open")
+            return
+        end
+        -- следующий уровень по кругу (после последнего — снова первый)
+        self.level = (self.level % self.model.level_count) + 1
+        load(self)
+    elseif message_id == hash("reload_level") then
+        if message and message.level then
+            self.level = message.level
+        end
+        load(self)
+    end
+end

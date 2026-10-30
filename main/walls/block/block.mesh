@@ -1,0 +1,4 @@
+material: "/main/walls/block/block.material"
+vertices: "/main/walls/block/block.buffer"
+textures: "/main/walls/block/block.png"
+primitive_type: PRIMITIVE_TRIANGLES

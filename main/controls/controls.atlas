@@ -1,0 +1,48 @@
+images {
+  image: "/main/controls/left.png"
+}
+images {
+  image: "/main/controls/right.png"
+}
+images {
+  image: "/main/controls/up.png"
+}
+images {
+  image: "/main/controls/white.png"
+}
+images {
+  image: "/main/controls/cell_frame.png"
+}
+animations {
+  id: "btn_left"
+  images {
+    image: "/main/controls/left.png"
+  }
+}
+animations {
+  id: "btn_right"
+  images {
+    image: "/main/controls/right.png"
+  }
+}
+animations {
+  id: "hl_frame"
+  images {
+    image: "/main/controls/cell_frame.png"
+  }
+}
+animations {
+  id: "hl_pixel"
+  images {
+    image: "/main/controls/white.png"
+  }
+}
+animations {
+  id: "btn_up"
+  images {
+    image: "/main/controls/up.png"
+  }
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0

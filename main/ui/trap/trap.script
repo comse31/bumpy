@@ -1,0 +1,32 @@
+-- Плашка «YOU ARE TRAPPED»: показывается, когда мяч попал в бесконечную
+-- ловушку наклонной платформы (см. check_slope_trap в ball.script). Состоит из
+-- фонового спрайта (trap.sprite), заголовка (trap_title.label) и большого
+-- счётчика обратного отсчёта (trap_count.label) под ним. До сообщения "show"
+-- все компоненты выключены.
+local DEFAULT_COUNT = 3
+
+local function set_visible(self, visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    msg.post("#sprite", action)
+    msg.post("#title", action)
+    msg.post("#count", action)
+end
+
+function init(self)
+    go.set("#count", "text", tostring(DEFAULT_COUNT))
+    set_visible(self, false)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        go.set("#count", "text", tostring(DEFAULT_COUNT))
+        set_visible(self, true)
+    elseif message_id == hash("count") then
+        -- обратный отсчёт 3 -> 2 -> 1 (значение присылает ball.script)
+        local count = message and message.count or DEFAULT_COUNT
+        go.set("#count", "text", tostring(count))
+    elseif message_id == hash("hide") then
+        set_visible(self, false)
+    end
+end
