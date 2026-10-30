@@ -21,7 +21,8 @@ local TOUCH_CMD_TIMEOUT = C.TOUCH_CMD_TIMEOUT
 local actions = {}
 
 -- подключить слой действия. Обязательные ключи:
---   start_high_jump(self), hop_and_move(self, dir), bounce_off_wall(self, dir)
+--   start_high_jump(self), cancel_high_jump(self),
+--   hop_and_move(self, dir), bounce_off_wall(self, dir)
 function M.bind(table_of_actions)
     actions = table_of_actions or {}
 end
@@ -182,17 +183,42 @@ function M.try_cell_command(self)
         M.clear_cell_cmd(self)
         return false
     end
-    -- высокий прыжок уже идёт: тап задаёт сторону соскока (запрыгивание).
+    -- высокий прыжок уже идёт: тап по ячейке ВЫШЕ мяча задаёт сторону соскока
+    -- (запрыгивание), тап по ячейке НИЖЕ — принудительное падение (см. ниже).
     -- Траекторию можно изменить, ТОЛЬКО пока мяч не долетел до целевой ячейки.
     -- «Долетел» = нижняя часть мяча пересекла уровень отскока этого ряда
     -- (BOUNCE_Y[row]); тот же признак ведёт счётчик hj_row в update. Проверяем
     -- и по позиции, и по счётчику — команда может прийти из on_message до
     -- ближайшего update, когда hj_row ещё не сдвинулся.
-    -- Тап по уже достигнутой ячейке игнорируется, а ранее назначенная цель
+    -- Тап по уже достигнутой ячейке прыжок не меняет, а ранее назначенная цель
     -- соскока сохраняется в силе.
     if self.high_jump then
-        local passed = cmd.row < (self.hj_row or self.row)
-            or (go.get_position().y - RADIUS >= BOUNCE_Y[cmd.row])
+        -- игрок нажал на ячейку НИЖЕ взлетающего мяча: нижняя часть мяча уже
+        -- выше уровня отскока нажатого ряда, то есть мяч эту ячейку пролетел.
+        -- Это принудительное падение: высокий прыжок прерывается, и мяч падает
+        -- из той ячейки, в которой он был в момент нажатия. Тап за боковой
+        -- границей поля (по стенке) прыжок не прерывает — там нет ячейки.
+        --
+        -- Сравнение строгое, с допуском: в самый первый кадр подъёма низ мяча
+        -- равен BOUNCE_Y своего ряда, и тап по собственной ячейке (совпадает
+        -- с уровнем старта) не должен мгновенно обрывать только что начатый
+        -- прыжок — отменяем лишь когда мяч действительно поднялся над ячейкой
+        local tapped_below = not cmd.side
+            and go.get_position().y - RADIUS > BOUNCE_Y[cmd.row] + 1.0
+        if tapped_below and actions.cancel_high_jump then
+            if actions.cancel_high_jump(self) then
+                self.target_col = nil
+                self.target_row = nil
+                M.clear_cell_cmd(self)
+                -- падение — это действие текущего цикла: новое нажатие по
+                -- ячейке принимается только после приземления
+                self.press_used = true
+                M.clear_tap(self)
+                dbg.log("HIGH JUMP cancelled by cell tap row=%d", cmd.row)
+                return true
+            end
+        end
+        local passed = cmd.row < (self.hj_row or self.row) or tapped_below
         -- направление соскока: для тапа по ячейке поля — в её сторону,
         -- для тапа за боковой границей поля — задано знаком dir (±1)
         local dir = cmd.dir

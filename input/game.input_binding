@@ -39,6 +39,12 @@ key_trigger {
   input: KEY_RIGHT
   action: "right"
 }
+# Кнопка «вниз»: прерывает высокий прыжок — мяч перестаёт подниматься и
+# падает из той ячейки, в которой находится в момент нажатия
+key_trigger {
+  input: KEY_DOWN
+  action: "down"
+}
 key_trigger {
   input: KEY_T
   action: "switch"
@@ -65,8 +71,8 @@ mouse_trigger {
 }
 # "any_key": прочие клавиши — нужны, чтобы по любому нажатию перезапустить
 # игру после GAME OVER (см. ball.script). Клавиши, уже занятые выше
-# (SPACE/UP/LEFT/RIGHT/T), сюда не дублируются: ball.on_input реагирует
-# на любое из связанных действий.
+# (SPACE/UP/DOWN/LEFT/RIGHT/T, Enter/Esc/Backspace), сюда не дублируются:
+# ball.on_input реагирует на любое из связанных действий.
 key_trigger {
   input: KEY_ENTER
   action: "any_key"
@@ -81,10 +87,6 @@ key_trigger {
 }
 key_trigger {
   input: KEY_TAB
-  action: "any_key"
-}
-key_trigger {
-  input: KEY_DOWN
   action: "any_key"
 }
 key_trigger {

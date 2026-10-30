@@ -259,6 +259,40 @@ function M.start_high_jump(self)
     self.next_touch_time = self.time + M.high_jump_touch_time(self)
 end
 
+-- Прервать высокий прыжок по команде «вниз» (клавиша Down или тап по ячейке
+-- ниже мяча в тач-режиме). Мяч перестаёт подниматься и падает из той ячейки,
+-- в которой находится в момент нажатия: скорость гасится, дальше работает
+-- обычная гравитация, а приземление ловит swept-тест (см. ball_landing).
+-- Возвращает true, если прыжок действительно был прерван
+function M.cancel_high_jump(self)
+    if not self.high_jump then
+        return false
+    end
+    self.high_jump = false
+    self.rising = false
+    self.hj_row = nil
+    -- намерение соскока ставилось для полёта и после отмены не актуально
+    self.cell_jump = nil
+    -- оценка времени полёта относилась к высокому прыжку: после отмены мяч
+    -- просто падает, и следующее касание определит физика/приземление
+    self.next_touch_time = nil
+    -- прерывание расходует удержание прыжка: пока игрок не отпустит кнопку
+    -- высокого прыжка, новый прыжок не начнётся (иначе зажатая клавиша или
+    -- экранная кнопка запустила бы его снова сразу при приземлении).
+    -- Флаги снова поднимутся только по свежему нажатию: клавиша — по
+    -- pressed (см. on_input), экранная кнопка — по новому touch_control
+    self.jump_held = false
+    self.touch_jump = false
+    self.tap_jump = false
+    self.pending_jump = false
+    phys.stop()
+    self.action_time = self.time
+    dbg.log("HIGH JUMP cancelled at y=%.1f row=%d col=%d",
+        go.get_position().y, self.row, self.col)
+    M.report_motion(self)
+    return true
+end
+
 -- визуальный прогиб платформы (dir = 1 — вниз, -1 — вверх) и уведомление
 -- о приземлении — тонкие обёртки, чтобы движение не зависело от сигнатур ball_world
 function M.bend_platform(self, row, col, dir)

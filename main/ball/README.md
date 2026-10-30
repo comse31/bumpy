@@ -51,6 +51,7 @@
 ```lua
 input.bind({
     start_high_jump = function(self) start_high_jump(self) end,
+    cancel_high_jump = function(self) return cancel_high_jump(self) end,
     hop_and_move = function(self, dir) return hop_and_move(self, dir) end,
     bounce_off_wall = function(self, dir) bounce_off_wall(self, dir) end,
 })

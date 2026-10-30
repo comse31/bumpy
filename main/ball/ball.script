@@ -219,6 +219,12 @@ local function start_high_jump(self)
     motion.start_high_jump(self)
 end
 
+-- прерывание высокого прыжка кнопкой «вниз» (или тапом по ячейке ниже мяча):
+-- мяч начинает падать из текущей ячейки
+local function cancel_high_jump(self)
+    return motion.cancel_high_jump(self)
+end
+
 -- ввод (удержания клавиш/жестов и отложенный тап по ячейке) вынесен в
 -- ball_input; псевдонимы сохраняют прежние имена вызовов
 local held_direction = input.held_direction
@@ -254,6 +260,7 @@ end
 -- напрямую, а получают нужные функции внедрением (как герои получают ENV)
 input.bind({
     start_high_jump = function(self) start_high_jump(self) end,
+    cancel_high_jump = function(self) return cancel_high_jump(self) end,
     hop_and_move = function(self, dir) return hop_and_move(self, dir) end,
     bounce_off_wall = function(self, dir) bounce_off_wall(self, dir) end,
 })
@@ -828,6 +835,14 @@ function on_input(self, action_id, action)
     if self.game_over then
         return
     end
+    -- кнопка «вниз»: прерывает высокий прыжок — мяч перестаёт подниматься и
+    -- падает из той ячейки, в которой находится в момент нажатия
+    if action_id == hash("down") then
+        if action.pressed then
+            cancel_high_jump(self)
+        end
+        return
+    end
     -- отслеживаем только состояние клавиш: нажата / отжата. Флаг «удерживается»
     -- ставится только по свежему нажатию (pressed), а не по повторам (repeated):
     -- удержание в момент потери жизни иначе переносится на перезапуск уровня —
@@ -881,6 +896,7 @@ local function reset_level_state(self)
     self.bounce_t = 0.0
     self.high_jump = false
     self.rising = false
+    self.hj_row = nil
     self.rising_moved = false
     -- полёт сброшен: сообщаем управлению, что тап можно отправлять
     -- по отпусканию (иначе флаг высокого прыжка остался бы включённым)
