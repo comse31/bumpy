@@ -1,13 +1,26 @@
 -- Плашка GAME OVER: показана, когда у мяча закончились жизни.
 -- Скрыта до сообщения "show" от ball.script; "hide" убирает её обратно.
+-- Текст (GAME OVER / PRESS ANY KEY) вынесен в label-компоненты с общим
+-- шрифтом меню (main/ui/fonts/plate*.font) — так интерфейс единообразен,
+-- а надписи можно менять без правки текстуры.
+local NODES = { "sprite", "title", "hint" }
+
+local function set_visible(visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    for i = 1, #NODES do
+        msg.post("#" .. NODES[i], action)
+    end
+end
+
 function init(self)
-    msg.post("#sprite", "disable")
+    set_visible(false)
 end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("show") then
-        msg.post("#sprite", "enable")
+        set_visible(true)
     elseif message_id == hash("hide") then
-        msg.post("#sprite", "disable")
+        set_visible(false)
     end
 end

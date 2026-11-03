@@ -4,7 +4,7 @@ components {
 }
 components {
   id: "label"
-  component: "/main/ui/ready/ready.label"
+  component: "/main/ui/ready/ready_text.label"
 }
 components {
   id: "script"

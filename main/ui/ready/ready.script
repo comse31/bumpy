@@ -1,7 +1,9 @@
 -- Плашка "READY FOR LEVEL N?": показывается перед началом каждого уровня,
 -- ждёт нажатия любой клавиши (см. ball.script). Состоит из фонового спрайта
--- (ready.sprite, текстура main/ui/ready.png) и label-компонента с номером
--- уровня. До сообщения "show" оба компонента выключены.
+-- (ready.sprite, текстура main/ui/ready/ready.png — только рамка и подложка)
+-- и label-компонента с номером уровня. Текст набран общим шрифтом меню
+-- (main/ui/fonts/plate.font), поэтому интерфейс выглядит единообразно.
+-- До сообщения "show" оба компонента выключены.
 local DEFAULT_TEXT = "READY FOR LEVEL 1?"
 
 local function set_visible(self, visible)

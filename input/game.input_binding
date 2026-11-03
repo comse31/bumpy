@@ -1,8 +1,13 @@
-# --- Стартовое меню (main/ui/menu/menu.gui_script) ---
+# --- Стартовое меню (main/ui/menu/menu.gui_script, UI на Druid) ---
 # ввод произвольного текста для имени игрока: action.text содержит символ
 text_trigger {
   input: TEXT
   action: "text"
+}
+# marked text (IME, в т.ч. мобильные клавиатуры) — читает druid.input
+text_trigger {
+  input: MARKED_TEXT
+  action: "marked_text"
 }
 key_trigger {
   input: KEY_F2
@@ -15,6 +20,11 @@ key_trigger {
 key_trigger {
   input: KEY_BACKSPACE
   action: "name_backspace"
+}
+# Delete (вперёд) — редактирование в druid.input
+key_trigger {
+  input: KEY_DEL
+  action: "name_delete"
 }
 key_trigger {
   input: KEY_ESC
@@ -61,13 +71,6 @@ touch_trigger {
 mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
-}
-# Клик левой кнопкой мыши для СТАРТОВОГО МЕНЮ. Отдельное имя действия, потому
-# что в Defold touch-триггер нельзя связать с тем же действием, что и
-# мышиный: с общим именем mouse-события до скрипта не доходят.
-mouse_trigger {
-  input: MOUSE_BUTTON_LEFT
-  action: "click"
 }
 # "any_key": прочие клавиши — нужны, чтобы по любому нажатию перезапустить
 # игру после GAME OVER (см. ball.script). Клавиши, уже занятые выше

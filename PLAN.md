@@ -198,6 +198,81 @@
     запустила бы новый высокий прыжок сразу при приземлении. Флаги поднимаются
     только по свежему нажатию.
 
+## Этап 16. Единый шрифт интерфейса — ВЫПОЛНЕНО
+- Все внутриигровые плашки переведены на тот же шрифт, что и меню, — текст
+  больше не «запечён» в PNG, а рисуется label-компонентами:
+  [`main/ui/fonts/plate.font`](main/ui/fonts/plate.font:1) (`size 48`),
+  [`plate_big.font`](main/ui/fonts/plate_big.font:1) (`size 64`, заголовок
+  GAME OVER) и [`plate_small.font`](main/ui/fonts/plate_small.font:1)
+  (`size 32`, подсказка «PRESS ANY KEY»). Все три — MarkerFeltThin,
+  `TYPE_BITMAP` (как [`menu.font`](main/ui/menu/menu.font:1)).
+- **READY FOR LEVEL N?** — [`ready_text.label`](main/ui/ready/ready_text.label:1);
+  [`ready.png`](main/ui/ready/ready.png:1) теперь содержит только рамку и
+  подложку; [`ready.script`](main/ui/ready/ready.script:1) по-прежнему
+  подставляет номер уровня через `go.set("#label", "text", ...)`.
+  Старый [`ready.font`](main/ui/ready/ready.font:1) удалён.
+- **GAME OVER** — два label-компонента в
+  [`game_over.go`](main/ui/game_over/game_over.go:1):
+  [`game_over_title.label`](main/ui/game_over/game_over_title.label:1) и
+  [`game_over_hint.label`](main/ui/game_over/game_over_hint.label:1)
+  (были запечены в [`game_over.png`](main/ui/game_over/game_over.png:1)).
+  [`game_over.script`](main/ui/game_over/game_over.script:1) включает/выключает
+  спрайт и обе надписи одним списком `NODES`.
+- **EXIT** — [`exit_text.label`](main/exit/exit_text.label:1) вместо надписи в
+  [`exit.png`](main/exit/exit.png:1); [`exit.script`](main/exit/exit.script:1)
+  управляет спрайтом и надписью одинаково (в т.ч. при старте с `open = 1`).
+- **YOU ARE TRAPPED / счётчик** — [`trap_title.label`](main/ui/trap/trap_title.label:1)
+  и [`trap_count.label`](main/ui/trap/trap_count.label:1) переведены на
+  `plate.font` + `label.material`; старый [`trap.font`](main/ui/trap/trap.font:1)
+  (`vera_mo_bd`, distance field) удалён.
+- Из PNG удалён текст (пиксели заменены цветом подложки): рамки, тени и
+  скругления сохранены, файлы заметно уменьшились
+  (`game_over.png` 18 КБ → 1 КБ, `exit.png` 3 КБ → 1 КБ).
+- Проверка: `POST /command/compile` без ошибок; превью `game_over.go`,
+  `ready.go`, `exit.go`, `trap.go` через `GET /preview/{path}` и запуск движка
+  (плашка READY на уровне 7) — все надписи в общем шрифте.
+
+## Этап 15. Меню на Druid — ВЫПОЛНЕНО
+- UI стартового меню переведён на **[Druid](https://github.com/Insality/druid)** —
+  декларативные компоненты поверх узлов `.gui` вместо ручного разбора
+  `gui.pick_node` в `on_input`.
+- Зависимости ([`game.project`](game.project:1), секция `[project]`):
+  `dependencies#0 = .../defold-event/archive/refs/tags/21.zip` (Druid требует
+  `event.event`/`event.events`) и
+  `dependencies#1 = .../druid/archive/refs/tags/1.4.2.zip`. Библиотеки
+  подтягиваются `Project ▸ Fetch Libraries` (или `POST /command/fetch-libraries`
+  в Defold editor API).
+- Секция `[druid]` перенастраивает имена действий Druid на существующие
+  триггеры [`input/game.input_binding`](input/game.input_binding:1):
+  `input_text = text`, `input_touch = touch`,
+  `input_key_enter = name_enter`, `input_key_esc = name_cancel`,
+  `input_key_backspace = name_backspace`, `input_key_delete = name_delete`,
+  `input_key_left = left`, `input_key_right = right`. Дополнительно добавлены
+  триггеры `MARKED_TEXT` → `marked_text` (IME/мобильные клавиатуры) и
+  `KEY_DEL` → `name_delete`. Мышиный `click` удалён: Druid одинаково
+  обрабатывает `touch` (в т.ч. `MOUSE_BUTTON_1`) на десктопе и мобильных.
+- [`main/ui/menu/menu.gui_script`](main/ui/menu/menu.gui_script:1) переписан:
+  `druid.new(self)`, компоненты `new_button`, `new_text`, `new_input`,
+  `new_blocker` (фон перекрывает поле — тапы не уходят мячу). Жизненный цикл:
+  `update`/`on_message`/`final` прокидываются в Druid (`layout_changed`
+  пересчитывает автоподгонку текста).
+- Поведение меню сохранено полностью: Classic game / Adventure, подменю
+  выбора уровня (`Prev`/`Next`, `Play level N`, `Back`), строка `Name: ...`,
+  F2/тап по имени, Enter — сохранить, Esc — отмена, Backspace/Delete — правка,
+  цифры 1/2 на главном экране. Имя пишется в профиль в `on_input_unselect`
+  компонента ввода; отмена идёт через `input:reset_changes()` в обход
+  обработчика сохранения (флаг `cancelling`).
+- Пока меню скрыто, ввод компонентов Druid выключается (`set_input_enabled`),
+  включая блокер фона: иначе невидимое меню перехватывало бы тапы мяча и
+  сенсорное управление.
+- [`main/ui/menu/menu.gui`](main/ui/menu/menu.gui:1) получил отдельную подпись
+  `name_label` («Name:»), чтобы центр поля ввода не сдвигался; кнопки
+  `adv_prev`/`adv_next` расширены под текстовые подписи — в шрифте
+  MarkerFeltThin нет глифов `<`/`>` (рисовались пустыми квадратами).
+- Проверка: `POST /command/compile` — без ошибок; запуск движка, клики
+  (Classic/Adventure/Prev/Next/Play/Back), F2 + ввод имени, снятие плашки
+  READY по Space — все сценарии работают, ошибок в консоли нет.
+
 ## Этап 14. Стартовое меню, имя игрока и два режима — ВЫПОЛНЕНО
 - Меню появляется после загрузки игры, после GAME OVER и после прохождения
   уровня в «Приключении»; состоит из двух пунктов и строки с именем:
