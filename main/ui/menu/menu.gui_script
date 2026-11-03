@@ -74,6 +74,38 @@ local ADV_NEXT = "Next"
 local NAME_PATTERN = "[%w%-_%. ]"
 local NAME_MAX_LEN = 16
 
+-- Логический размер меню (совпадает с узлом screen в menu.gui). Меню
+-- свёрстано в этих координатах и масштабируется целиком под окно: в HTML5
+-- соотношение сторон произвольное (scale_mode = stretch), и абсолютные
+-- координаты узлов «уезжали» бы за границы плашки.
+local BASE_W = 960.0
+local BASE_H = 720.0
+-- минимальный масштаб: на очень широком/высоком окне меню не должно
+-- сжиматься до нечитаемого размера
+local MIN_SCALE = 0.55
+
+-- Подогнать фон и контейнер меню под текущее окно.
+-- Фон (backdrop) занимает окно целиком, контейнер меню стоит по центру и
+-- масштабируется равномерно по меньшей стороне — тогда при любом соотношении
+-- сторон кнопки и подписи остаются внутри плашки.
+local function layout(self)
+    if not self.nodes.screen then
+        return
+    end
+    local w = gui.get_width()
+    local h = gui.get_height()
+    if not w or not h or w <= 0 or h <= 0 then
+        return
+    end
+
+    gui.set_size(self.nodes.backdrop, vmath.vector3(math.max(w, BASE_W), math.max(h, BASE_H), 0))
+    gui.set_position(self.nodes.backdrop, vmath.vector3(w / 2, h / 2, 0))
+
+    local scale = math.max(math.min(w / BASE_W, h / BASE_H), MIN_SCALE)
+    gui.set_position(self.nodes.screen, vmath.vector3(w / 2, h / 2, 0))
+    gui.set_scale(self.nodes.screen, vmath.vector3(scale, scale, 1))
+end
+
 -- Включить/выключить узлы экрана (main или adventure) и сам видимый слой.
 -- Вместе с узлами гасим ввод компонентов Druid: невидимые кнопки не должны
 -- ловить тапы, а скрытое поле имени — клавиатуру.
@@ -92,6 +124,9 @@ local function apply_screen(self)
     -- блокер фона перекрывает игровое поле: пока меню скрыто, он не должен
     -- съедать тапы, предназначенные мячу
     self.blocker:set_input_enabled(self.visible)
+
+    -- окно могло измениться (поворот, ресайз браузера) — пересчитываем
+    layout(self)
 
     self.btn_classic:set_input_enabled(main_on)
     self.btn_adventure:set_input_enabled(main_on)
@@ -271,6 +306,7 @@ function init(self)
         self.nodes[id] = gui.get_node(id)
     end
     self.nodes.backdrop = gui.get_node("backdrop")
+    self.nodes.screen = gui.get_node("screen")
 
     -- фон перекрывает игровое поле: тапы по нему не должны уходить мячу
     self.blocker = self.druid:new_blocker("backdrop")
@@ -340,6 +376,10 @@ function on_message(self, message_id, message, sender)
     elseif message_id == hash("hide") then
         set_visible(self, false)
     end
+
+    -- размер окна мог измениться (поворот телефона, ресайз браузера) —
+    -- пересчитываем масштаб меню
+    layout(self)
 
     -- layout_changed и прочие сообщения компонентов Druid (текст с
     -- автоподгонкой пересчитывает размеры при смене раскладки)

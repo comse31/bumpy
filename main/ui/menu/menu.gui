@@ -35,7 +35,21 @@ nodes {
 nodes {
   position {
     x: 480.0
-    y: 600.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  type: TYPE_BOX
+  id: "screen"
+  adjust_mode: ADJUST_MODE_FIT
+  inherit_alpha: false
+  alpha: 0.0
+}
+nodes {
+  position {
+    y: 240.0
     z: 0.1
   }
   size {
@@ -50,13 +64,13 @@ nodes {
   text: "BUMPY"
   font: "big"
   id: "title"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 468.0
+    y: 108.0
   }
   size {
     x: 740.0
@@ -70,13 +84,13 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "btn_classic"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 480.0
-    y: 468.0
+    y: 108.0
     z: 0.1
   }
   size {
@@ -86,13 +100,13 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "btn_classic_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 362.0
+    y: 2.0
   }
   size {
     x: 740.0
@@ -106,13 +120,13 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "btn_adventure"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 480.0
-    y: 362.0
+    y: 2.0
     z: 0.1
   }
   size {
@@ -122,14 +136,15 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "btn_adventure_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 250.0
-    y: 252.0
-    z: 0.1
+    x: -300.0
+    y: -108.0
+    z: 0.2
   }
   size {
     x: 180.0
@@ -144,13 +159,15 @@ nodes {
   text: "Name:"
   font: "normal"
   id: "name_label"
-  inherit_alpha: true
+  pivot: PIVOT_W
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 560.0
-    y: 252.0
+    x: 130.0
+    y: -108.0
   }
   size {
     x: 500.0
@@ -164,13 +181,14 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "name_box"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 560.0
-    y: 252.0
+    x: 130.0
+    y: -108.0
     z: 0.1
   }
   size {
@@ -185,13 +203,13 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "name_hint"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 172.0
+    y: -188.0
     z: 0.1
   }
   size {
@@ -206,13 +224,13 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "edit_hint"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 520.0
+    y: 160.0
     z: 0.1
   }
   size {
@@ -227,13 +245,14 @@ nodes {
   type: TYPE_TEXT
   font: "big"
   id: "adv_title"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 200.0
-    y: 420.0
+    x: -280.0
+    y: 60.0
   }
   size {
     x: 150.0
@@ -247,13 +266,14 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "adv_prev"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 200.0
-    y: 420.0
+    x: -280.0
+    y: 60.0
     z: 0.1
   }
   size {
@@ -263,17 +283,17 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "adv_prev_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 420.0
+    y: 60.0
     z: 0.1
   }
   size {
-    x: 320.0
+    x: 380.0
     y: 62.0
   }
   color {
@@ -284,13 +304,14 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "adv_level"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 760.0
-    y: 420.0
+    x: 280.0
+    y: 60.0
   }
   size {
     x: 150.0
@@ -304,13 +325,14 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "adv_next"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 760.0
-    y: 420.0
+    x: 280.0
+    y: 60.0
     z: 0.1
   }
   size {
@@ -320,13 +342,13 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "adv_next_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 300.0
+    y: -60.0
   }
   size {
     x: 480.0
@@ -340,13 +362,13 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "adv_play"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 480.0
-    y: 300.0
+    y: -60.0
     z: 0.1
   }
   size {
@@ -356,13 +378,13 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "adv_play_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 nodes {
   position {
-    x: 480.0
-    y: 200.0
+    y: -160.0
   }
   size {
     x: 260.0
@@ -376,13 +398,13 @@ nodes {
   type: TYPE_BOX
   texture: "menu/menu_white"
   id: "adv_back"
+  parent: "screen"
   adjust_mode: ADJUST_MODE_STRETCH
-  inherit_alpha: true
+  inherit_alpha: false
 }
 nodes {
   position {
-    x: 480.0
-    y: 200.0
+    y: -160.0
     z: 0.1
   }
   size {
@@ -397,7 +419,8 @@ nodes {
   type: TYPE_TEXT
   font: "normal"
   id: "adv_back_label"
-  inherit_alpha: true
+  parent: "screen"
+  inherit_alpha: false
   shadow_alpha: 0.0
 }
 material: "/builtins/materials/gui.material"
