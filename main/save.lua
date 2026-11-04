@@ -23,6 +23,11 @@
 -- Модуль общий для всех скриптов (в game.project включён shared_state = 1),
 -- поэтому одна и та же таблица доступна и level.script, и ball.script.
 local test_mode = require("main.test_mode")
+-- дублирование сохранения в серверную БД (backend, SQLite). Локальный файл
+-- остаётся основным: без сети игра работает как раньше
+local remote_db = require("main.remote_db")
+-- имя и счётчик визитов игрока: уходят на сервер вместе с прогрессом
+local profile = require("main.player_profile")
 
 local M = {}
 
@@ -115,6 +120,24 @@ function M.store(data)
     }
     -- sys.save закрывает файл, что запускает автосохранение IDBFS в IndexedDB
     pcall(sys.save, p, record)
+
+    -- Дублирование того же снимка в серверную БД. Отправка асинхронная и не
+    -- влияет на локальное сохранение: без сети или при недоступном backend
+    -- игра продолжает работать с файлом. Имя/визиты берём из уже
+    -- инициализированного профиля (peek без побочных эффектов): если профиль
+    -- ещё не читался, поля останутся пустыми — их не затрёт, серверное
+    -- слияние оставит прежние значения.
+    local name, visits = profile.peek()
+    remote_db.sync({
+        name = name,
+        visits = visits,
+        level = level,
+        max_level = max_level,
+        lives = record.lives,
+        drops = record.drops,
+        keys = record.keys,
+        hammers = record.hammers,
+    })
 end
 
 -- обнулить сохранение: используется, когда продолжать нельзя (жизни кончились).

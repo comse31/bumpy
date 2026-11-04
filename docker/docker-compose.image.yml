@@ -1,12 +1,39 @@
 name: bumpy
 
-# Run the pre-built image (no build step). Use after loading the archive:
+# Запуск готовых образов (без сборки). Используется после загрузки архивов:
 #   gunzip -c dist/bumpy-web-image.tar.gz | docker load
+#   gunzip -c dist/bumpy-backend-image.tar.gz | docker load
 #   docker compose -f docker/docker-compose.image.yml up -d
+#
+# Настройки БД — в backend/config.yml (вшит в образ bumpy-backend).
+# Данные — в именованном томе bumpy-db, он переживает пересоздание контейнеров.
 services:
+  bumpy-backend:
+    image: bumpy-backend:latest
+    container_name: bumpy-backend
+    volumes:
+      - bumpy-db:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - bumpy-net
+
   bumpy-web:
     image: bumpy-web:latest
     container_name: bumpy-web
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      - bumpy-backend
+    networks:
+      - bumpy-net
+
+networks:
+  bumpy-net:
+    name: bumpy-net
+
+volumes:
+  bumpy-db:
+    name: bumpy-db

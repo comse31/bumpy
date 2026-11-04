@@ -25,6 +25,13 @@ dist/*.json
 # на хосте он не нужен — исключаем из контекста сборки.
 bob.jar
 
+# Backend (backend/Dockerfile копирует только app/, migrations/ и config.yml):
+# локальная база, кэш байткода и тесты в образ не попадают.
+backend/data/
+backend/tests/
+**/__pycache__/
+**/*.pyc
+
 .vscode/
 .git/
 .gitignore
