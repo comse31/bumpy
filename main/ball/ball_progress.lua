@@ -165,8 +165,11 @@ function M.require_gear(self)
     dbg.always("GAME OVER: not enough gear for level %d (%s); "
         .. "have drops=%d keys=%d hammers=%d",
         state.index, missing, self.pocket, self.key_pocket, self.hammer_pocket)
-    -- мяч больше не играет: остановить физику и скрыть визуал героя
+    -- мяч больше не играет: остановить физику и скрыть визуал героя.
+    -- ready_wait снимаем: иначе первое нажатие клавиши «запустило» бы уровень
+    -- (см. on_input -> ready_wait) уже после завершения игры
     self.game_over = true
+    self.ready_wait = false
     if self.reported_high then
         self.reported_high = false
         msg.post("/controls", "motion_state", { high = false })
