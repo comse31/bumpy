@@ -43,7 +43,7 @@
 ## Этап 6. Жизни и игровой цикл — ЧАСТИЧНО
 - ВЫПОЛНЕНО: 3 стартовые жизни; смерть от шипов, горящей платформы без капли,
   падения за нижний край (`lose_life`); GAME OVER при 0 жизней
-  ([`main/ui/game_over.script`](main/ui/game_over.script:1)); победа в уровне —
+  ([`main/ui/game_over/game_over.script`](main/ui/game_over/game_over.script:1)); победа в уровне —
   сбор `timer` объектов открывает выход, касание выхода → следующий уровень.
 - **ОСТАЛОСЬ (п. 19): условие проигрыша при нехватке снаряжения** (невозможность
   пройти уровень вне зависимости от числа жизней — `tz.txt` [3][5][7][8]).
@@ -60,11 +60,11 @@
 - Перед началом каждого уровня показывается плашка «READY FOR LEVEL N?» (N —
   номер уровня). Ждёт нажатия любой клавиши; пока она на экране, мяч заморожен
   (коллизия выключена, `update` не выполняется) и игра не начинается.
-- UI: [`main/ui/ready.go`](main/ui/ready.go:1) (спрайт-подложка + label +
-  скрипт), [`ready.script`](main/ui/ready.script:1) (сообщения `show`/`hide`,
-  подстановка номера уровня), фон [`main/ui/ready.png`](main/ui/ready.png:1)
+- UI: [`main/ui/ready/ready.go`](main/ui/ready/ready.go:1) (спрайт-подложка + label +
+  скрипт), [`ready.script`](main/ui/ready/ready.script:1) (сообщения `show`/`hide`,
+  подстановка номера уровня), фон [`main/ui/ready/ready.png`](main/ui/ready/ready.png:1)
   (генерируется [`tools/gen_ready_sign.py`](tools/gen_ready_sign.py:1) в стиле
-  GAME OVER), шрифт [`ready.font`](main/ui/ready.font:1).
+  GAME OVER), шрифт [`ready.font`](main/ui/ready/ready.font:1).
 - Экземпляр `ready` добавлен в [`main.collection`](main/main.collection:1)
   (z=0.95, поверх остальных объектов).
 - [`ball.script`](main/ball/ball.script:1): флаг `ready_wait`; по `level_start`
@@ -134,6 +134,363 @@
   заменяет в `dist/web/bumpy/index.html` бейдж и `<title>` на версионированные.
   Правка безопасна: `dmloader.js` сверяет sha1/size только wasm и архива, а не
   самого `index.html`.
+
+## Этап 12. Альтернативное управление тапом по ячейкам — ВЫПОЛНЕНО
+- Вариант управления выбирается настройкой `bumpy.controls_mode` в
+  [`game.project`](game.project:34): `"buttons"` (прежние экранные кнопки),
+  `"cells"` (тап по игровым ячейкам), `"auto"` (cells на тач-устройствах,
+  buttons на остальных).
+- [`controls.gui_script`](main/controls/controls.gui_script:1): режим `cells` —
+  тап в координатах окна переводится в игровую ячейку через видимую область
+  мира из [`camera_state.lua`](main/render/camera_state.lua:1) (см. этап 13);
+  нажатая ячейка подсвечивается тонкой рамкой (узел `cell_highlight`), тап за
+  боковой границей поля (не дальше одной ячейки) подсвечивает только стенку
+  (узел `wall_highlight`). Команда уходит в мяч сообщением `cell_tap`.
+- [`controls.gui`](main/controls/controls.gui:1): узлы подсветки; текстуры
+  `white.png` и `cell_frame.png` генерируются
+  [`tools/gen_controls_ui.py`](tools/gen_controls_ui.py:1).
+- [`ball.script`](main/ball/ball.script:1): обработка `cell_tap` —
+  намерение (`cell_cmd`) выполняется, когда мяч готов к действию:
+  ячейка выше мяча → высокий прыжок с запрыгиванием в сторону нажатия
+  (`cell_jump` применяется на уровне нажатой ячейки при подъёме), тот же ряд
+  или ниже → обычный подскок в сторону нажатия. Тап за границей поля даёт
+  только боковой прыжок.
+- [`input/game.input_binding`](input/game.input_binding:1): к действию `touch`
+  добавлен `MOUSE_BUTTON_1`, чтобы режим можно было проверять и на настольной
+  сборке.
+- **Смена траектории в высоком прыжке (запрыгивание).** Пока мяч летит вверх,
+  тап по ячейке меняет траекторию: на уровне этой ячейки мяч уходит на одну
+  колонку в сторону нажатия (`cell_jump`) и падает. Раньше работал только тап
+  за боковой границей поля — у тапа по ячейке `dir = 0`, а ветка полёта в
+  `try_cell_command` требовала `dir ~= 0`.
+  - Команда действует, только пока мяч не долетел до нажатой ячейки: нижняя
+    часть мяча (`y - RADIUS`) не пересекла уровень отскока этого ряда
+    (`BOUNCE_Y[row]`) и `cmd.row >= hj_row`. Тап по уже пройденной ячейке
+    игнорируется, но ранее назначенный соскок сохраняется.
+  - В полёте тап отправляется сразу при нажатии (`motion_state` от `/ball` →
+    `high_flying` в [`controls.gui_script`](main/controls/controls.gui_script:1)):
+    мяч проходит ячейку меньше чем за 0.2 с, отпускание пальца опаздывало.
+    Вне полёта команда по-прежнему уходит по отпусканию, чтобы свайп-
+    панорамирование не превращался в команду; начатый свайп отменяет ещё не
+    исполненную команду сообщением `cell_cancel` (по `id` касания).
+  - В полёте команда исполняется тем же кадром (`try_cell_command` прямо из
+    `on_message`), цель допрыгивания по ряду (`target_col`) не ставится.
+- **Прерывание высокого прыжка «вниз».** Игрок может оборвать подъём: мяч
+  перестаёт подниматься и падает из той ячейки, в которой оказался в момент
+  нажатия. Реализация — одна точка отмены для обоих управлений.
+  - Клавиатура: `KEY_DOWN` в [`game.input_binding`](input/game.input_binding:1)
+    связан с новым действием `down` (раньше `KEY_DOWN` попадал в `any_key`).
+    В [`ball.script`](main/ball/ball.script:1) `on_input` вызывает
+    `cancel_high_jump` по `pressed` и выходит — прочие обработчики кадра
+    получают событие как обычно.
+  - Тач (режим `cells`): тап по ячейке, которая ниже летящего мяча —
+    нижняя часть мяча (`y - RADIUS`) уже выше уровня отскока нажатого ряда
+    (`BOUNCE_Y[cmd.row]`) — тоже прерывает прыжок. Тап по стенке за границей
+    поля прыжок не прерывает: ячейки там нет.
+  - [`ball_motion.cancel_high_jump`](main/ball/ball_motion.lua:1) сбрасывает
+    `high_jump`/`rising`/`hj_row`, назначенный `cell_jump` и оценку времени
+    полёта `next_touch_time`, гасит скорость (`phys.stop()`), сдвигает
+    `action_time` (защита от ложного контакта в том же кадре) и сообщает
+    `/controls` актуальное `motion_state`. Дальше работает обычная гравитация,
+    а приземление ловит swept-тест.
+  - Отмена расходует удержание прыжка: `jump_held`/`touch_jump`/`tap_jump` и
+    `pending_jump` сбрасываются, иначе зажатая клавиша (или экранная кнопка)
+    запустила бы новый высокий прыжок сразу при приземлении. Флаги поднимаются
+    только по свежему нажатию.
+
+## Этап 18. Поле имени в HTML5 на мобильном: клавиатура и каретка — ВЫПОЛНЕНО
+- Симптом: в HTML5-сборке на телефоне тап по полю `Name:` не открывал системную
+  клавиатуру, курсора в поле не было, а тапы по кнопкам меню вообще не
+  срабатывали.
+- **Клики/тапы не доходили до Druid.** В сборке движка для `wasm-web`
+  (`bumpy_wasm.js`) не экспортируется `_glfwSetMouseButtonCallback`:
+  `GLFW.mouseButtonFunc` остаётся `null`, `onMouseButtonChanged` сразу
+  выходит, и `mousedown`/`mouseup` не превращаются во входные действия.
+  Druid слушает действие `touch`, поэтому на десктопном браузере не работали
+  ни кнопки, ни поле ввода (на телефоне `touchstart` приходил, но остальное
+  ломалось по другим причинам — см. ниже).
+  - [`menu.gui_script`](main/ui/menu/menu.gui_script:1), `JS_SETUP`: на canvas
+    вешается `mousedown`/`mousemove`/`mouseup`, которые синтезируют
+    `TouchEvent` (`new Touch`, `new TouchEvent`) и отправляют их в canvas.
+    Делается только если у устройства нет настоящего тача
+    (`'ontouchstart' in window`) — на мобильном ничего не дублируется.
+- **Поле имени не выбиралось по тапу.** Druid-компонент `input` при создании
+  переводит свою кнопку в HTML5-режим (`set_web_user_interaction(true)`):
+  в этом режиме клик обрабатывается через `document`-listener, который
+  движок навешивает уже ПОСЛЕ того, как касание обработано, — событие
+  терялось. Отключено в [`menu.gui_script`](main/ui/menu/menu.gui_script:1):
+  `self.input.button:set_web_user_interaction(false)`, поле выбирается
+  обычной touch-кнопкой на отпускании.
+- **Клавиатура не поднималась, ввод и удаление не работали.**
+  `gui.show_keyboard` на HTML5 включает `contentEditable` на canvas — это
+  ненадёжно для ввода (IME, Backspace), а мобильные браузеры открывают
+  клавиатуру только при фокусе реального поля СИНХРОННО внутри жеста.
+  - `JS_SETUP` создаёт **прозрачное `<textarea>`** и позиционирует его ровно
+    над полем имени по `__bumpyNameRect` (доли canvas из `layout()`, Y
+    инвертируется: GUI — снизу вверх, DOM — сверху вниз). У поля
+    `pointer-events: none`, поэтому тап по-прежнему доходит до canvas и Druid
+    выбирает поле; при этом `touchstart`/`mousedown` в capture-фазе вызывают
+    `__bumpyNameFocus()` и в том же жесте фокусируют `<textarea>` — системная
+    клавиатура поднимается и на мобильном, и в fullscreen.
+  - Ввод, Backspace, IME и выделение — нативные. `update()` опрашивает
+    `__bumpyNameTakeText()` и переносит значение в `druid.input` (`set_text`,
+    каретка в конец), после чего возвращает отфильтрованную строку обратно в
+    DOM, чтобы DOM и GUI не расходились.
+  - Enter/Esc в `<textarea>` поднимают флаги `__bumpyNameEnter`/`__bumpyNameEsc`;
+    текст на момент Enter запоминается в `__bumpyNameCommit`. GLFW слушает
+    `keydown` в capture-фазе на `window`, поэтому Enter доходит до Druid
+    раньше нас, и тот снимает выбор со старым текстом — поэтому имя
+    сохраняется напрямую из зафиксированного значения (`profile.set_name`),
+    а поле затем показывает сохранённое имя.
+  - `canvas.focus()` подменён: пока поле активно, фокус возвращается в
+    `<textarea>`, иначе движок забирает клавиатуру себе.
+  - При снятии выбора (`on_input_unselect`), закрытии меню и переходе на экран
+    Adventure поле скрывается и теряет фокус
+    (`__bumpyNameHide`/`__bumpyNameBlur`) — клавиатура закрывается.
+- **Каретки не было.** Druid-компонент `input` не рисует курсор (в его `.gui`
+  такого узла нет). Добавлен узел `name_caret`
+  ([`menu.gui`](main/ui/menu/menu.gui:1)) — вертикальная полоса 3×40 поверх
+  поля, `z = 0.2`. В [`menu.gui_script`](main/ui/menu/menu.gui_script:1)
+  `update_caret()` в каждом кадре ставит её на место курсора по реальной
+  ширине префикса текста (`druid.text:get_text_size`), прячет вне режима
+  правки и мигает с периодом 0.5 с. Позиция зажимается внутри границ поля.
+- Проверено в браузере на `dist/web`: тап по `Name:` включает правку, каретка
+  появляется сразу после текста и мигает, ввод с клавиатуры меняет имя,
+  подсказка становится «Enter - save, Esc - cancel»; кнопки Classic/Adventure,
+  Prev/Next/Play/Back кликаются, игра запускается.
+
+## Этап 17. Адаптивная раскладка меню — ВЫПОЛНЕНО
+- Меню больше не «уезжает» в HTML5: в браузере соотношение сторон окна
+  произвольное (`scale_mode = stretch`), а узлы `.gui` были расставлены
+  абсолютными координатами под 960×720 — при другом окне кнопки и подписи
+  оказывались вне плашки (и `Name:` пропадала за полем ввода).
+- [`menu.gui`](main/ui/menu/menu.gui:1): все элементы главного экрана и
+  подменю вынесены в дочерний контейнер `screen` (`parent: "screen"`,
+  координаты относительно его центра). Фон `backdrop` растягивается на всё
+  окно. У контейнера `alpha: 0` и `inherit_alpha: false`; у детей
+  `inherit_alpha: false` — иначе контейнер гасил бы содержимое (или рисовался
+  белым прямоугольником).
+- [`menu.gui_script`](main/ui/menu/menu.gui_script:1): функция `layout()`
+  берёт фактический размер окна (`gui.get_width()` / `gui.get_height()`),
+  центрирует контейнер меню и масштабирует его равномерно по меньшей
+  стороне (`MIN_SCALE = 0.55`), фон растягивает на всё окно. Вызывается при
+  каждом изменении видимости/экрана и на любое входящее сообщение (ресайз,
+  поворот, `layout_changed`).
+- `Name:` вынесен в отдельный узел `name_label` (`PIVOT_W`, `z = 0.2`) и
+  сдвинут влево от поля ввода — подпись не перекрывается `name_box`.
+- Проверено запуском движка при 800×600, 900×600, 960×720 и 1280×720:
+  главный экран и подменю целиком внутри плашки, `Name:` видна, кнопки
+  кликаются, ошибок в консоли нет.
+
+## Этап 16. Единый шрифт интерфейса — ВЫПОЛНЕНО
+- Все внутриигровые плашки переведены на тот же шрифт, что и меню, — текст
+  больше не «запечён» в PNG, а рисуется label-компонентами:
+  [`main/ui/fonts/plate.font`](main/ui/fonts/plate.font:1) (`size 48`),
+  [`plate_big.font`](main/ui/fonts/plate_big.font:1) (`size 64`, заголовок
+  GAME OVER) и [`plate_small.font`](main/ui/fonts/plate_small.font:1)
+  (`size 32`, подсказка «PRESS ANY KEY»). Все три — MarkerFeltThin,
+  `TYPE_BITMAP` (как [`menu.font`](main/ui/menu/menu.font:1)).
+- **READY FOR LEVEL N?** — [`ready_text.label`](main/ui/ready/ready_text.label:1);
+  [`ready.png`](main/ui/ready/ready.png:1) теперь содержит только рамку и
+  подложку; [`ready.script`](main/ui/ready/ready.script:1) по-прежнему
+  подставляет номер уровня через `go.set("#label", "text", ...)`.
+  Старый [`ready.font`](main/ui/ready/ready.font:1) удалён.
+- **GAME OVER** — два label-компонента в
+  [`game_over.go`](main/ui/game_over/game_over.go:1):
+  [`game_over_title.label`](main/ui/game_over/game_over_title.label:1) и
+  [`game_over_hint.label`](main/ui/game_over/game_over_hint.label:1)
+  (были запечены в [`game_over.png`](main/ui/game_over/game_over.png:1)).
+  [`game_over.script`](main/ui/game_over/game_over.script:1) включает/выключает
+  спрайт и обе надписи одним списком `NODES`.
+- **EXIT** — [`exit_text.label`](main/exit/exit_text.label:1) вместо надписи в
+  [`exit.png`](main/exit/exit.png:1); [`exit.script`](main/exit/exit.script:1)
+  управляет спрайтом и надписью одинаково (в т.ч. при старте с `open = 1`).
+- **YOU ARE TRAPPED / счётчик** — [`trap_title.label`](main/ui/trap/trap_title.label:1)
+  и [`trap_count.label`](main/ui/trap/trap_count.label:1) переведены на
+  `plate.font` + `label.material`; старый [`trap.font`](main/ui/trap/trap.font:1)
+  (`vera_mo_bd`, distance field) удалён.
+- Из PNG удалён текст (пиксели заменены цветом подложки): рамки, тени и
+  скругления сохранены, файлы заметно уменьшились
+  (`game_over.png` 18 КБ → 1 КБ, `exit.png` 3 КБ → 1 КБ).
+- Проверка: `POST /command/compile` без ошибок; превью `game_over.go`,
+  `ready.go`, `exit.go`, `trap.go` через `GET /preview/{path}` и запуск движка
+  (плашка READY на уровне 7) — все надписи в общем шрифте.
+
+## Этап 15. Меню на Druid — ВЫПОЛНЕНО
+- UI стартового меню переведён на **[Druid](https://github.com/Insality/druid)** —
+  декларативные компоненты поверх узлов `.gui` вместо ручного разбора
+  `gui.pick_node` в `on_input`.
+- Зависимости ([`game.project`](game.project:1), секция `[project]`):
+  `dependencies#0 = .../defold-event/archive/refs/tags/21.zip` (Druid требует
+  `event.event`/`event.events`) и
+  `dependencies#1 = .../druid/archive/refs/tags/1.4.2.zip`. Библиотеки
+  подтягиваются `Project ▸ Fetch Libraries` (или `POST /command/fetch-libraries`
+  в Defold editor API).
+- Секция `[druid]` перенастраивает имена действий Druid на существующие
+  триггеры [`input/game.input_binding`](input/game.input_binding:1):
+  `input_text = text`, `input_touch = touch`,
+  `input_key_enter = name_enter`, `input_key_esc = name_cancel`,
+  `input_key_backspace = name_backspace`, `input_key_delete = name_delete`,
+  `input_key_left = left`, `input_key_right = right`. Дополнительно добавлены
+  триггеры `MARKED_TEXT` → `marked_text` (IME/мобильные клавиатуры) и
+  `KEY_DEL` → `name_delete`. Мышиный `click` удалён: Druid одинаково
+  обрабатывает `touch` (в т.ч. `MOUSE_BUTTON_1`) на десктопе и мобильных.
+- [`main/ui/menu/menu.gui_script`](main/ui/menu/menu.gui_script:1) переписан:
+  `druid.new(self)`, компоненты `new_button`, `new_text`, `new_input`,
+  `new_blocker` (фон перекрывает поле — тапы не уходят мячу). Жизненный цикл:
+  `update`/`on_message`/`final` прокидываются в Druid (`layout_changed`
+  пересчитывает автоподгонку текста).
+- Поведение меню сохранено полностью: Classic game / Adventure, подменю
+  выбора уровня (`Prev`/`Next`, `Play level N`, `Back`), строка `Name: ...`,
+  F2/тап по имени, Enter — сохранить, Esc — отмена, Backspace/Delete — правка,
+  цифры 1/2 на главном экране. Имя пишется в профиль в `on_input_unselect`
+  компонента ввода; отмена идёт через `input:reset_changes()` в обход
+  обработчика сохранения (флаг `cancelling`).
+- Пока меню скрыто, ввод компонентов Druid выключается (`set_input_enabled`),
+  включая блокер фона: иначе невидимое меню перехватывало бы тапы мяча и
+  сенсорное управление.
+- [`main/ui/menu/menu.gui`](main/ui/menu/menu.gui:1) получил отдельную подпись
+  `name_label` («Name:»), чтобы центр поля ввода не сдвигался; кнопки
+  `adv_prev`/`adv_next` расширены под текстовые подписи — в шрифте
+  MarkerFeltThin нет глифов `<`/`>` (рисовались пустыми квадратами).
+- Проверка: `POST /command/compile` — без ошибок; запуск движка, клики
+  (Classic/Adventure/Prev/Next/Play/Back), F2 + ввод имени, снятие плашки
+  READY по Space — все сценарии работают, ошибок в консоли нет.
+
+## Этап 14. Стартовое меню, имя игрока и два режима — ВЫПОЛНЕНО
+- Меню появляется после загрузки игры, после GAME OVER и после прохождения
+  уровня в «Приключении»; состоит из двух пунктов и строки с именем:
+  1. **Classic game** — основная игра с жизнями (при 0 жизней GAME OVER
+     и возврат в меню);
+  2. **Adventure** — подменю выбора уровня: доступны любые открытые уровни
+     `1..max_level`, где `max_level` — рекорд классического режима
+     ([`save.progress()`](main/save.lua:1)). На выбранном уровне выдаётся
+     фиксированный набор: 3 жизни и по 5 капель/ключей/молотков; после
+     прохождения уровня игра возвращается в стартовое меню, а исчерпание
+     3 жизней тоже возвращает в меню (без GAME OVER). Прогресс классики
+     «Приключение» не читает и не пишет.
+  - Выбор уровня в подменю: кнопки `<`/`>` (стрелки клавиатуры Left/Right),
+    Enter — играть, Esc/Back — назад к главному экрану; уровень для запуска
+    хранится в [`game_mode.set_adventure_level`](main/game_mode.lua:1).
+  - Возврат в меню после уровня — [`level.script`](main/level/level.script:1)
+    (`level_complete`), после исчерпания жизней —
+    [`ball_progress.lua`](main/ball/ball_progress.lua:1) (`lose_life`);
+    мяч при этом замораживается сообщением `freeze` в
+    [`ball.script`](main/ball/ball.script:1).
+  - **`main/ui` разложен по папкам** — по одной папке на экран/плашку:
+    `menu/`, `ready/`, `game_over/`, `trap/`, общий `fonts/`. Все пути внутри
+    ресурсов и в [`main.collection`](main/main.collection:1) обновлены.
+  - GUI меню: [`main/ui/menu/menu.gui`](main/ui/menu/menu.gui:1),
+    [`menu.go`](main/ui/menu/menu.go:1),
+    [`menu.gui_script`](main/ui/menu/menu.gui_script:1). Фон и кнопки — белый
+    пиксель [`main/ui/menu/menu.atlas`](main/ui/menu/menu.atlas:1)
+    (переиспользуется `controls/white.png`).
+  - **Шрифт — [`Banty Bold.ttf`](main/ui/fonts/Banty Bold.ttf:1)** (рукописный,
+    только латиница), поэтому весь текст интерфейса на английском:
+    [`menu.font`](main/ui/menu/menu.font:1) (`size 40`, обычный текст) и
+    [`menu_big.font`](main/ui/menu/menu_big.font:1) (`size 64`, заголовок и
+    приветствие). Формат — `TYPE_BITMAP`: distance field на тонких штрихах
+    рукописного шрифта даёт «залипшие» глифы.
+- **Надписи задаются из скрипта** (`gui.set_text`), а не статикой в `.gui`:
+  статический `text:` в сцене компилируется как Latin-1, и текст проще менять
+  в одном месте.
+- **Уровни в подписи пункта «Classic game»**: `Classic game   lvl N (max M)` —
+  текущий уровень и максимально достигнутый. Данные берутся из
+  [`save.progress()`](main/save.lua:1); рекорд (`max_level`) хранится в
+  сохранении и только растёт — GAME OVER и новая игра его не уменьшают.
+  У пункта «Adventure» показывается верхняя граница открытых уровней
+  (`Adventure  (max M)`), а в подменю — `Level N  (max M)`.
+  Вся подпись центрируется в кнопке.
+- Приветствие **«hello PlayerN»**: N — автоинкремент визитов.
+  [`main/player_profile.lua`](main/player_profile.lua:1) хранит профиль в
+  отдельном файле `bumpy_profile` (`sys.save`/`sys.load` через
+  `sys.get_save_file`, см. этап 10), чтобы сброс прогресса и GAME OVER не
+  стирали имя. Пока игрок не менял имя, оно собирается как `"Player" .. N`;
+  после правки сохраняется как есть, а счётчик визитов продолжает расти.
+- **Правка имени**: F2 (или тап по строке имени) включает режим ввода;
+  символы приходят text-триггером, Backspace стирает последний символ,
+  Enter сохраняет, Esc отменяет; длина ограничена 16 символами.
+- Режим и флаг «меню открыто» — общий модуль
+  [`main/game_mode.lua`](main/game_mode.lua:1). Пока меню открыто,
+  [`ball.script`](main/ball/ball.script:1) не обновляет и не обрабатывает ввод,
+  [`controls.gui_script`](main/controls/controls.gui_script:1) не реагирует на
+  касания (возвращает `false`, пропуская событие к меню), а сенсорные удержания
+  сбрасываются сообщением `reset`.
+- [`main/ball/ball_progress.lua`](main/ball/ball_progress.lua:1):
+  `start_game` в режиме «Приключение» берёт уровень из
+  `game_mode.get_adventure_level()` и выдаёт 3 жизни + по 5 предметов;
+  `persist`/`resume` в этом режиме отключены (попытка не пишется в
+  сохранение); `lose_life` уменьшает жизни и при их исчерпании в
+  «Приключении» просто открывает меню (`/menu` `open`) без GAME OVER,
+  в классике — `save.clear()` + плашка GAME OVER + меню.
+- [`input/game.input_binding`](input/game.input_binding:1): text-триггер
+  `text` (имя игрока, а вне режима правки — выбор пункта цифрами 1/2, потому
+  что text-триггер перехватывает печатные клавиши раньше key-триггеров),
+  `edit_name` (F2), `name_enter`, `name_backspace`, `name_cancel`;
+  `MOUSE_BUTTON_LEFT` → отдельное действие `click` (в Defold touch- и
+  mouse-триггеры не могут делить одно имя действия; из-за этого меню
+  работало по клавиатуре, но не по клику).
+- `ball.script` трактует text-событие как нажатие: на плашке READY любая
+  печатная клавиша снимает плашку, в игре пробел (`" "`) превращается в
+  действие `jump`.
+- Меню не отпускает фокус ввода (`release_input_focus`): невидимое меню
+  возвращает `false`, и события идут дальше к мячу — иначе после выбора
+  режима ввод до `/ball` уже не доходил и плашка READY не снималась.
+
+## Этап 13. Камера: масштаб по длинному краю и плавный фокус — ВЫПОЛНЕНО
+- Поле больше не вписывается целиком в окно: на мобильных (тач-устройствах)
+  оно масштабируется так, чтобы заполнить экран по длинному краю — одна из
+  сторон поля видна полностью, вторая обрезается. На плашке «READY FOR LEVEL»
+  по-прежнему виден весь уровень целиком, а после старта масштаб плавно
+  меняется к игровому.
+- Камера — [`camera.script`](main/render/camera.script:1): каждый кадр
+  считает масштаб и видимый прямоугольник мира, плавно (экспоненциальное
+  сглаживание, ≈0.4 с) подводит масштаб к цели и следует за мячом с «мёртвой
+  зоной» (24% видимого размера) и небольшой задержкой. Центр ограничен полем,
+  поэтому за его краем не показывается пустота.
+- Собственный рендер-скрипт [`game.render_script`](main/render/game.render_script:1)
+  (форк `builtins/render/default.render_script`) принимает границы видимой
+  области числами через сообщение `set_camera_rect` и строит по ним
+  ортопроекцию. Матрицу (`matrix4`) в сообщении передать нельзя — отсюда
+  именно прямоугольник. Подключён через
+  [`game.render`](main/render/game.render:1) и `bootstrap.render` в
+  [`game.project`](game.project:3). GUI рисуется отдельной stretch-проекцией,
+  поэтому интерфейс не «раздувается» вместе с полем.
+- Общее состояние — [`camera_state.lua`](main/render/camera_state.lua:1):
+  видимый прямоугольник мира и трансформ полосы HUD. По нему
+  [`controls.gui_script`](main/controls/controls.gui_script:1) переводит тапы
+  в мировые координаты (раньше считался fixed-fit от размера окна), а
+  [`pocket_item.script`](main/pocket/pocket_item.script:1) каждый кадр
+  переводит локальные координаты полосы в мировые — карман остаётся
+  закреплённым за экраном и не уезжает вместе с полем.
+- Плашки READY / GAME OVER / TRAPPED камера держит по центру видимой части
+  поля и сохраняет их экранный размер (`scale = fit_zoom / zoom`).
+- Переключение режима — сообщения `ready` / `play` из
+  [`ball.script`](main/ball/ball.script:1) (по `level_start` и по первому
+  нажатию на плашке READY).
+- Настройка `bumpy.camera_mode` в [`game.project`](game.project:37):
+  `"auto"` (по умолчанию), `"cover"` (всегда приближать и следить за мячом,
+  отладочный), `"fit"` (всегда вся сцена целиком, отладочный).
+  В режиме `"auto"` приближение и слежение за мячом включаются **только в
+  полноэкранном режиме на устройстве**: полноэкранный браузер на
+  тач-смартфоне/планшете (Fullscreen API, standalone-PWA, iOS
+  `navigator.standalone`) либо нативная мобильная сборка. В оконном браузере
+  и на десктопе всегда показывается всё игровое поле (fit). Полноэкранный
+  режим перепроверяется раз в `COVER_REFRESH_SEC = 0.25` с, поэтому вход в
+  fullscreen включает приближение, а выход — сразу возвращает обзор всего
+  поля, без перезагрузки страницы.
+- Прежний [`projection.script`](main/render/projection.script:1) (fixed-fit
+  через `use_fixed_fit_projection`) удалён вместе с `projection.go`.
+- **Проверка в HTML5/Docker.** Бандл собирается через Defold Editor HTTP API
+  (`/bob`: `build` с `archive=true`, затем `bundle` с
+  `architectures=wasm-web` и `bundle-output=dist/web`), образ —
+  `docker build -f docker/Dockerfile -t bumpy-web .`, запуск —
+  `docker run -d --name bumpy-web -p 8080:80 bumpy-web:latest`,
+  игра открывается на <http://localhost:8080>. Проверено: на плашке READY
+  виден весь уровень, в режиме `cover` поле заполняет экран по длинному краю,
+  HUD-полоса растянута на всю ширину и прижата к верху.
+  Примечание: `docker compose build` на этой машине падает на баге BuildKit
+  (`changes out of order`), поэтому образ собирается с `DOCKER_BUILDKIT=0`.
 
 ## Что осталось
 1. **П. 19: проверка нехватки снаряжения → проигрыш.** Нужно на старте уровня

@@ -25,7 +25,7 @@ fragment_constants {
   name: "brick_break"
   type: CONSTANT_TYPE_USER
   value {
-    x: 0.0
+    x: -47.765
     y: 8.0
     z: 0.0
     w: 0.0

@@ -1,0 +1,451 @@
+script: "/main/ui/menu/menu.gui_script"
+fonts {
+  name: "big"
+  font: "/main/ui/menu/menu_big.font"
+}
+fonts {
+  name: "normal"
+  font: "/main/ui/menu/menu.font"
+}
+textures {
+  name: "menu"
+  texture: "/main/ui/menu/menu.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  color {
+    x: 0.05
+    y: 0.06
+    z: 0.11
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "backdrop"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+  alpha: 0.9
+}
+nodes {
+  position {
+    x: 480.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  type: TYPE_BOX
+  id: "screen"
+  adjust_mode: ADJUST_MODE_FIT
+  inherit_alpha: false
+  alpha: 0.0
+}
+nodes {
+  position {
+    y: 240.0
+    z: 0.1
+  }
+  size {
+    x: 760.0
+    y: 86.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+  }
+  type: TYPE_TEXT
+  text: "BUMPY"
+  font: "big"
+  id: "title"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 108.0
+  }
+  size {
+    x: 740.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "btn_classic"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    y: 108.0
+    z: 0.1
+  }
+  size {
+    x: 700.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "btn_classic_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 2.0
+  }
+  size {
+    x: 740.0
+    y: 84.0
+  }
+  color {
+    x: 0.36
+    y: 0.27
+    z: 0.68
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "btn_adventure"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    y: 2.0
+    z: 0.1
+  }
+  size {
+    x: 700.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "btn_adventure_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -300.0
+    y: -108.0
+    z: 0.2
+  }
+  size {
+    x: 180.0
+    y: 46.0
+  }
+  color {
+    x: 0.6
+    y: 0.66
+    z: 0.78
+  }
+  type: TYPE_TEXT
+  text: "Name:"
+  font: "normal"
+  id: "name_label"
+  pivot: PIVOT_W
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 130.0
+    y: -108.0
+  }
+  size {
+    x: 500.0
+    y: 66.0
+  }
+  color {
+    x: 0.11
+    y: 0.15
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "name_box"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: 130.0
+    y: -108.0
+    z: 0.1
+  }
+  size {
+    x: 470.0
+    y: 46.0
+  }
+  color {
+    x: 0.8
+    y: 0.86
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "name_hint"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 130.0
+    y: -108.0
+    z: 0.2
+  }
+  size {
+    x: 3.0
+    y: 40.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "name_caret"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+  alpha: 0.0
+}
+nodes {
+  position {
+    y: -188.0
+    z: 0.1
+  }
+  size {
+    x: 880.0
+    y: 40.0
+  }
+  color {
+    x: 0.6
+    y: 0.66
+    z: 0.78
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "edit_hint"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 160.0
+    z: 0.1
+  }
+  size {
+    x: 760.0
+    y: 74.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "big"
+  id: "adv_title"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -280.0
+    y: 60.0
+  }
+  size {
+    x: 150.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_prev"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: -280.0
+    y: 60.0
+    z: 0.1
+  }
+  size {
+    x: 140.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_prev_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 60.0
+    z: 0.1
+  }
+  size {
+    x: 380.0
+    y: 62.0
+  }
+  color {
+    x: 0.88
+    y: 0.92
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_level"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 280.0
+    y: 60.0
+  }
+  size {
+    x: 150.0
+    y: 84.0
+  }
+  color {
+    x: 0.18
+    y: 0.48
+    z: 0.94
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_next"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: 280.0
+    y: 60.0
+    z: 0.1
+  }
+  size {
+    x: 140.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_next_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -60.0
+  }
+  size {
+    x: 480.0
+    y: 84.0
+  }
+  color {
+    x: 0.36
+    y: 0.27
+    z: 0.68
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_play"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    y: -60.0
+    z: 0.1
+  }
+  size {
+    x: 450.0
+    y: 62.0
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_play_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -160.0
+  }
+  size {
+    x: 260.0
+    y: 64.0
+  }
+  color {
+    x: 0.11
+    y: 0.15
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "adv_back"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    y: -160.0
+    z: 0.1
+  }
+  size {
+    x: 250.0
+    y: 46.0
+  }
+  color {
+    x: 0.8
+    y: 0.86
+    z: 0.98
+  }
+  type: TYPE_TEXT
+  font: "normal"
+  id: "adv_back_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 32

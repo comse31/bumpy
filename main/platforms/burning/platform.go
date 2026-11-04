@@ -19,8 +19,8 @@ components {
   component: "/main/platforms/burning/burning.script"
   properties {
     id: "burning"
+    value: "1.0"
     type: PROPERTY_TYPE_NUMBER
-    value: "1"
   }
 }
 components {
@@ -28,7 +28,7 @@ components {
   component: "/main/platforms/sloped/sloped.script"
   properties {
     id: "direction"
+    value: "0.0"
     type: PROPERTY_TYPE_NUMBER
-    value: "0"
   }
 }

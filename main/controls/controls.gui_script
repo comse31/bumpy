@@ -1,0 +1,537 @@
+-- Сенсорное управление. Два варианта, выбор задаётся настройкой
+-- bumpy.controls_mode в game.project:
+--   "buttons" — экранные кнопки-кружки (влево / высокий прыжок / вправо);
+--   "cells"   — тап прямо по игровой ячейке поля: ячейка (или боковая стенка,
+--               если тап за границей поля) подсвечивается тонкой рамкой, и мяч
+--               прыгает в её сторону; тап по ячейке выше мяча — высокий прыжок;
+--   "auto"    — "cells" на тач-устройствах, "buttons" на остальных.
+--
+-- Пересчёт координат нажатий в мир идёт через main/render/camera_state.lua:
+-- камера может масштабировать поле (на мобильных — по длинному краю экрана) и
+-- сдвигать видимую область за мячом, поэтому ни fixed-fit, ни фиксированный
+-- масштаб здесь больше не годятся.
+local camera_state = require("main.render.camera_state")
+-- флаг открытого стартового меню: пока оно на экране, сенсорное управление
+-- не должно ни двигать мяч, ни панорамировать камеру под меню
+local game_mode = require("main.game_mode")
+
+local GAME_W = 960
+local GAME_H = 720
+
+-- игровое поле: 6x6 ячеек в левой нижней части экрана (y = 0..640),
+-- полоса y = 640..720 — HUD-карман. Значения совпадают с ball.script и
+-- level.script (CELL_W = 960/6, CELL_H = 640/6)
+local FIELD_W = 960
+local FIELD_H = 640
+local COLS = 6
+local ROWS = 6
+local CELL_W = FIELD_W / COLS
+local CELL_H = FIELD_H / ROWS
+
+local MODE_BUTTONS = "buttons"
+local MODE_CELLS = "cells"
+
+-- Свайп по свободной части экрана панорамирует камеру (см. camera.script,
+-- сообщение "camera_pan"). Порог — доля меньшей стороны окна, чтобы жест
+-- одинаково распознавался на телефоне и на десктопе; на нажатие кнопки или
+-- тап по ячейке свайп не влияет.
+local PAN_THRESHOLD_FRAC = 0.03
+
+local function has_touch_controls()
+    local info = sys.get_sys_info()
+    local system = info.system_name or ""
+
+    if system == "Android" or system == "iPhone OS" or system == "iPadOS" then
+        return true
+    end
+
+    if system == "HTML5" then
+        local ok, result = pcall(html5.run,
+            "String((matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))")
+        return ok and result == "true"
+    end
+
+    return false
+end
+
+-- выбранный вариант управления: явная настройка либо автоопределение.
+-- sys.get_config_string возвращает значение как есть (иногда в кавычках),
+-- поэтому кавычки срезаем; неизвестное значение трактуем как "auto"
+local function config_mode()
+    local ok, value = pcall(sys.get_config_string, "bumpy.controls_mode", "auto")
+    local mode = (ok and type(value) == "string") and value or "auto"
+    mode = mode:gsub('^%s*"(.*)"%s*$', "%1"):gsub("^%s+", ""):gsub("%s+$", "")
+    if mode == MODE_BUTTONS or mode == MODE_CELLS then
+        return mode
+    end
+    return has_touch_controls() and MODE_CELLS or MODE_BUTTONS
+end
+
+-- Мир и GUI-сцена проецируются ПО-РАЗНОМУ, хотя начала координат совпадают
+-- (левый нижний угол видимой области):
+--   * МИР рисуется камерой (main/render/camera.script): она задаёт видимый
+--     прямоугольник мира — он может быть больше поля и сдвигаться за мячом;
+--   * GUI-сцена 960x720 растягивается на всё окно (stretch): 1 единица по X
+--     равна w/960 пикселя, по Y — h/720.
+-- В этих же GUI-единицах приходят action.x/action.y и работает gui.pick_node.
+-- Поэтому пересчёт идёт через camera_state: мир <-> дизайн 960x720.
+
+-- Мировой прямоугольник (центр cx,cy, размер ww,wh) -> позиция и размер узла UI
+local function world_to_gui(cx, cy, ww, wh)
+    if camera_state.width <= 0 or camera_state.height <= 0 then
+        return nil
+    end
+    local gx, gy = camera_state.world_to_screen(cx, cy)
+    local usize = ww * GAME_W / camera_state.width
+    local vsize = wh * GAME_H / camera_state.height
+    return gx, gy, usize, vsize
+end
+
+-- GUI-единицы -> мировая точка
+local function gui_to_world(gx, gy)
+    if camera_state.width <= 0 or camera_state.height <= 0 then
+        return nil
+    end
+    return camera_state.screen_to_world(gx, gy)
+end
+
+-- Порог свайпа в пикселях окна: меньше — считаем тапом
+local function pan_threshold()
+    local w, h = window.get_size()
+    return math.min(w, h) * PAN_THRESHOLD_FRAC
+end
+
+-- Сдвиг камеры от перемещения пальца: экранные пиксели -> мировые единицы.
+-- Палец тянет «мир» за собой, поэтому знак обратный движению: палец вправо
+-- показывает то, что левее, — камера уходит влево.
+local function pan_camera(dx_px, dy_px)
+    if dx_px == 0.0 and dy_px == 0.0 then
+        return
+    end
+    local zoom = camera_state.zoom
+    if not zoom or zoom <= 0.0 then
+        return
+    end
+    msg.post("/camera", "camera_pan", {
+        dx = -dx_px / zoom,
+        dy = -dy_px / zoom,
+    })
+end
+
+local function set_button(node, x, y, size, enabled)
+    gui.set_enabled(node, enabled)
+    if enabled then
+        gui.set_position(node, vmath.vector3(x, y, 0))
+        gui.set_size(node, vmath.vector3(size, size, 0))
+        gui.set_scale(node, vmath.vector3(1, 1, 1))
+    end
+end
+
+local function release_all(self)
+    for id, control in pairs(self.touches) do
+        gui.set_scale(control.node, vmath.vector3(1, 1, 1))
+        msg.post("/ball", "touch_control", { control = control.action, pressed = false })
+        self.touches[id] = nil
+    end
+end
+
+-- подсветка ячейки/стенки: видна только пока палец на экране
+local function hide_highlight(self)
+    gui.set_enabled(self.cell_highlight, false)
+    gui.set_enabled(self.wall_highlight, false)
+    self.cell_touch = nil
+end
+
+-- отправить мячу команду тапа по ячейке (row 0 — низ, col 0..5).
+-- id касания прикладывается, чтобы мяч мог отменить команду, если жест
+-- окажется свайпом-панорамированием (см. "cell_cancel" в ball.script).
+-- Одна команда на касание: повторный вызов для того же пальца игнорируется
+local function send_cell_tap(self, touch_id)
+    local tap = self.cell_tap
+    if not tap or self.cell_sent then
+        return
+    end
+    self.cell_sent = true
+    self.cell_cmd_id = touch_id
+    msg.post("/camera", "camera_focus")
+    msg.post("/ball", "cell_tap", {
+        row = tap.row,
+        col = tap.col,
+        dir = tap.dir,
+        side = tap.side,
+        id = touch_id,
+    })
+end
+
+-- Подсветка ячейки: рамка ровно по границам ячейки в GUI-единицах.
+local function show_cell_highlight(self, tap)
+    local gx, gy, gw, gh = world_to_gui((tap.col + 0.5) * CELL_W, (tap.row + 0.5) * CELL_H, CELL_W, CELL_H)
+    if not gx then
+        return
+    end
+    gui.set_position(self.cell_highlight, vmath.vector3(gx, gy, 0))
+    gui.set_size(self.cell_highlight, vmath.vector3(gw, gh, 0))
+    gui.set_scale(self.cell_highlight, vmath.vector3(1, 1, 1))
+    gui.set_enabled(self.cell_highlight, true)
+    gui.set_enabled(self.wall_highlight, false)
+end
+
+-- Тап за границей поля: подсвечиваем только боковую стенку нужного ряда —
+-- узкую полоску ровно по краю поля, на всю высоту ячейки.
+local function show_wall_highlight(self, tap)
+    local edge_world = tap.dir < 0 and 0.0 or FIELD_W
+    local gx, gy, _, gh = world_to_gui(edge_world, (tap.row + 0.5) * CELL_H, 0, CELL_H)
+    if not gx then
+        return
+    end
+    local width = 8.0
+    gui.set_position(self.wall_highlight, vmath.vector3(gx, gy, 0))
+    gui.set_size(self.wall_highlight, vmath.vector3(width, gh, 0))
+    gui.set_scale(self.wall_highlight, vmath.vector3(1, 1, 1))
+    gui.set_enabled(self.wall_highlight, true)
+    gui.set_enabled(self.cell_highlight, false)
+end
+
+-- Нажатие в мировой точке -> игровая ячейка либо боковая стенка.
+-- Тап за границей поля засчитывается, только если он не дальше одной ячейки
+-- от края; засчитывается сама стенка (side = true), и мяч делает обычный
+-- боковой прыжок в её сторону.
+local function cell_from_world(wx, wy)
+    if wy < 0.0 or wy >= FIELD_H then
+        return nil
+    end
+    local row = math.floor(wy / CELL_H)
+    if row < 0 or row >= ROWS then
+        return nil
+    end
+    if wx < 0.0 then
+        if wx < -CELL_W then
+            return nil
+        end
+        return { row = row, col = -1, dir = -1, side = true }
+    end
+    if wx >= FIELD_W then
+        if wx >= FIELD_W + CELL_W then
+            return nil
+        end
+        return { row = row, col = COLS, dir = 1, side = true }
+    end
+    local col = math.floor(wx / CELL_W)
+    if col < 0 or col >= COLS then
+        return nil
+    end
+    return { row = row, col = col, dir = 0, side = false }
+end
+
+local function layout(self)
+    local w, h = window.get_size()
+    if w <= 0 or h <= 0 then
+        return
+    end
+
+    -- режим тапа по ячейкам: экранные кнопки не нужны
+    if self.mode == MODE_CELLS then
+        self.active = {}
+        set_button(self.left, 0, 0, 0, false)
+        set_button(self.right, 0, 0, 0, false)
+        set_button(self.high_center, 0, 0, 0, false)
+        set_button(self.high_left, 0, 0, 0, false)
+        set_button(self.high_right, 0, 0, 0, false)
+        return
+    end
+
+    -- Кнопки расставляются по ВИДИМОЙ части поля: камера масштабирует и
+    -- сдвигает поле, поэтому края берём из camera_state, а не из fixed-fit
+    -- масштаба окна. Видимый прямоугольник поля обрезаем границами GUI-экрана
+    -- 0..960 x 0..720 (вне их узлы не видны) и отступаем внутрь.
+    local field_left, field_bottom = camera_state.world_to_screen(0.0, 0.0)
+    local field_right, field_top = camera_state.world_to_screen(FIELD_W, FIELD_H)
+    local vis_left = math.max(0, field_left)
+    local vis_right = math.min(GAME_W, field_right)
+    local vis_bottom = math.max(0, field_bottom)
+    local vis_top = math.min(GAME_H, field_top)
+    if vis_right - vis_left < 1 or vis_top - vis_bottom < 1 then
+        vis_left, vis_right, vis_bottom, vis_top = 0, GAME_W, 0, GAME_H
+    end
+    local band_x = math.max((vis_right - vis_left) * 0.06, 0)
+    local band_y = math.max((vis_top - vis_bottom) * 0.06, 0)
+
+    local portrait = h > w
+    self.active = {}
+
+    local vis_w = vis_right - vis_left
+    local vis_h = vis_top - vis_bottom
+
+    if portrait then
+        local size = math.min(GAME_W * 0.20, math.max(56, band_y * 0.80))
+        local y = vis_bottom + band_y + size * 0.5
+
+        set_button(self.left, vis_left + band_x + size * 0.5, y, size, true)
+        set_button(self.high_center, (vis_left + vis_right) * 0.5, y, size, true)
+        set_button(self.right, vis_right - band_x - size * 0.5, y, size, true)
+
+        set_button(self.high_left, 0, 0, size, false)
+        set_button(self.high_right, 0, 0, size, false)
+
+        self.active = {
+            { node = self.left, action = "left" },
+            { node = self.high_center, action = "high" },
+            { node = self.right, action = "right" },
+        }
+    else
+        local size = math.min(GAME_H * 0.24, math.max(56, band_x * 0.85))
+        local left_x = vis_left + band_x + size * 0.5
+        local right_x = vis_right - band_x - size * 0.5
+        local bottom_y = vis_bottom + vis_h * 0.25
+        local top_y = vis_bottom + vis_h * 0.75
+
+        set_button(self.left, left_x, bottom_y, size, true)
+        set_button(self.high_left, left_x, top_y, size, true)
+        set_button(self.right, right_x, bottom_y, size, true)
+        set_button(self.high_right, right_x, top_y, size, true)
+
+        set_button(self.high_center, (vis_left + vis_right) * 0.5, 0, size, false)
+
+        self.active = {
+            { node = self.left, action = "left" },
+            { node = self.high_left, action = "high" },
+            { node = self.right, action = "right" },
+            { node = self.high_right, action = "high" },
+        }
+    end
+end
+
+local function window_callback(self, event, data)
+    if event == window.WINDOW_EVENT_RESIZED then
+        layout(self)
+    elseif event == window.WINDOW_EVENT_FOCUS_LOST then
+        if self.mode == MODE_CELLS then
+            hide_highlight(self)
+            -- незавершённый тап без отпускания пальца: команду отменяем,
+            -- иначе мяч среагирует на нажатие, которое игрок уже не завершил
+            if self.cell_cmd_id then
+                msg.post("/ball", "cell_cancel", { id = self.cell_cmd_id })
+                self.cell_cmd_id = nil
+            end
+            self.pan_touch = nil
+            self.pan_start = nil
+            self.pan_last = nil
+            self.cell_tap = nil
+        else
+            release_all(self)
+        end
+    end
+end
+
+
+function init(self)
+    self.left = gui.get_node("left")
+    self.right = gui.get_node("right")
+    self.high_center = gui.get_node("high_center")
+    self.high_left = gui.get_node("high_left")
+    self.high_right = gui.get_node("high_right")
+    self.cell_highlight = gui.get_node("cell_highlight")
+    self.wall_highlight = gui.get_node("wall_highlight")
+    self.touches = {}
+    self.cell_touch = nil
+    -- id тач-касания, по которому уже отправлена команда "cell_tap": нужен для
+    -- отмены команды, если жест окажется свайпом
+    self.cell_cmd_id = nil
+    -- команда текущего касания уже отправлена (не отправляем дважды)
+    self.cell_sent = false
+    -- мяч в высоком прыжке (/ball присылает "motion_state"): в полёте тап
+    -- отправляется сразу при нажатии, иначе — по отпусканию
+    self.high_flying = false
+
+    gui.set_enabled(self.cell_highlight, false)
+    gui.set_enabled(self.wall_highlight, false)
+
+    self.mode = config_mode()
+    self.touch_enabled = has_touch_controls()
+    -- в режиме кнопок без тач-устройства кнопки не нужны (управление с клавиатуры)
+    if self.mode == MODE_BUTTONS and not self.touch_enabled then
+        gui.set_enabled(self.left, false)
+        gui.set_enabled(self.right, false)
+        gui.set_enabled(self.high_center, false)
+        gui.set_enabled(self.high_left, false)
+        gui.set_enabled(self.high_right, false)
+        return
+    end
+
+    layout(self)
+    window.set_listener(window_callback)
+    msg.post(".", "acquire_input_focus")
+end
+
+-- Камера может сдвигать/масштабировать поле, поэтому раскладку кнопок
+-- периодически обновляем. Пересчитываем только при заметном изменении видимой
+-- области, чтобы не дёргать узлы каждый кадр.
+function update(self, dt)
+    if self.mode ~= MODE_BUTTONS or not self.touch_enabled then
+        return
+    end
+    local left, bottom = camera_state.world_to_screen(0.0, 0.0)
+    local right, top = camera_state.world_to_screen(FIELD_W, FIELD_H)
+    local sig = left + bottom * 3.0 + right * 7.0 + top * 11.0
+    if self.layout_sig == nil or math.abs(sig - self.layout_sig) > 0.5 then
+        self.layout_sig = sig
+        layout(self)
+    end
+end
+
+function final(self)
+    if self.touch_enabled or self.mode == MODE_CELLS then
+        window.set_listener(nil)
+    end
+end
+
+-- состояние движения мяча: во время высокого прыжка тап по ячейке должен
+-- срабатывать мгновенно (палец не успеет отпустить), вне полёта — по отпусканию
+function on_message(self, message_id, message, sender)
+    if message_id == hash("motion_state") then
+        self.high_flying = (message and message.high) and true or false
+    elseif message_id == hash("reset") then
+        -- стартовое меню открылось: сбрасываем удержания и подсветку, иначе
+        -- «зажатая» кнопка продолжила бы действовать после выбора режима
+        if self.mode == MODE_CELLS then
+            hide_highlight(self)
+        else
+            release_all(self)
+        end
+        self.pan_touch = nil
+        self.pan_start = nil
+        self.pan_last = nil
+        self.cell_tap = nil
+        self.cell_cmd_id = nil
+        self.cell_sent = false
+    end
+end
+
+function on_input(self, action_id, action)
+    if action_id ~= hash("touch") then
+        return
+    end
+
+    -- стартовое меню открыто: касания принадлежат меню, а не управлению игрой.
+    -- Возвращаем false (НЕ потребляем событие), чтобы оно дошло до GUI меню,
+    -- которое стоит ниже в стеке ввода; мяч в это время тоже игнорирует ввод
+    -- (см. game_mode.is_menu_open в ball.script)
+    if game_mode.is_menu_open() then
+        return false
+    end
+
+    local touch_id = action.touch_id or 0
+
+    -- режим тапа по игровым ячейкам.
+    -- Нажатие запоминает и ячейку, и стартовую точку. Если мяч сейчас в
+    -- высоком прыжке (self.high_flying — /ball сообщает это сообщением
+    -- "motion_state"), команда уходит СРАЗУ при нажатии: в полёте мяч
+    -- пролетает ячейку за доли секунды, и отпускание пальца могло бы опоздать.
+    -- Вне полёта команда уходит по отпусканию — так свайп-панорамирование не
+    -- превращается в команду мячу. Мимо цели (свайп) команда отменяется
+    -- сообщением "cell_cancel".
+    if self.mode == MODE_CELLS then
+        if action.pressed then
+            self.pan_touch = touch_id
+            self.pan_start = { x = action.x, y = action.y }
+            self.pan_last = { x = action.x, y = action.y }
+            self.pan_moved = false
+            -- новое касание: своя команда (мультитач не должен блокировать)
+            self.cell_sent = false
+            local wx, wy = gui_to_world(action.x, action.y)
+            self.cell_tap = wx and cell_from_world(wx, wy) or nil
+            if self.cell_tap then
+                if self.cell_tap.side then
+                    show_wall_highlight(self, self.cell_tap)
+                else
+                    show_cell_highlight(self, self.cell_tap)
+                end
+                self.cell_touch = touch_id
+                if self.high_flying then
+                    send_cell_tap(self, touch_id)
+                end
+            end
+        elseif action.released then
+            if self.cell_touch == touch_id then
+                hide_highlight(self)
+            end
+            if self.pan_touch == touch_id then
+                -- вне полёта короткий тап без сдвига — команда по отпусканию
+                if not self.pan_moved and self.cell_tap and not self.cell_sent then
+                    send_cell_tap(self, touch_id)
+                end
+                self.pan_touch = nil
+                self.pan_start = nil
+                self.pan_last = nil
+                self.cell_tap = nil
+                self.cell_sent = false
+                if self.cell_cmd_id == touch_id then
+                    self.cell_cmd_id = nil
+                end
+            end
+        elseif self.pan_touch == touch_id and self.pan_last then
+            -- палец ведут по экрану — двигаем камеру
+            local dx = action.x - self.pan_last.x
+            local dy = action.y - self.pan_last.y
+            if dx ~= 0.0 or dy ~= 0.0 then
+                self.pan_last = { x = action.x, y = action.y }
+                if self.pan_start then
+                    local tdx = action.x - self.pan_start.x
+                    local tdy = action.y - self.pan_start.y
+                    if math.sqrt(tdx * tdx + tdy * tdy) > pan_threshold() then
+                        self.pan_moved = true
+                        -- это свайп, а не тап: подсветку ячейки убираем,
+                        -- а отправленную команду отменяем. В полёте команда уже
+                        -- применена мячом мгновенно — её отмена была бы вредна,
+                        -- поэтому отменяем только неотправленную/непринятую
+                        hide_highlight(self)
+                        if self.cell_cmd_id == touch_id and not self.high_flying then
+                            self.cell_cmd_id = nil
+                            msg.post("/ball", "cell_cancel", { id = touch_id })
+                        end
+                    end
+                end
+                pan_camera(dx, dy)
+            end
+        end
+        return
+    end
+
+    -- режим экранных кнопок (прежнее управление)
+    if action.pressed then
+        for _, control in ipairs(self.active) do
+            if gui.pick_node(control.node, action.x, action.y) then
+                self.touches[touch_id] = control
+                gui.set_scale(control.node, vmath.vector3(0.92, 0.92, 1))
+                -- управление мячом возвращает фокус камеры на него
+                msg.post("/camera", "camera_focus")
+                msg.post("/ball", "touch_control", { control = control.action, pressed = true })
+                return
+            end
+        end
+        -- нажатие вне кнопок — начало возможного свайпа по экрану
+        self.pan_touch = touch_id
+        self.pan_last = { x = action.x, y = action.y }
+        self.pan_moved = false
+    elseif action.released then
+        local control = self.touches[touch_id]
+        if control then
+            self.touches[touch_id] = nil
+            gui.set_scale(control.node, vmath.vector3(1, 1, 1))
+            msg.post("/ball", "touch_control", { control = control.action, pressed = false })
+        end
+        if self.pan_touch == touch_id then
+            self.pan_touch = nil
+            self.pan_last = nil
+        end
+    elseif self.pan_touch == touch_id and self.pan_last then
+        -- палец ведут по свободной части экрана — панорамируем камеру
+        local dx = action.x - self.pan_last.x
+        local dy = action.y - self.pan_last.y
+        if dx ~= 0.0 or dy ~= 0.0 then
+            self.pan_last = { x = action.x, y = action.y }
+            self.pan_moved = true
+            pan_camera(dx, dy)
+        end
+    end
+end

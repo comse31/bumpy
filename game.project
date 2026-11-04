@@ -1,5 +1,6 @@
 [bootstrap]
 main_collection = /main/main.collectionc
+render = /main/render/game.renderc
 
 [script]
 shared_state = 1
@@ -31,8 +32,27 @@ use_fixed_timestep = 1
 scale_mode = stretch
 use_indexeddb = 1
 
+
+[bumpy]
+controls_mode = "auto"
+camera_mode = "auto"
+test_level = 0
+debug = 0
+
 [project]
 title = bumpy
 version = 1.0.0
-custom_resources = /main/levels.json
+custom_resources = /main/levels.json,/main/test_levels.json
+dependencies#0 = https://github.com/Insality/defold-event/archive/refs/tags/21.zip
+dependencies#1 = https://github.com/Insality/druid/archive/refs/tags/1.4.2.zip
+
+[druid]
+input_text = text
+input_touch = touch
+input_key_enter = name_enter
+input_key_esc = name_cancel
+input_key_backspace = name_backspace
+input_key_delete = name_delete
+input_key_left = left
+input_key_right = right
 

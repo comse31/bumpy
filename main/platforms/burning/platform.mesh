@@ -1,4 +1,4 @@
-material: "/main/platforms/platform.material"
-vertices: "/main/platforms/platform.buffer"
+material: "/main/platforms/burning/platform.material"
+vertices: "/main/platforms/burning/platform.buffer"
 textures: "/main/platforms/burning/platform.png"
 primitive_type: PRIMITIVE_TRIANGLES

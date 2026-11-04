@@ -107,7 +107,19 @@ jobs:
         # пересобрать образ (workflow_dispatch → build-bob-image.yml).
         run: |
           set -euo pipefail
-          docker pull "${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}"
+          REMOTE="${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}"
+          # Если образ для этой версии Defold ещё не опубликован в ghcr.io
+          # (например, stable-версия только что обновилась), не валим деплой:
+          # используем локально собранный образ bumpy-bob-builder:25-jdk.
+          if docker pull "${REMOTE}"; then
+            echo "BOB_BUILDER_REF=${REMOTE}" >> "$GITHUB_ENV"
+          elif docker image inspect "bumpy-bob-builder:25-jdk" >/dev/null 2>&1; then
+            echo "::warning::Образ ${REMOTE} не найден в ghcr.io — использую локальный bumpy-bob-builder:25-jdk"
+            echo "BOB_BUILDER_REF=bumpy-bob-builder:25-jdk" >> "$GITHUB_ENV"
+          else
+            echo "::error::Образ ${REMOTE} недоступен, и локального bumpy-bob-builder:25-jdk нет"
+            exit 1
+          fi
 
       - name: Сборка HTML5-бандла (wasm-web) в контейнере с JDK
         # bob.jar зашит в образ bumpy-bob-builder (JDK 25 + системные библиотеки
@@ -148,7 +160,7 @@ jobs:
             -e HOME=/tmp \
             -v "$PWD":/project \
             -w /project \
-            "${BOB_BUILDER_IMAGE}:${{ steps.defold.outputs.sha1 }}" \
+            "${BOB_BUILDER_REF}" \
             java -jar /opt/bob/bob.jar \
               --verbose \
               --root . \
