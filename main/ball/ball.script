@@ -13,6 +13,9 @@ local BPM = 120.0
 -- не меняются — удобно для замедленного просмотра. На скорость самой
 -- анимации (SQUASH_DURATION) не влияет.
 local HERO_SPEED = 1.0
+-- Глобальный множитель времени героя: бит длится 0.5 / HERO_TIME_SCALE при той же
+-- высоте (гравитация и импульс пересчитываются от PERIOD). 0.85 — примерно 0.59 с.
+local HERO_TIME_SCALE = 0.85
 
 -- сетка игрового экрана 6 на 6
 local COLS = 6
@@ -51,7 +54,7 @@ for c = 0, COLS - 1 do
     BOUNCE_Y[c] = PLATFORM_Y_BASE + PLATFORM_H / 2.0 + RADIUS + c * CELL_H
 end
 
-local PERIOD = 60.0 / BPM * HERO_SPEED
+local PERIOD = 60.0 / BPM * HERO_SPEED / HERO_TIME_SCALE
 -- высота обычного прыжка: в верхней точке мяч не должен касаться платформы выше,
 -- т.е. HEIGHT + 2*RADIUS < зазор между уровнями (48 + 32 < 106.7 - 20)
 local HEIGHT = 1.5 * SIZE
@@ -65,8 +68,8 @@ local HIGH_JUMP_HEIGHT = CELL_H + HEIGHT
 local HIGH_JUMP_SPEED = math.sqrt(2.0 * GRAVITY * HIGH_JUMP_HEIGHT)
 
 -- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
-local THRESHOLD_MS = 100.0 * HERO_SPEED
-local THRESHOLD = THRESHOLD_MS / 1000.0
+local INPUT_LEAD = 0.12 * HERO_SPEED
+local INPUT_TAIL = 0.08 * HERO_SPEED
 
 -- тач-управление (тачскрин). Жесты работают как удержание клавиш:
 --   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»
@@ -103,6 +106,7 @@ local ENV = {
     jump_speed = JUMP_SPEED,
     period = PERIOD,
     hop_height = HEIGHT,
+    high_jump_height = HIGH_JUMP_HEIGHT,
     squash_amount = SQUASH_AMOUNT,
 }
 
@@ -1038,7 +1042,7 @@ local function land_on_platform(self, row)
         return
     end
     local direction = 0
-    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= THRESHOLD then
+    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= INPUT_LEAD then
         direction = self.pending_dir
     end
     self.pending_dir = 0
@@ -1452,7 +1456,7 @@ function update(self, dt)
         else
             local since_touch = self.time - self.touch_time
             local from_rest = self.hero.allow_from_rest(self)
-            if since_touch <= THRESHOLD or from_rest then
+            if since_touch <= INPUT_TAIL or from_rest then
                 -- клавиша удерживается сразу после касания: подскок и смещение сейчас;
                 -- нажатие тратится даже если перегородка отбила прыжок (отскок обратно)
                 hop_and_move(self, dir)
@@ -1463,7 +1467,7 @@ function update(self, dt)
                 if self.next_touch_time then
                     until_next = self.next_touch_time - self.time
                 end
-                if until_next <= THRESHOLD then
+                if until_next <= INPUT_LEAD then
                     -- клавиша удерживается перед следующим касанием: ждем контакта
                     self.pending_dir = dir
                     self.pending_time = self.time
@@ -1487,7 +1491,7 @@ function update(self, dt)
     if jump_active(self) and not self.press_used and not self.high_jump and can_high_jump
         and self.move_t <= 0.0 and self.bounce_t <= 0.0 then
         local since_touch = self.time - self.touch_time
-        if since_touch <= THRESHOLD or from_rest then
+        if since_touch <= INPUT_TAIL or from_rest then
             -- клавиша удерживается сразу после касания: высокий прыжок сейчас;
             -- на липкой поверхности расходует единственное действие за касание
             if self.sticky_rest then
@@ -1506,7 +1510,7 @@ function update(self, dt)
             if self.next_touch_time then
                 until_next = self.next_touch_time - self.time
             end
-            if until_next <= THRESHOLD then
+            if until_next <= INPUT_LEAD then
                 -- клавиша удерживается перед следующим касанием: ждем контакта
                 self.pending_jump = true
                 self.press_used = true

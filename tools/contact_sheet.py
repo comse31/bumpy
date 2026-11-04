@@ -28,6 +28,7 @@ def main() -> int:
     parser.add_argument("--cell", type=int, default=208)
     parser.add_argument("--label", type=int, default=22)
     parser.add_argument("--pad", type=int, default=6)
+    parser.add_argument("--bg", default="200,205,215", help="background R,G,B")
     args = parser.parse_args()
 
     src_dir = Path(args.input)
@@ -35,12 +36,15 @@ def main() -> int:
     if not files:
         parser.error(f"no PNG/WebP in {src_dir}")
 
+    bg = tuple(int(v.strip()) for v in args.bg.split(","))
+    if len(bg) != 3:
+        parser.error("--bg must be R,G,B")
     font = load_font(14)
     cols = max(1, args.cols)
     rows = math.ceil(len(files) / cols)
     cell_w = args.cell + args.pad * 2
     cell_h = args.cell + args.label + args.pad * 2
-    sheet = Image.new("RGBA", (cols * cell_w, rows * cell_h), (245, 245, 245, 255))
+    sheet = Image.new("RGBA", (cols * cell_w, rows * cell_h), (*bg, 255))
     draw = ImageDraw.Draw(sheet)
 
     for i, path in enumerate(files):

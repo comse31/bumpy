@@ -28,6 +28,8 @@ instances {
   prototype: "/main/level/level.go"
 }
 # --- визуалы героев: каждый герой сам включает/выключает свой визуал ---
+# --- v8 gameplay hero + shadow levels ---
+
 instances {
   id: "ball_visual"
   prototype: "/main/ball/ball_visual.go"
@@ -41,20 +43,6 @@ instances {
     z: 0.0625
   }
 }
-instances {
-  id: "bumpy_visual"
-  prototype: "/main/bumpy/bumpy_visual.go"
-  position {
-    x: 80.0
-    y: 579.33
-  }
-  scale3 {
-    x: 0.0625
-    y: 0.0625
-    z: 0.0625
-  }
-}
-# --- пул сегментов-колец для героя-пружинки (Slinky) ---
 instances {
   id: "si_1"
   prototype: "/main/slinky/slinky_ring.go"
@@ -237,6 +225,40 @@ instances {
     z: 0.1
   }
 }
+
+instances {
+  id: "bumpy_v10_visual"
+  prototype: "/main/bumpy_v10/bumpy_v10_visual.go"
+  position {
+    x: 80.0
+    y: 579.33
+  }
+  scale3 {
+    x: 0.0625
+    y: 0.0625
+    z: 0.0625
+  }
+}
+instances {
+  id: "bumpy_v10_shadow_visual"
+  prototype: "/main/bumpy_v10/bumpy_v10_shadow_visual.go"
+  position {
+    x: 80.0
+    y: 563.33
+    z: -0.1
+  }
+}
+# --- режим просмотра клипов v10 (Shift+клавиша показывает клип и подпись) ---
+instances {
+  id: "bumpy_v10_preview"
+  prototype: "/main/bumpy_v10/bumpy_v10_preview.go"
+  position {
+    x: 480.0
+    y: 300.0
+    z: 0.5
+  }
+}
+# --- пул сегментов-колец для героя-пружинки (Slinky) ---
 instances {
   id: "ball"
   prototype: "/main/ball/ball.go"

@@ -3,7 +3,7 @@
 -- ни его анимаций, ни его визуальных объектов.
 -- Порядок задаёт переключение по клавише T; первый — герой по умолчанию.
 return {
-    require("main.bumpy.hero_bumpy"),
+    require("main.bumpy_v10.hero_bumpy_v10"),
     require("main.ball.hero_ball"),
     require("main.ball.hero_slinky"),
 }
