@@ -16,13 +16,17 @@ local state = require("main.level.level_state")
 local save = require("main.save")
 -- режим игры (classic/adventure) и флаг открытого стартового меню
 local game_mode = require("main.game_mode")
+-- минимальные требования уровня по снаряжению (п. 19 плана)
+local requirements = require("main.level.level_requirements")
 
 local M = {}
 
 local START_LIVES = C.START_LIVES
--- «Приключение»: фиксированный набор на попытку — 3 жизни и по 5 предметов
--- каждого вида в кармане (капли/ключи/молотки)
+-- «Приключение»: 3 жизни на попытку; снаряжение выдаётся ровно в том объёме,
+-- который нужен уровню для прохождения (см. M.adventure_items)
 local ADVENTURE_LIVES = 3
+-- запасной набор, если для уровня нет данных (файл не сгенерирован или уровень
+-- появился позже): по 5 предметов каждого вида
 local ADVENTURE_ITEMS = 5
 
 -- записать прогресс в сохранение. Всегда сохраняется снимок кармана на начало
@@ -138,6 +142,59 @@ function M.lose_life(self, cause)
     dbg.always("GAME OVER (%s): no lives left", cause or "?")
 end
 
+-- Проверка снаряжения на старте уровня (п. 19 плана): если для прохождения
+-- уровня заведомо не хватает капель/ключей/молотков, игра заканчивается СРАЗУ,
+-- сколько бы жизней ни осталось — tz.txt, «Жизни»: «недостаточно снаряжения
+-- для прохождения уровня, и это ведёт к проигрышу вне зависимости от числа
+-- жизней».
+--
+-- Требования берутся из main/level_requirements.json (генерируется
+-- tools/gen_level_requirements.py по решателю уровней): это минимальный
+-- набор, который нужен на СТАРТЕ, с учётом того, что часть предметов можно
+-- подобрать по пути.
+--
+-- Возвращает true, если снаряжения хватает (игра продолжается), и false,
+-- если игра завершена этой проверкой.
+function M.require_gear(self)
+    local ok, lack = requirements.check(state.index,
+        self.pocket, self.key_pocket, self.hammer_pocket)
+    if ok then
+        return true
+    end
+    local missing = requirements.describe(lack)
+    dbg.always("GAME OVER: not enough gear for level %d (%s); "
+        .. "have drops=%d keys=%d hammers=%d",
+        state.index, missing, self.pocket, self.key_pocket, self.hammer_pocket)
+    -- мяч больше не играет: остановить физику и скрыть визуал героя
+    self.game_over = true
+    if self.reported_high then
+        self.reported_high = false
+        msg.post("/controls", "motion_state", { high = false })
+    end
+    if self.trap_active then
+        trap.reset(self)
+    end
+    phys.stop()
+    phys.disable()
+    self.hero.deactivate(self)
+    -- READY не показываем: уровень даже не начинается
+    msg.post("/ready", "hide")
+    -- плашку показываем в обоих режимах: игрок должен понять, почему игра
+    -- закончилась, а не просто оказался в меню
+    msg.post("/game_over", "show", { reason = "NOT ENOUGH GEAR: " .. missing })
+    if not game_mode.is_adventure() then
+        -- классика: обнулить сохранение, чтобы после переоткрытия браузера
+        -- игра не вернулась в заведомо проигранный уровень. Прогресс
+        -- «Приключения» отдельный и не трогается.
+        save.clear()
+    end
+    -- меню открывается поверх плашки (как при GAME OVER в классике):
+    -- игрок выбирает режим/уровень заново
+    game_mode.set_menu_open(true)
+    msg.post("/menu", "open")
+    return false
+end
+
 -- Запуск игры из стартового меню. Режим (classic/adventure) уже выставлен
 -- меню (game_mode.set_mode) либо передаётся здесь.
 --
@@ -152,14 +209,23 @@ function M.start_game(self, chosen)
     local resumable = data and (data.lives or 0) > 0
     local level = 1
     if game_mode.is_adventure() then
-        -- «Приключение»: выбранный в меню уровень и фиксированный набор —
-        -- 3 жизни и по 5 предметов каждого вида в кармане. Сохранение
-        -- классической игры (уровень, карман, жизни) не подмешивается
+        -- «Приключение»: выбранный в меню уровень и 3 жизни на попытку.
+        -- Снаряжение выдаётся ровно в минимально требуемом объёме (п. 19):
+        -- набор из main/level_requirements.json. Сохранение классической игры
+        -- (уровень, карман, жизни) не подмешивается.
         level = game_mode.get_adventure_level()
         self.lives = ADVENTURE_LIVES
-        self.pocket = ADVENTURE_ITEMS
-        self.key_pocket = ADVENTURE_ITEMS
-        self.hammer_pocket = ADVENTURE_ITEMS
+        local need_drops, need_keys, need_hammers = requirements.required(level)
+        if need_drops == nil then
+            -- данных о требованиях нет — запасной набор по 5 предметов
+            self.pocket = ADVENTURE_ITEMS
+            self.key_pocket = ADVENTURE_ITEMS
+            self.hammer_pocket = ADVENTURE_ITEMS
+        else
+            self.pocket = need_drops
+            self.key_pocket = need_keys
+            self.hammer_pocket = need_hammers
+        end
     elseif resumable then
         level = data.level or 1
         self.lives = data.lives

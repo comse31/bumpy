@@ -17,6 +17,13 @@ components {
   }
 }
 components {
+  id: "reason"
+  component: "/main/ui/game_over/game_over_reason.label"
+  position {
+    y: 44.0
+  }
+}
+components {
   id: "script"
   component: "/main/ui/game_over/game_over.script"
 }

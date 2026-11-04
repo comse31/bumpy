@@ -493,11 +493,20 @@ def landing(level, c, start_row, world, required, depth=0):
             return None, level.col_range[c][0][start_row]
         if kind == "shrink":
             return (r, c, "plat", world, required), span
+        if kind == "sticky":
+            # липкая платформа: мяч приземляется и за одно касание может
+            # совершить РОВНО одно действие (см. sticky.script и
+            # sticky_action_used в ball.script) — отдельный вид опоры
+            return (r, c, "sticky", world, required), span
         if kind == "burn":
             required = spend(level, world, required, "drop")
             return (r, c, "plat", extinguish(level, world, r, c), required), span
         if kind == "slope":
             d = f[1]
+            # наклон в непреодолимую преграду — ловушка: мяч мечется на месте,
+            # через TRAP_COUNTDOWN теряется жизнь (см. ball_trap.lua)
+            if slope_trapped(level, r, c, world, required):
+                return None, level.col_range[c][0][start_row]
             if not (0 <= c + d < COLS) or depth > 16:
                 return (r, c, "plat", world, required), span
             out, cells = lateral(level, r, c, d, world, required, depth=depth + 1)
@@ -506,6 +515,37 @@ def landing(level, c, start_row, world, required, depth=0):
             return (r, c, "blocktop", world, required), span
         return (r, c, "plat", world, required), span
     return None, level.col_range[c][0][start_row]
+
+
+def slope_trapped(level, r, c, world, required):
+    """Является ли наклон в (r, c) бесконечной ловушкой (main/ball/ball_trap.lua).
+
+    В игре наклон, из которого мяч не может уехать, включает плашку
+    «YOU ARE TRAPPED» и через TRAP_COUNTDOWN секунд отнимает жизнь, а ввод
+    игрока при этом игнорируется — то есть уровень заведомо проигран. Для
+    поиска прохождения без потерь жизни такой наклон считается смертью.
+
+    Ловушка, если направление наклона упирается в:
+      * край поля (там всегда стоит непробиваемая рамка border);
+      * непробиваемую перегородку;
+      * разрушаемую перегородку, а ключа в кармане в этот момент нет;
+      * наклонную платформу, направленную навстречу (мяч мечется между ними).
+    """
+    code = level.plat[r][c]
+    if code not in SLOPE:
+        return False
+    d = SLOPE[code]
+    tc = c + d
+    if not (0 <= tc < COLS):
+        return True
+    b = c + 1 if d > 0 else c
+    if level.wall_code(r, b) != 0:
+        if wall_remaining(level, r, b, world) < 0:
+            return True  # перегородка без #destructible: не пробить
+        # разрушаемая: пробить можно только ключом из кармана прямо сейчас
+        return inventory(level, world, required)[RES_INDEX["key"]] <= 0
+    other = level.plat[r][tc]
+    return other in SLOPE and SLOPE[other] == -d
 
 
 def lateral(level, r, c, d, world, required, depth=0):
@@ -559,35 +599,40 @@ def successors(level, state, world, required):
     r, c, kind = state
     out = []
     rest_shrink = kind != "blocktop" and level.plat[r][c] in SHRINK
+    # липкая платформа: игрок может отпустить кнопки и снова действовать, но
+    # КАЖДОЕ действие — отдельное касание (sticky_action_used сбрасывается
+    # только при отпускании), поэтому свернуть серию ударов в одно действие
+    # нельзя (см. ниже про кладку/перегородку)
+    rest_soft = rest_shrink or kind == "sticky"
     rest_bit = rc_bit(r, c)
 
     # ---- высокий прыжок ---------------------------------------------------
-    # запрещён только на вершине кладки. Липкая платформа для планирования ведёт
-    # себя как обычная: удержание прыжка в момент касания даёт повторные высокие
-    # прыжки (и авто-повтор, поэтому кладка над ней ломается за одно действие);
-    # при отпущенной кнопке шар бы залип, но игрок всегда может удерживать, что
-    # никогда не хуже.
+    # Верхняя граница подъёма — первый ряд ниже ближайшего препятствия: в
+    # master подъём останавливается на нижней грани платформы сверху
+    # (high_jump_touch_time в ball_motion.lua), а отвод в сторону разрешён на
+    # любом из ПРОЙДЕННЫХ рядов (update_high_jump_steer в ball.script). Поэтому
+    # шипы сверху и кладка для планирования — обычные препятствия: высокий
+    # прыжок до них не доводит, а ударить снизу по кладке — отдельное действие.
     if kind != "blocktop":
         obs_r, obs_kind = obstacle_above(level, r, c, world)
         rr_max = (obs_r - 1) if obs_r is not None else ROWS - 1
         reach = list(range(r + 1, rr_max + 1))
         hi_cells = rest_bit | (level.col_range[c][r + 1][rr_max] if reach else 0)
 
-        # высокий прыжок возможен всегда: когда сверху пусто, шар поднимается и
-        # возвращается в ту же клетку, собирая предметы, через которые пролетел
+        # высокий прыжок на месте: шар поднимается до препятствия и
+        # возвращается в ту же клетку, собирая предметы по пути
         out.append(((r, c, kind), world, required,
                     f"high jump in place at ({r},{c})", hi_cells, 1))
 
         # удар по кирпичной кладке прямо сверху. Со СТАБИЛЬНОЙ платформы игрок
         # начинает бить и добивает кладку за одно действие (один молоток): там
-        # обрушить её целиком безопасно. Со СХЛОПЫВАЮЩЕЙСЯ платформы свёртка
-        # невозможна — действие выбивает один ряд и тратит одно использование
-        # платформы, поэтому платформа может исчезнуть, шар упадёт на следующую
-        # поверхность ниже и продолжит бить оттуда (и может просто проиграть).
+        # обрушить её целиком безопасно. Со СХЛОПЫВАЮЩЕЙСЯ и с ЛИПКОЙ платформы
+        # свёртка невозможна: каждое действие — отдельный прыжок (у липкой ещё и
+        # отдельное касание), поэтому один удар сносит один ряд.
         if obs_kind == "block":
             first = block_broken(level, obs_r, c, world) == 0
             req2 = spend(level, world, required, "hammer") if first else required
-            if rest_shrink:
+            if rest_soft:
                 w2 = block_hit(level, world, obs_r, c)
                 done = block_broken(level, obs_r, c, w2)
                 label = (f"hit block ({obs_r},{c}) from below "
@@ -612,7 +657,7 @@ def successors(level, state, world, required):
                 rem = wall_remaining(level, rr, b, world)
                 if rem > 0:
                     req2 = spend(level, world, required, "key", rem)
-                    cost = rem if rest_shrink else 1
+                    cost = rem if rest_soft else 1
                     out.append(((r, c, kind), wall_destroy(level, world, rr, b), req2,
                                 f"high jump, break wall {b} at row {rr} ({rem} keys)",
                                 rise, cost))
@@ -640,7 +685,7 @@ def successors(level, state, world, required):
         rem = wall_remaining(level, r, b, world)
         if rem > 0:  # разрушаемая перегородка: со стабильной платформы одно действие
             req2 = spend(level, world, required, "key", rem)
-            cost = rem if rest_shrink else 1
+            cost = rem if rest_soft else 1
             out.append(((r, c, kind), wall_destroy(level, world, r, b), req2,
                         f"break wall {b} at row {r} ({rem} keys)", rest_bit, cost))
             continue
@@ -721,12 +766,17 @@ def start_state_of(level, world, required):
             return None
         return (fell[0], fell[1], fell[2]), fell[3], fell[4]
     if f[0] == "slope":
+        # спавн на наклоне, упирающемся в преграду, — сразу ловушка (см. slope_trapped)
+        if slope_trapped(level, r, c, world, required):
+            return None
         out, _cells = lateral(level, r, c, f[1], world, required)
         if out is None:
             return None
         return (out[0], out[1], out[2]), out[3], out[4]
     if f[0] == "blocktop":
         return (r, c, "blocktop"), world, required
+    if f[0] == "sticky":
+        return (r, c, "sticky"), world, required
     return (r, c, "plat"), world, required
 
 

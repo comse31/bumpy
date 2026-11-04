@@ -30,3 +30,4 @@ desktop.ini
 /build
 /bumpy_save
 /github.txt
+"__pycache__/"  

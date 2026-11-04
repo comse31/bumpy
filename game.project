@@ -42,7 +42,7 @@ debug = 0
 [project]
 title = bumpy
 version = 1.0.0
-custom_resources = /main/levels.json,/main/test_levels.json
+custom_resources = /main/levels.json,/main/test_levels.json,/main/level_requirements.json
 dependencies#0 = https://github.com/Insality/defold-event/archive/refs/tags/21.zip
 dependencies#1 = https://github.com/Insality/druid/archive/refs/tags/1.4.2.zip
 
