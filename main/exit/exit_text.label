@@ -1,0 +1,12 @@
+text: 'EXIT'
+font: '/main/ui/fonts/plate.font'
+material: '/builtins/fonts/label.material'
+size { x: 200 y: 60 z: 0 }
+color { x: 0.92 y: 1 z: 0.94 w: 1 }
+outline { x: 0.07 y: 0.13 z: 0.09 w: 1 }
+shadow { x: 0 y: 0 z: 0 w: 0 }
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_CENTER
+blend_mode: BLEND_MODE_ALPHA
+line_break: false
