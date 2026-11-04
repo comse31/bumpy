@@ -143,10 +143,11 @@ function M.lose_life(self, cause)
 end
 
 -- Проверка снаряжения на старте уровня (п. 19 плана): если для прохождения
--- уровня заведомо не хватает капель/ключей/молотков, игра заканчивается СРАЗУ,
--- сколько бы жизней ни осталось — tz.txt, «Жизни»: «недостаточно снаряжения
--- для прохождения уровня, и это ведёт к проигрышу вне зависимости от числа
--- жизней».
+-- уровня заведомо не хватает капель/ключей/молотков, уровень не начинается —
+-- игроку показывается плашка «NOT ENOUGH THINGS / PRESS ANY KEY», а любое
+-- нажатие возвращает в главное меню. Это проигрыш вне зависимости от числа
+-- жизней (tz.txt, «Жизни»), но без GAME OVER: в «Приключении» игрок может
+-- сразу выбрать другой уровень, в классике — начать заново.
 --
 -- Требования берутся из main/level_requirements.json (генерируется
 -- tools/gen_level_requirements.py по решателю уровней): это минимальный
@@ -154,22 +155,30 @@ end
 -- подобрать по пути.
 --
 -- Возвращает true, если снаряжения хватает (игра продолжается), и false,
--- если игра завершена этой проверкой.
+-- если показана плашка и уровень не начался.
 function M.require_gear(self)
+    -- пока открыто стартовое меню, уровень загружен «за кадром»: проверять
+    -- нечего — игрок ещё не выбрал режим и не начинал игру. Проверка
+    -- выполнится на level_start, пришедшем после start_game (меню закрыто).
+    if game_mode.is_menu_open() then
+        return true
+    end
     local ok, lack = requirements.check(state.index,
         self.pocket, self.key_pocket, self.hammer_pocket)
     if ok then
         return true
     end
     local missing = requirements.describe(lack)
-    dbg.always("GAME OVER: not enough gear for level %d (%s); "
+    dbg.always("NOT ENOUGH THINGS: level %d needs (%s); "
         .. "have drops=%d keys=%d hammers=%d",
         state.index, missing, self.pocket, self.key_pocket, self.hammer_pocket)
-    -- мяч больше не играет: остановить физику и скрыть визуал героя.
+    -- мяч не играет: остановить физику и скрыть визуал героя.
     -- ready_wait снимаем: иначе первое нажатие клавиши «запустило» бы уровень
-    -- (см. on_input -> ready_wait) уже после завершения игры
+    -- (см. on_input -> ready_wait) уже после показа плашки
     self.game_over = true
     self.ready_wait = false
+    -- взводим флаг «ждём нажатия для выхода в меню»: его обрабатывает on_input
+    self.gear_blocked = true
     if self.reported_high then
         self.reported_high = false
         msg.post("/controls", "motion_state", { high = false })
@@ -182,20 +191,31 @@ function M.require_gear(self)
     self.hero.deactivate(self)
     -- READY не показываем: уровень даже не начинается
     msg.post("/ready", "hide")
-    -- плашку показываем в обоих режимах: игрок должен понять, почему игра
-    -- закончилась, а не просто оказался в меню
-    msg.post("/game_over", "show", { reason = "NOT ENOUGH GEAR: " .. missing })
+    msg.post("/game_over", "hide")
+    -- плашка с причиной; конкретика («2 keys, 1 hammer») уходит в detail,
+    -- если её нет — строка скрыта
+    msg.post("/no_gear", "show", { detail = missing })
+    return false
+end
+
+-- Вернуться в главное меню после плашки «NOT ENOUGH THINGS». Вызывается из
+-- on_input по любому нажатию, пока self.gear_blocked. Плашка скрывается,
+-- прогресс классической игры обнуляется (уровень заведомо непроходим с
+-- текущим карманом), затем открывается меню — оно снова даст выбрать режим.
+function M.gear_back_to_menu(self)
+    if not self.gear_blocked then
+        return
+    end
+    self.gear_blocked = false
+    msg.post("/no_gear", "hide")
     if not game_mode.is_adventure() then
-        -- классика: обнулить сохранение, чтобы после переоткрытия браузера
-        -- игра не вернулась в заведомо проигранный уровень. Прогресс
-        -- «Приключения» отдельный и не трогается.
+        -- классика: обнулить сохранение, иначе после переоткрытия браузера
+        -- игрок вернулся бы в заведомо проигранный уровень
         save.clear()
     end
-    -- меню открывается поверх плашки (как при GAME OVER в классике):
-    -- игрок выбирает режим/уровень заново
     game_mode.set_menu_open(true)
     msg.post("/menu", "open")
-    return false
+    dbg.always("NOT ENOUGH THINGS: back to menu")
 end
 
 -- Запуск игры из стартового меню. Режим (classic/adventure) уже выставлен

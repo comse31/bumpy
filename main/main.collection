@@ -445,6 +445,18 @@ instances {
     z: 0.97
   }
 }
+# --- NOT ENOUGH THINGS: не хватает снаряжения для прохождения уровня
+# (п. 19 плана). Показывается на старте уровня, любое нажатие возвращает
+# в главное меню (см. main/ball/ball_progress.lua -> require_gear) ---
+instances {
+  id: "no_gear"
+  prototype: "/main/ui/no_gear/no_gear.go"
+  position {
+    x: 480.0
+    y: 320.0
+    z: 0.98
+  }
+}
 # --- стартовое меню: GUI-сцена, рисуется поверх игрового мира ---
 instances {
   id: "menu"
