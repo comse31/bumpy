@@ -527,6 +527,17 @@ function M.force_head_landing(self)
     self.v12_on_head = true
 end
 
+function M.force_feet_landing(self)
+    self.v12_on_head = false
+end
+
+function M.start_slime_flip(self, duration)
+    -- head-first onto slime: add a 180 flip so the landing is on feet
+    self.v12_on_head = false
+    play_clip(self, "flight_head_hop", duration or 0.22, false, "release")
+    self.v12_kind = "flight"
+end
+
 function M.is_over_gap(self)
     return self.v12_has_floor_below == false
 end

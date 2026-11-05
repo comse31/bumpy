@@ -334,6 +334,10 @@ function M.swept_land(self, dt)
         end
         if C.BUMPY_BALL_BOUNCE or world.platform_flag(land_row, self.col, "sticky") then
             -- ball mode / slime: land immediately, no contact squash
+            if world.platform_flag(land_row, self.col, "sticky")
+                and self.hero.force_feet_landing then
+                self.hero.force_feet_landing(self)
+            end
             self.dwell_until = self.time
         elseif (drop > C.BIG_FALL_DROP or long_air or over_gap or falling_big)
             and self.hero.begin_big_landing then

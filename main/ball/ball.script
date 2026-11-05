@@ -361,6 +361,7 @@ function init(self)
     self.air_peak_y = nil
     self.ignore_jump_until = -math.huge
     self.big_landing_rest = false
+    self.slime_flip_started = false
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
@@ -846,6 +847,7 @@ local function begin_dwell(self, row)
     self.dwell_pending = nil
     self.dwell_slope_dir = 0
     self.big_landing_rest = false
+    self.slime_flip_started = false
     self.press_used = false
     -- landing on an earlier frame stops the horizontal tween where it is
     self.move_t = 0.0
@@ -867,9 +869,9 @@ local function begin_dwell(self, row)
     local drop = math.max(0.0, apex - self.dwell_ground_y)
     print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
         self.time, sticky_here and "true" or "false", drop))
-    if sticky_here and drop > BIG_FALL_DROP and self.hero.force_head_landing then
-        -- high fall onto slime: land/stick head-down
-        self.hero.force_head_landing(self)
+    if sticky_here and self.hero.force_feet_landing then
+        -- slime always catches Bumpy on his feet
+        self.hero.force_feet_landing(self)
     end
     if not sticky_here and self.hero.start_land_squash then
         local strength = math.min(1.0, 0.25 + drop / (3.0 * cfg.HEIGHT))
@@ -921,6 +923,7 @@ local function resolve_dwell_action(self)
         want_jump = false
     end
     self.big_landing_rest = false
+    self.slime_flip_started = false
     if dir == 0 and not want_jump and self.target_col and self.target_row == self.dwell_row then
         if self.target_col ~= self.col then
             dir = self.target_col > self.col and 1 or -1
@@ -1118,6 +1121,60 @@ local function scan_landing_candidates(self)
     end
 end
 
+local function sticky_platform_below(self)
+    local pos = go.get_position()
+    local bottom = pos.y - RADIUS
+    local best = nil
+    for row = 0, COLS - 1 do
+        local top = BOUNCE_Y[row] - RADIUS
+        if top <= bottom + 1.0 then
+            for col = 0, COLS - 1 do
+                local id = world.platform_id(row, col)
+                if id and not world.block_state(row, col)
+                    and not world.platform_flag(row, col, "gone") then
+                    local center = grid.column_center(col)
+                    if pos.x + RADIUS > center - PLATFORM_HALF_W
+                        and pos.x - RADIUS < center + PLATFORM_HALF_W then
+                        if not best or top > best.top then
+                            best = { row = row, col = col, top = top }
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if best and world.platform_flag(best.row, best.col, "sticky") then
+        return best
+    end
+    return nil
+end
+
+local function update_slime_flip(self)
+    if not self.hero.contact_dwell or self.contact_phase ~= "flight"
+        or self.high_jump or self.slime_flip_started then
+        return
+    end
+    if not self.hero.is_on_head or not self.hero.is_on_head(self) then
+        return
+    end
+    if phys.vy() >= 0.0 then
+        return
+    end
+    local platform = sticky_platform_below(self)
+    if not platform then
+        return
+    end
+    local pos = go.get_position()
+    local dist = (pos.y - RADIUS) - platform.top
+    if dist > 0.8 * CELL_H then
+        return
+    end
+    local speed = math.max(math.abs(phys.vy()), 1.0)
+    local duration = vmath.clamp(dist / speed, 0.12, 0.5)
+    self.slime_flip_started = true
+    self.hero.start_slime_flip(self, duration)
+end
+
 -- forced landing keeps the rhythm even if physics misses a contact
 local function update_forced_landing(self)
     if BUMPY_BALL_BOUNCE then
@@ -1208,6 +1265,7 @@ function update(self, dt)
 
     update_high_jump(self, position)
     update_contact_state(self, dt)
+    update_slime_flip(self)
 
     -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
     self.contact_processed = false
@@ -1439,6 +1497,7 @@ local function reset_level_state(self)
     self.air_peak_y = nil
     self.ignore_jump_until = -math.huge
     self.big_landing_rest = false
+    self.slime_flip_started = false
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
