@@ -1,5 +1,5 @@
 -- TEMPO: 1.10 = slower ~0.65 s period. Set 1.0 to return to 0.588 s.
-local TEMPO = 3.0
+local TEMPO = 1.0
 
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
