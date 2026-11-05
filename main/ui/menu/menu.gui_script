@@ -126,10 +126,13 @@ local BASE_H = 720.0
 local MIN_SCALE = 0.55
 
 -- геометрия поля имени (координаты относительно центра контейнера screen):
--- совпадает с узлами name_box / name_hint в menu.gui
-local NAME_BOX_X = 130.0
+-- совпадает с узлами name_box / name_hint в menu.gui.
+-- Строка имени выровнена по плашкам режимов (их ширина 740, края -370..+370):
+-- надпись «Name:» прижата к левому краю (-370), кнопка Save — к правому (+370),
+-- а поле ввода занимает середину: центр 20, ширина 380 (-170..+210).
+local NAME_BOX_X = 20.0
 local NAME_BOX_Y = -108.0
-local NAME_BOX_HALF_W = 250.0
+local NAME_BOX_HALF_W = 190.0
 local NAME_BOX_PADDING = 15.0
 
 -- --- ввод имени в HTML5 -------------------------------------------------------
@@ -537,7 +540,7 @@ local function update_caret(self)
     self.caret_value = value
     self.caret_index = cursor
 
-    -- поле name_box центрировано по NAME_BOX_X, ширина 500; текст внутри тоже
+    -- поле name_box центрировано по NAME_BOX_X, ширина 380; текст внутри тоже
     -- центрирован. Считаем левую границу текста и отсчитываем от неё префикс.
     local total = caret_text_width(self)
     local prefix = 0
