@@ -792,9 +792,8 @@ local function update_bounce_tween(self, dt)
     end
     self.bounce_t = math.max(0.0, self.bounce_t - dt)
     local k = self.bounce_t / self.bounce_duration -- 1 (старт) -> 0 (приземление)
-    -- stop the flight flip shortly before the wall: the sprite is wider than
-    -- the collision radius, so visually the ball touches before k = 0.5
-    if self.bounce_squash_pending and k <= 0.56 then
+    -- start the wall hit exactly at the wall contact (k = 0.5)
+    if self.bounce_squash_pending and k <= 0.5 then
         self.bounce_squash_pending = false
         self.bounce_hit_started = true
         self.squash = 1.0
