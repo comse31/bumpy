@@ -862,31 +862,14 @@ local function begin_dwell(self, row)
     local sticky_here = world.platform_flag(row, self.col, "sticky")
     local apex = self.air_peak_y or self.dwell_ground_y
     local drop = math.max(0.0, apex - self.dwell_ground_y)
-    local long_air = self.air_start_time
-        and (self.time - self.air_start_time) > 1.2 * PERIOD
-    local over_gap = self.hero.is_over_gap and self.hero.is_over_gap(self)
-    print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f long_air=%s gap=%s",
-        self.time, sticky_here and "true" or "false", drop,
-        long_air and "true" or "false", over_gap and "true" or "false"))
-    local surprised = self.hero.is_surprised_fall
-        and self.hero.is_surprised_fall(self)
-    local falling = self.hero.is_falling and self.hero.is_falling(self)
-    local falling_big = falling and drop > 0.25 * CELL_H
-    if sticky_here then
-        -- slime: no landing squash at all, stay round and stuck as landed
-        self.dwell_until = self.time
-    elseif (drop > BIG_FALL_DROP or long_air or over_gap or surprised or falling_big)
-        and self.hero.begin_big_landing then
-        -- long fall: landing / land_head, then normal bounce (no rest/stick)
-        local dur = self.hero.begin_big_landing(self)
-        self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
-    elseif self.hero.begin_contact then
-        local contact_time = BUMPY_BALL_BOUNCE and LANDING_CONTACT_TIME
-            or CONTACT_DWELL
-        self.hero.begin_contact(self, contact_time)
-        self.dwell_until = self.time + contact_time
-    elseif self.hero.settle then
-        self.hero.settle(self)
+    print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
+        self.time, sticky_here and "true" or "false", drop))
+    if not BUMPY_BALL_BOUNCE and not sticky_here then
+        -- non-ball mode keeps the explicit contact squash
+        if self.hero.begin_contact then
+            self.hero.begin_contact(self)
+            self.dwell_until = self.time + CONTACT_DWELL
+        end
     end
     self.air_peak_y = self.dwell_ground_y
 end

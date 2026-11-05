@@ -327,18 +327,16 @@ function M.swept_land(self, dt)
         local over_gap = self.hero.is_over_gap and self.hero.is_over_gap(self)
         local falling = self.hero.is_falling and self.hero.is_falling(self)
         local falling_big = falling and drop > 0.25 * C.CELL_H
-        if world.platform_flag(land_row, self.col, "sticky") then
-            -- slime: no squash, stay round
+        if C.BUMPY_BALL_BOUNCE or world.platform_flag(land_row, self.col, "sticky") then
+            -- ball mode / slime: no contact or landing squash at all
             self.dwell_until = self.time
         elseif (drop > C.BIG_FALL_DROP or long_air or over_gap or falling_big)
             and self.hero.begin_big_landing then
             local dur = self.hero.begin_big_landing(self)
             self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
         else
-            local contact_time = C.BUMPY_BALL_BOUNCE
-                and C.LANDING_CONTACT_TIME or C.CONTACT_DWELL
-            self.hero.begin_contact(self, contact_time)
-            self.dwell_until = self.time + contact_time
+            self.hero.begin_contact(self, C.CONTACT_DWELL)
+            self.dwell_until = self.time + C.CONTACT_DWELL
         end
         self.air_peak_y = BOUNCE_Y[land_row]
     end
