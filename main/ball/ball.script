@@ -361,7 +361,7 @@ function init(self)
     self.air_peak_y = nil
     self.ignore_jump_until = -math.huge
     self.big_landing_rest = false
-    self.slime_flip_started = false
+    self.hero_slime_flip_active = false
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
     self.v12_dir_buffer = nil
@@ -670,6 +670,7 @@ local function update_held_move(self)
     -- одно действие (соскок/прыжок), следующее — только по новому нажатию
     if dir == 0 and not jump_active(self) then
         self.sticky_action_used = false
+        self.sticky_action_dir = 0
     end
     -- команды не принимаются в середине действия (соскок/отскок): X уже
     -- доводится до цели, новое нажатие иначе удвоило бы смещение
@@ -680,18 +681,23 @@ local function update_held_move(self)
     if self.sticky_rest then
         -- мяч лежит на липкой платформе: влево/вправо — обычный соскок на
         -- соседнюю ячейку (мяч отталкивается и прыгает, а не скатывается).
-        -- За одно касание — ровно одно действие
-        if not self.sticky_action_used then
-            if self.hero.contact_dwell then
-                self.sticky_action_used = true
-                begin_rest_dwell(self)
-            else
-                self.sticky_action_used = true
-                self.sticky_rest = false
-                self.pending_dir = 0
-                hop_and_move(self, dir)
-                self.press_used = true
-            end
+        -- Одно действие за касание, но смена направления снова доступна:
+        -- иначе отскок от стенки на краю возвращал мяч на ту же слизь и
+        -- блокировал любые дальнейшие команды
+        if self.sticky_action_used and dir == (self.sticky_action_dir or 0) then
+            return
+        end
+        if self.hero.contact_dwell then
+            -- a rest command goes through a short DWELL; the action is marked
+            -- as used only when it actually starts (see resolve_dwell_action)
+            begin_rest_dwell(self)
+        else
+            self.sticky_action_used = true
+            self.sticky_action_dir = dir
+            self.sticky_rest = false
+            self.pending_dir = 0
+            hop_and_move(self, dir)
+            self.press_used = true
         end
         return
     end
@@ -850,7 +856,7 @@ local function begin_dwell(self, row)
     self.dwell_pending = nil
     self.dwell_slope_dir = 0
     self.big_landing_rest = false
-    self.slime_flip_started = false
+    self.hero_slime_flip_active = false
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
     self.press_used = false
@@ -877,7 +883,6 @@ local function begin_dwell(self, row)
     print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
         self.time, sticky_here and "true" or "false", drop))
     if sticky_here and self.hero.force_feet_landing then
-        -- slime always catches Bumpy on his feet
         self.hero.force_feet_landing(self)
     end
     if not sticky_here and self.hero.start_land_squash then
@@ -930,7 +935,7 @@ local function resolve_dwell_action(self)
         want_jump = false
     end
     self.big_landing_rest = false
-    self.slime_flip_started = false
+    self.hero_slime_flip_active = false
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
     if dir == 0 and not want_jump and self.target_col and self.target_row == self.dwell_row then
@@ -954,7 +959,42 @@ local function resolve_dwell_action(self)
             return
         end
         self.sticky_action_used = true
+        self.sticky_action_dir = dir
         self.sticky_rest = false
+    end
+
+    -- sideways hop that ends on a slime: normal flight for the first half of
+    -- the air time, then the flip animation (head->feet) for the whole descent,
+    -- so Bumpy turns onto his feet in the air and touches the slime with them.
+    -- The slime may be several rows below the takeoff row.
+    local slime_target = false
+    local slime_flight_time = cfg.T_AIR
+    if dir ~= 0 then
+        local start_row = self.dwell_row or self.row
+        local target_col = self.col + dir
+        if target_col >= 0 and target_col < COLS
+            and not world.wall_blocking(start_row, self.col, dir)
+            and not world.has_block(start_row, target_col) then
+            for row = start_row, 0, -1 do
+                if world.platform_id(row, target_col) then
+                    if world.block_state(row, target_col) then
+                        break -- brick top: lands here, not slime
+                    end
+                    if not world.platform_flag(row, target_col, "gone") then
+                        slime_target = world.platform_flag(row, target_col, "sticky")
+                        if slime_target then
+                            -- real air time down to the slime row (may be below)
+                            local drop = math.max(0.0,
+                                BOUNCE_Y[start_row] - BOUNCE_Y[row])
+                            local vy = cfg.JUMP_SPEED
+                            slime_flight_time = (vy + math.sqrt(
+                                vy * vy + 2.0 * cfg.GRAVITY * drop)) / cfg.GRAVITY
+                        end
+                        break
+                    end
+                end
+            end
+        end
     end
 
     self.dwell_pending = nil
@@ -962,7 +1002,11 @@ local function resolve_dwell_action(self)
         self.hero.begin_high_jump(self)
         self.dwell_pending = { kind = "high_jump" }
     elseif dir ~= 0 then
-        self.hero.begin_flight(self, dir)
+        if slime_target and self.hero.begin_slime_flight then
+            self.hero.begin_slime_flight(self, dir, slime_flight_time)
+        else
+            self.hero.begin_flight(self, dir)
+        end
         motion.hop_and_move(self, dir)
     else
         self.hero.begin_flight(self, 0)
@@ -1158,9 +1202,11 @@ local function sticky_platform_below(self)
     return nil
 end
 
+-- head-first descent onto slime: start the joined flip animation as soon as the
+-- fall is close enough to finish it exactly at contact
 local function update_slime_flip(self)
     if not self.hero.contact_dwell or self.contact_phase ~= "flight"
-        or self.high_jump or self.slime_flip_started then
+        or self.high_jump or self.hero_slime_flip_active then
         return
     end
     if not self.hero.is_on_head or not self.hero.is_on_head(self) then
@@ -1173,15 +1219,20 @@ local function update_slime_flip(self)
     if not platform then
         return
     end
-    local pos = go.get_position()
-    local dist = (pos.y - RADIUS) - platform.top
-    if dist > 3.0 * CELL_H then
+    -- only the column the ball is actually landing in: while hopping away from
+    -- a slime the old slime column can still be under the ball for a moment
+    if platform.col ~= self.col then
         return
     end
+    local pos = go.get_position()
+    local dist = (pos.y - RADIUS) - platform.top
     local g = cfg.GRAVITY
     local down = math.max(0.0, -phys.vy())
     local fall_time = (down + math.sqrt(down * down + 2.0 * g * dist)) / g
-    self.slime_flip_started = true
+    if fall_time > 0.45 then
+        return
+    end
+    self.hero_slime_flip_active = true
     self.hero.start_slime_flip(self, fall_time)
 end
 
@@ -1509,7 +1560,7 @@ local function reset_level_state(self)
     self.air_peak_y = nil
     self.ignore_jump_until = -math.huge
     self.big_landing_rest = false
-    self.slime_flip_started = false
+    self.hero_slime_flip_active = false
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
     self.v12_dir_buffer = nil

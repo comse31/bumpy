@@ -118,6 +118,8 @@ local function play_clip(self, name, target, force, reason)
     if not clip then
         return nil
     end
+    -- any regular clip change ends a running slime turn
+    self.v12_slime_flip = nil
     if self.v12_current_name == name and not force then
         return clip
     end
@@ -182,7 +184,80 @@ local function current_phi(self)
     return (clip.phi[idx] or 0.0) % 360.0
 end
 
+-- Slime flip: two ordinary flight clips joined into one smooth turn.
+-- feet->head covers 0..180 (the usual flight), head->feet covers 180..360.
+-- The head->feet half is taken from flight_head_side because its phi keys are
+-- spread evenly (unlike head_hop), so the descent flip keeps an even speed.
+local SLIME_FLIP_CLIP_A = "flight_feet_to_head"
+local SLIME_FLIP_CLIP_B = "flight_head_side"
 
+-- first frame whose phi has reached `angle` (frames are sorted by phi)
+local function frame_at_angle(clip, angle)
+    if not clip or not clip.phi or #clip.phi == 0 then
+        return 1
+    end
+    for i = 1, #clip.phi do
+        if (clip.phi[i] or 0.0) >= angle - 0.001 then
+            return i
+        end
+    end
+    return #clip.phi
+end
+
+local function apply_slime_angle(self, angle)
+    local name
+    if angle < 179.5 then
+        name = SLIME_FLIP_CLIP_A
+    else
+        name = SLIME_FLIP_CLIP_B
+    end
+    local clip = clip_by_name(name)
+    if not clip then
+        return
+    end
+    local idx = frame_at_angle(clip, angle)
+    if self.v12_current_name ~= name then
+        local keep = self.v12_slime_flip
+        play_clip(self, name, 1.0, false, "release")
+        self.v12_slime_flip = keep
+    end
+    go.set(VISUAL .. "#sprite", "playback_rate", 0.0)
+    go.set(VISUAL .. "#sprite", "cursor", (idx - 1) / clip.frames)
+end
+
+local function update_slime_flip(self, dt)
+    local f = self.v12_slime_flip
+    if not f then
+        return false
+    end
+    f.t = f.t + dt
+    local k = math.min(f.t / f.dur, 1.0)
+    apply_slime_angle(self, f.start_angle + (f.end_angle - f.start_angle) * k)
+    if k >= 1.0 then
+        -- keep the general flight cursor on the last frame after the turn ends
+        self.v12_target = math.max(f.dur, 0.001)
+        self.v12_start_time = self.time - self.v12_target
+        self.v12_slime_flip = nil
+        self.v12_on_head = false
+    end
+    return true
+end
+
+local function start_slime_turn(self, start_angle, duration)
+    start_angle = (start_angle or 0.0) % 360.0
+    if 360.0 - start_angle < 5.0 then
+        return
+    end
+    self.v12_slime_flip = {
+        t = 0.0,
+        dur = math.max(duration or 0.3, 0.05),
+        start_angle = start_angle,
+        end_angle = 360.0,
+    }
+    self.v12_on_head = false
+    self.v12_kind = "flight"
+    apply_slime_angle(self, start_angle)
+end
 
 local function log_contact(self, kind, contact_t, clip_name)
     local dt = contact_t - (self.v12_last_contact_t or contact_t)
@@ -417,6 +492,7 @@ function M.setup(self, env)
     self.v12_fall_start_y = nil
     self.v12_has_floor_below = true
     self.v12_last_contact_t = nil
+    self.v12_slime_flip = nil
     set_visual_scale(self)
     sync_visual(self)
 end
@@ -453,6 +529,7 @@ function M.reset(self)
     self.v12_fall_start_y = nil
     self.v12_has_floor_below = true
     self.v12_last_contact_t = nil
+    self.v12_slime_flip = nil
     self.v12_shadow_surface = nil
     self.v12_shadow_y = nil
     self.v12_shadow_x = nil
@@ -519,6 +596,11 @@ function M.begin_flight(self, direction, duration)
 end
 
 function M.set_flight_target(self, duration)
+    if self.v12_slime_flip and duration and duration > 0.0 then
+        -- keep the longer estimate: the slime row may be below the takeoff row
+        self.v12_slime_flip.dur = math.max(self.v12_slime_flip.dur, duration, 0.05)
+        return
+    end
     if self.v12_kind == "flight" and self.v12_clip
         and not self.v12_clip.loop and duration and duration > 0.0 then
         local target = duration
@@ -559,13 +641,22 @@ function M.force_feet_landing(self)
 end
 
 function M.start_slime_flip(self, fall_time)
-    -- head-first onto slime: rotate over the whole remaining fall so the
-    -- 180-degree flip ends exactly on landing (frame 16 is the feet pose)
-    self.v12_on_head = false
-    local clip = clip_by_name("flight_head_hop")
-    local target = (fall_time or 0.5) * (clip and clip.frames or 34) / 15.0
-    play_clip(self, "flight_head_hop", target, false, "release")
-    self.v12_kind = "flight"
+    -- head-first descent onto slime: keep the current pose and finish the turn
+    -- (head->feet) evenly over the remaining fall, ending exactly on contact
+    start_slime_turn(self, current_phi(self), fall_time)
+end
+
+function M.begin_slime_flight(self, direction, duration)
+    -- sideways hop whose target is a slime cell: normal flight (feet->head) up
+    -- to the apex, then the flip animation (head->feet) on the way down so
+    -- Bumpy touches the slime with his feet
+    direction = direction or 0
+    if direction ~= 0 then
+        self.v12_dir = direction < 0 and -1 or 1
+        set_visual_scale(self)
+    end
+    start_slime_turn(self, 0.0, duration or self.env.t_air)
+    self.v12_fall_hurt_done = false
 end
 
 function M.is_over_gap(self)
@@ -632,6 +723,9 @@ function M.update(self, dt)
         return
     end
     if kind == "flight" then
+        if update_slime_flip(self, dt) then
+            return
+        end
         set_cursor(self, cursor_progress(self))
         return
     end

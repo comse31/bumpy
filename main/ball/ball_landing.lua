@@ -119,6 +119,7 @@ function M.land_on_platform(self, row)
         -- возврат на ту же ячейку — не новое касание
         if self.sticky_cell ~= cell then
             self.sticky_action_used = false
+            self.sticky_action_dir = 0
             self.sticky_cell = cell
         end
         self.sticky_rest = true
