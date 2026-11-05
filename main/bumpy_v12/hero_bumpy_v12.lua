@@ -523,6 +523,10 @@ function M.begin_rest(self)
     self.v12_kind = "idle"
 end
 
+function M.force_head_landing(self)
+    self.v12_on_head = true
+end
+
 function M.is_over_gap(self)
     return self.v12_has_floor_below == false
 end

@@ -1,5 +1,5 @@
 -- TEMPO: 1.10 = slower ~0.65 s period. Set 1.0 to return to 0.588 s.
-local TEMPO = 1.0
+local TEMPO = 3.0
 
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
@@ -108,10 +108,13 @@ local function toggle_character(self)
     end
     if self.character == "ball" then
         self.hero = hero_ball
+        if go.get_id("ball_visual") then msg.post("ball_visual", "enable") end
     elseif self.character == "slinky" then
         self.hero = hero_slinky
+        if go.get_id("ball_visual") then msg.post("ball_visual", "disable") end
     else
         self.hero = hero_bumpy
+        if go.get_id("ball_visual") then msg.post("ball_visual", "disable") end
     end
     self.hero.reset(self)
     -- покой на липкой поверхности и «первый прыжок» относятся к прежнему герою
@@ -469,6 +472,9 @@ function init(self)
     self.hero.activate(self)
     hero_ball.deactivate(self)
     hero_slinky.deactivate(self)
+    if go.get_id("ball_visual") then
+        msg.post("ball_visual", "disable")
+    end
     -- HUD-карман рисует жизни сердечками (значение по умолчанию — START_LIVES)
     msg.post("/pocket", "set_lives", { count = self.lives })
     -- восстановление прогресса после закрытия браузера: сохранённые жизни
@@ -861,6 +867,10 @@ local function begin_dwell(self, row)
     local drop = math.max(0.0, apex - self.dwell_ground_y)
     print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
         self.time, sticky_here and "true" or "false", drop))
+    if sticky_here and drop > BIG_FALL_DROP and self.hero.force_head_landing then
+        -- high fall onto slime: land/stick head-down
+        self.hero.force_head_landing(self)
+    end
     if not sticky_here and self.hero.start_land_squash then
         local strength = math.min(1.0, 0.25 + drop / (3.0 * cfg.HEIGHT))
         self.hero.start_land_squash(self, strength)

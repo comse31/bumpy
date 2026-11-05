@@ -44,7 +44,7 @@ def main() -> int:
             # Flight clips: frame 1 is the flattened contact pose. Use frame 2
             # (round) as the first flight frame so it never flashes separately.
             copy_src = src
-            if name.startswith("flight_") and index == 1:
+            if (name.startswith("flight_") or name == "high_jump") and index == 1:
                 copy_src = src_files[1]
                 phi[0] = phi[1]
             shutil.copyfile(copy_src, dst)
