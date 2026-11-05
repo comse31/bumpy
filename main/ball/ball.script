@@ -790,14 +790,6 @@ local function update_bounce_tween(self, dt)
     if self.bounce_t <= 0.0 then
         return
     end
-    -- hold at the wall while the hit clip plays its compression frames
-    if self.bounce_hold_t and self.bounce_hold_t > 0.0 then
-        self.bounce_hold_t = math.max(0.0, self.bounce_hold_t - dt)
-        local pos = go.get_position()
-        go.set_position(vmath.vector3(self.bounce_x_wall, pos.y, pos.z))
-        phys.stop()
-        return
-    end
     self.bounce_t = math.max(0.0, self.bounce_t - dt)
     local k = self.bounce_t / self.bounce_duration -- 1 (старт) -> 0 (приземление)
     -- stop the flight flip shortly before the wall: the sprite is wider than
@@ -809,16 +801,7 @@ local function update_bounce_tween(self, dt)
         self.squash_axis = "x"
         self.hero.apply_squash(self)
     end
-    -- hold at the wall while the hit clip shows its compression
-    if self.bounce_hit_started and k <= 0.5 then
-        self.bounce_hit_started = false
-        self.bounce_hold_t = self.bounce_hold_duration or 0.0
-        self.bounce_t = self.bounce_duration * 0.5
-        local pos = go.get_position()
-        go.set_position(vmath.vector3(self.bounce_x_wall, pos.y, pos.z))
-        phys.stop()
-        return
-    end
+
     -- удар по разрушаемой перегородке наносится именно в момент касания,
     -- а не в начале отскока — вид меняется после удара
     if self.bounce_hit_pending and k <= 0.5 then
