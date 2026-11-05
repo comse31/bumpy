@@ -558,10 +558,13 @@ function M.force_feet_landing(self)
     self.v12_on_head = false
 end
 
-function M.start_slime_flip(self, duration)
-    -- head-first onto slime: add a 180 flip so the landing is on feet
+function M.start_slime_flip(self, fall_time)
+    -- head-first onto slime: rotate over the whole remaining fall so the
+    -- 180-degree flip ends exactly on landing (frame 16 is the feet pose)
     self.v12_on_head = false
-    play_clip(self, "flight_head_hop", duration or 0.22, false, "release")
+    local clip = clip_by_name("flight_head_hop")
+    local target = (fall_time or 0.5) * (clip and clip.frames or 34) / 15.0
+    play_clip(self, "flight_head_hop", target, false, "release")
     self.v12_kind = "flight"
 end
 

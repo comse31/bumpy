@@ -1175,14 +1175,14 @@ local function update_slime_flip(self)
     end
     local pos = go.get_position()
     local dist = (pos.y - RADIUS) - platform.top
-    if dist > 1.3 * CELL_H then
+    if dist > 3.0 * CELL_H then
         return
     end
-    local speed = math.max(math.abs(phys.vy()), 1.0)
-    -- same readable pace as a normal turn: never faster than the full flip clip
-    local duration = vmath.clamp(dist / speed, 0.5, 0.9)
+    local g = cfg.GRAVITY
+    local down = math.max(0.0, -phys.vy())
+    local fall_time = (down + math.sqrt(down * down + 2.0 * g * dist)) / g
     self.slime_flip_started = true
-    self.hero.start_slime_flip(self, duration)
+    self.hero.start_slime_flip(self, fall_time)
 end
 
 -- forced landing keeps the rhythm even if physics misses a contact
