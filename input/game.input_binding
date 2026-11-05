@@ -424,10 +424,6 @@ key_trigger {
   action: "v5_preview_m"
 }
 key_trigger {
-  input: KEY_F10
-  action: "bumpy_preview_toggle"
-}
-key_trigger {
   input: KEY_C
   action: "v5_preview_c"
 }

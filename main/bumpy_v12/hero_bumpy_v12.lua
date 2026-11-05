@@ -479,6 +479,13 @@ function M.begin_flight(self, direction)
     self.v12_fall_hurt_done = false
 end
 
+function M.set_flight_target(self, duration)
+    if self.v12_kind == "flight" and self.v12_clip
+        and not self.v12_clip.loop and duration and duration > 0.0 then
+        self.v12_target = duration
+    end
+end
+
 function M.begin_high_jump(self)
     self.v12_flight_start_on_head = self.v12_on_head
     self.v12_on_head = false

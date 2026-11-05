@@ -340,10 +340,6 @@ function init(self)
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
     -- clip preview is off by default; F10 toggles it. This prevents a second
     -- Bumpy from appearing/running on its own during normal play.
-    self.preview_enabled = false
-    if go.get_id("/bumpy_v12_preview") then
-        msg.post("/bumpy_v12_preview", "disable")
-    end
     -- v12 Bumpy: DWELL/FLIGHT starts in FLIGHT so the first fall is accepted
     self.contact_phase = "flight"
     self.dwell_until = 0.0
@@ -975,6 +971,10 @@ local function resolve_dwell_action(self)
     self.dwell_slope_dir = nil
     if self.dwell_pending then
         motion.launch_pending(self)
+        -- stretch the flight clip over the real air time, like the ball
+        if self.t_land and self.hero.set_flight_target then
+            self.hero.set_flight_target(self, self.t_land)
+        end
     end
 end
 
@@ -1246,18 +1246,6 @@ function on_input(self, action_id, action)
     -- стартовое меню открыто: ввод получает меню, мяч его не обрабатывает
     if game_mode.is_menu_open() then
         return
-    end
-    if action_id == hash("bumpy_preview_toggle") then
-        if action.pressed then
-            self.preview_enabled = not self.preview_enabled
-            if self.preview_enabled then
-                msg.post("/bumpy_v12_preview", "enable")
-                msg.post("/bumpy_v12_preview", "acquire_input_focus")
-            else
-                msg.post("/bumpy_v12_preview", "disable")
-            end
-        end
-        return true
     end
     -- Ввод текста (text-триггер в input/game.input_binding нужен меню для
     -- редактирования имени) перехватывает печатные клавиши раньше
