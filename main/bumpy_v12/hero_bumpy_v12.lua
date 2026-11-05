@@ -567,7 +567,9 @@ function M.start_land_squash(self, strength)
     if strength <= 0.0 then
         return
     end
-    self.v12_squash_t = LAND_SQUASH_TIME
+    local squash_time = LAND_SQUASH_TIME * (self.env.tempo or 1.0)
+    self.v12_squash_dur = squash_time
+    self.v12_squash_t = squash_time
     self.v12_squash_strength = strength
     self.v12_squash_x = 1.0 + LAND_SQUASH_X * strength
     self.v12_squash_y = 1.0 - LAND_SQUASH_Y * strength
@@ -578,7 +580,7 @@ function M.update(self, dt)
     sync_visual(self)
     if self.v12_squash_t > 0.0 then
         self.v12_squash_t = math.max(0.0, self.v12_squash_t - dt)
-        local k = self.v12_squash_t / LAND_SQUASH_TIME
+        local k = self.v12_squash_t / (self.v12_squash_dur or LAND_SQUASH_TIME)
         local amt = self.v12_squash_strength * k
         self.v12_squash_x = 1.0 + LAND_SQUASH_X * amt
         self.v12_squash_y = 1.0 - LAND_SQUASH_Y * amt
