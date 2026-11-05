@@ -24,6 +24,7 @@
 -- поэтому вся текстовая часть интерфейса — на английском.
 local druid = require("druid.druid")
 local const = require("druid.const")
+local utf8 = require("druid.system.utf8")
 local profile = require("main.player_profile")
 local mode = require("main.game_mode")
 -- прогресс классической игры: текущий и максимально достигнутый уровень
@@ -39,6 +40,7 @@ local MAIN_NODES = {
     "name_label",
     "name_box",
     "name_hint",
+    "name_caret",
     "edit_hint",
 }
 
@@ -84,6 +86,483 @@ local BASE_H = 720.0
 -- сжиматься до нечитаемого размера
 local MIN_SCALE = 0.55
 
+-- геометрия поля имени (координаты относительно центра контейнера screen):
+-- совпадает с узлами name_box / name_hint в menu.gui
+local NAME_BOX_X = 130.0
+local NAME_BOX_Y = -108.0
+local NAME_BOX_HALF_W = 250.0
+local NAME_BOX_PADDING = 15.0
+
+-- --- ввод имени в HTML5 -------------------------------------------------------
+-- Druid рисует поле сам, но системную клавиатуру на мобильном поднять не может:
+-- gui.show_keyboard включает contentEditable на canvas, а мобильные браузеры
+-- открывают клавиатуру только при фокусе РЕАЛЬНОГО поля ввода синхронно внутри
+-- жеста. contentEditable на canvas ненадёжен ещё и для ввода (IME, удаление).
+--
+-- Поэтому поверх поля имени лежит прозрачный <textarea> (позиция — fixed над
+-- canvas, координаты берутся из __bumpyNameRect). Тап по полю попадает в него:
+-- браузер сам фокусирует его и показывает клавиатуру, а ввод, Backspace и IME
+-- работают нативно. Lua опрашивает значение через html5.run и переносит его в
+-- Druid-компонент ввода, поэтому курсор и текст в GUI остаются нашими.
+local HAS_HTML5 = type(html5) == "table" and type(html5.run) == "function"
+
+local JS_SETUP = [[
+(function(){
+  if (window.__bumpyNameReady) { return; }
+  window.__bumpyNameReady = true;
+  window.__bumpyNameRect = null;
+  window.__bumpyNameValue = '';
+  window.__bumpyNameDirty = false;
+  window.__bumpyNameFocusReq = false;
+  window.__bumpyNameEnter = false;
+  window.__bumpyNameEsc = false;
+
+  var ensure = function(){
+    if (window.__bumpyNameEl) { return true; }
+    var el = document.createElement('textarea');
+    el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('autocorrect', 'off');
+    el.setAttribute('spellcheck', 'false');
+    el.setAttribute('aria-label', 'Player name');
+    var s = el.style;
+    s.position = 'fixed';
+    s.boxSizing = 'border-box';
+    s.margin = '0';
+    s.padding = '0';
+    s.border = '0';
+    s.outline = 'none';
+    s.resize = 'none';
+    s.overflow = 'hidden';
+    s.background = 'transparent';
+    s.color = 'transparent';
+    s.caretColor = 'transparent';
+    s.textAlign = 'center';
+    // 16px — минимальный размер, при котором iOS не зумит страницу
+    s.fontSize = '16px';
+    s.zIndex = '2147483647';
+    s.display = 'none';
+    // тапы должны доходить до canvas, иначе Druid не выберет поле имени;
+    // фокус ставим программно прямо в обработчике касания
+    s.pointerEvents = 'none';
+
+    el.addEventListener('input', function(){
+      window.__bumpyNameValue = el.value;
+      window.__bumpyNameDirty = true;
+    });
+    el.addEventListener('focus', function(){
+      window.__bumpyNameFocusReq = true;
+    });
+    el.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter') {
+        window.__bumpyNameEnter = true;
+        window.__bumpyNameCommit = el.value;
+      } else if (ev.key === 'Escape' || ev.key === 'Esc') {
+        window.__bumpyNameEsc = true;
+      }
+      // Клавиатуру обрабатываем сами: событие не должно дойти до window, где
+      // его слушает GLFW. Иначе Druid получает Enter/Backspace/символы раньше,
+      // чем мы успеваем синхронизировать значение из DOM-поля.
+      ev.stopPropagation();
+      if (ev.key === 'Enter' || ev.key === 'Escape' || ev.key === 'Esc') {
+        ev.preventDefault();
+      }
+    });
+    el.addEventListener('keypress', function(ev){ ev.stopPropagation(); });
+    el.addEventListener('keyup', function(ev){ ev.stopPropagation(); });
+
+    document.body.appendChild(el);
+    window.__bumpyNameEl = el;
+
+    // gui.show_keyboard (его вызывает Druid при выборе поля) делает canvas
+    // contentEditable и зовёт canvas.focus(), забирая фокус у нашего поля.
+    // Пока поле имени активно, перенаправляем этот фокус обратно.
+    var canvas = Module && Module.canvas;
+    if (canvas && !canvas.__bumpyFocusPatched) {
+      canvas.__bumpyFocusPatched = true;
+      var origFocus = canvas.focus;
+      canvas.focus = function(){
+        if (window.__bumpyNameWantFocus && window.__bumpyNameEl) {
+          try { window.__bumpyNameEl.focus({ preventScroll: true }); }
+          catch (e) { try { window.__bumpyNameEl.focus(); } catch (e2) {} }
+          return;
+        }
+        if (origFocus) { return origFocus.apply(canvas, arguments); }
+      };
+    }
+
+    return true;
+  };
+
+  var place = function(){
+    var el = window.__bumpyNameEl;
+    var rect = window.__bumpyNameRect;
+    var canvas = Module && Module.canvas;
+    if (!el || !rect || !canvas) { return; }
+    var box = canvas.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) { return; }
+    el.style.left = (box.left + rect.x0 * box.width) + 'px';
+    el.style.top = (box.top + rect.y0 * box.height) + 'px';
+    el.style.width = Math.max(1, (rect.x1 - rect.x0) * box.width) + 'px';
+    el.style.height = Math.max(1, (rect.y1 - rect.y0) * box.height) + 'px';
+  };
+
+  // Показать прозрачное поле поверх поля имени (в меню, на главном экране).
+  window.__bumpyNameShow = function(){
+    if (!ensure()) { return; }
+    place();
+    window.__bumpyNameEl.style.display = 'block';
+  };
+
+  // Скрыть поле (меню закрыто, экран adventure, игра идёт).
+  window.__bumpyNameHide = function(){
+    var el = window.__bumpyNameEl;
+    if (!el) { return; }
+    el.style.display = 'none';
+    try { el.blur(); } catch (e) {}
+  };
+
+  // Сфокусировать (выбор поля по F2 или программно).
+  window.__bumpyNameFocus = function(value){
+    if (!ensure()) { return; }
+    place();
+    var el = window.__bumpyNameEl;
+    el.style.display = 'block';
+    window.__bumpyNameWantFocus = true;
+    if (typeof value === 'string') {
+      el.value = value;
+      window.__bumpyNameValue = value;
+    }
+    try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) {} }
+    try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {}
+  };
+
+  // Записать отфильтрованное значение обратно в DOM-поле (без новых input).
+  window.__bumpyNameSet = function(value){
+    if (!ensure()) { return; }
+    var el = window.__bumpyNameEl;
+    window.__bumpyNameValue = String(value == null ? '' : value);
+    window.__bumpyNameDirty = false;
+    if (el.value !== window.__bumpyNameValue) {
+      el.value = window.__bumpyNameValue;
+    }
+    if (document.activeElement === el) {
+      try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {}
+    }
+  };
+
+  window.__bumpyNamePlace = place;
+
+  // --- обмен состоянием с Lua -------------------------------------------------
+  // Флаги забираются по одному разу, чтобы Lua не обрабатывал одно событие
+  // дважды. Строки, а не объекты: html5.run возвращает результат как строку.
+  window.__bumpyNameTakeFocus = function(){
+    var v = window.__bumpyNameFocusReq === true;
+    window.__bumpyNameFocusReq = false;
+    return v ? '1' : '0';
+  };
+  window.__bumpyNameTakeEnter = function(){
+    var v = window.__bumpyNameEnter === true;
+    window.__bumpyNameEnter = false;
+    return v ? '1' : '0';
+  };
+  // Текст на момент Enter: Druid успевает снять выбор раньше нас, поэтому
+  // сохраняем именно это значение, а не то, что осталось в компоненте ввода.
+  window.__bumpyNameTakeCommit = function(){
+    var v = window.__bumpyNameCommit;
+    window.__bumpyNameCommit = null;
+    return (typeof v === 'string') ? ('1' + v) : '0';
+  };
+  window.__bumpyNameTakeEsc = function(){
+    var v = window.__bumpyNameEsc === true;
+    window.__bumpyNameEsc = false;
+    return v ? '1' : '0';
+  };
+  // '1' + новое значение, если пользователь что-то ввёл, иначе '0'
+  window.__bumpyNameTakeText = function(){
+    if (!window.__bumpyNameDirty) { return '0'; }
+    window.__bumpyNameDirty = false;
+    return '1' + (window.__bumpyNameValue || '');
+  };
+  window.__bumpyNameBlur = function(){
+    window.__bumpyNameWantFocus = false;
+    var el = window.__bumpyNameEl;
+    if (el) { try { el.blur(); } catch (e) {} }
+  };
+
+  // В сборке движка для wasm-web не экспортируется callback кнопок мыши
+  // (_glfwSetMouseButtonCallback), поэтому mousedown/mouseup не доходят до игры
+  // и Druid-компоненты (они слушают действие touch) не реагируют на клики.
+  // На устройствах без тача транслируем мышь в touch-события canvas.
+  var synth = function(canvas, type, ev){
+    if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') { return; }
+    var touch = new Touch({
+      identifier: 0,
+      target: canvas,
+      clientX: ev.clientX,
+      clientY: ev.clientY,
+      pageX: ev.pageX,
+      pageY: ev.pageY,
+      screenX: ev.screenX,
+      screenY: ev.screenY
+    });
+    var list = type === 'touchend' ? [] : [touch];
+    canvas.dispatchEvent(new TouchEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      touches: list,
+      targetTouches: list,
+      changedTouches: [touch]
+    }));
+  };
+
+  var wireMouse = function(canvas){
+    if (window.__bumpyMouseWired) { return; }
+    window.__bumpyMouseWired = true;
+    if ('ontouchstart' in window) { return; }
+
+    var pressed = false;
+    canvas.addEventListener('mousedown', function(ev){
+      if (ev.button !== 0) { return; }
+      pressed = true;
+      synth(canvas, 'touchstart', ev);
+    }, true);
+    canvas.addEventListener('mousemove', function(ev){
+      if (!pressed) { return; }
+      synth(canvas, 'touchmove', ev);
+    }, true);
+    var release = function(ev){
+      if (!pressed || ev.button !== 0) { return; }
+      pressed = false;
+      synth(canvas, 'touchend', ev);
+    };
+    canvas.addEventListener('mouseup', release, true);
+    canvas.addEventListener('mouseleave', function(ev){
+      if (!pressed) { return; }
+      pressed = false;
+      synth(canvas, 'touchend', ev);
+    }, true);
+  };
+
+  var attach = function(){
+    var canvas = Module && Module.canvas;
+    if (!canvas) { return false; }
+    wireMouse(canvas);
+
+    // Тап/клик внутри прямоугольника поля имени: фокусируем прозрачное поле
+    // прямо в жесте (иначе мобильный браузер не покажет клавиатуру).
+    var focusInGesture = function(ev){
+      var rect = window.__bumpyNameRect;
+      if (!rect) { return; }
+      var box = canvas.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) { return; }
+      var px = (ev.clientX - box.left) / box.width;
+      var py = (ev.clientY - box.top) / box.height;
+      if (px < rect.x0 || px > rect.x1 || py < rect.y0 || py > rect.y1) { return; }
+      if (window.__bumpyNameFocus) { window.__bumpyNameFocus(); }
+    };
+    canvas.addEventListener('touchstart', focusInGesture, true);
+    canvas.addEventListener('mousedown', focusInGesture, true);
+    // позиция поля зависит от размера/раскладки canvas
+    var onResize = function(){ if (window.__bumpyNameEl.style.display !== 'none') { place(); } };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onResize);
+      window.visualViewport.addEventListener('scroll', onResize);
+    }
+    return true;
+  };
+
+  if (!attach()) {
+    var tries = 0;
+    var timer = setInterval(function(){
+      if (attach() || ++tries > 200) { clearInterval(timer); }
+    }, 50);
+  }
+})();
+]]
+
+-- Доли поля имени внутри canvas: по ним позиционируется прозрачный <textarea>.
+local function name_rect_js(x0, y0, x1, y1)
+    return string.format(
+        "(function(){window.__bumpyNameRect={x0=%.6f,y0=%.6f,x1=%.6f,y1=%.6f};})()",
+        x0, y0, x1, y1)
+end
+
+-- Экранировать строку для вставки в JS-код как строковый литерал.
+local function js_quote(text)
+    local escaped = tostring(text or ""):gsub("[\\'\n\r\t]", {
+        ["\\"] = "\\\\",
+        ["'"] = "\\'",
+        ["\n"] = "\\n",
+        ["\r"] = "\\r",
+        ["\t"] = "\\t",
+    })
+    return "'" .. escaped .. "'"
+end
+
+local function html5_run(code)
+    if not HAS_HTML5 then
+        return nil
+    end
+    local ok, result = pcall(html5.run, code)
+    if not ok then
+        return nil
+    end
+    return result
+end
+
+-- --- курсор в поле имени ------------------------------------------------------
+-- Druid-компонент ввода не рисует каретку (в его .gui нет такого узла), поэтому
+-- курсор рисуем сами узлом name_caret. Позиция считается по реальной ширине
+-- текста, которую отдаёт текстовый компонент Druid с учётом автоподгонки.
+-- Без курсора на мобильном непонятно, что поле активно и ввод идёт.
+-- пересчёт позиции каретки: get_text_size идёт через resource.get_text_metrics
+-- (дорого), поэтому двигаем каретку не каждый кадр, а при смене текста/курсора
+local CARET_BLINK_TIME = 0.5
+
+local function caret_text_width(self)
+    if not self.input or not self.input.text then
+        return 0
+    end
+    local value = self.input.value or ""
+    local ok, width = pcall(self.input.text.get_text_size, self.input.text, value)
+    if not ok or not width then
+        return 0
+    end
+    return width
+end
+
+-- Пересчитать позицию и видимость каретки. Каретка стоит на месте курсора:
+-- слева от неё — ширина уже введённого префикса.
+local function update_caret(self)
+    local node = self.nodes and self.nodes.name_caret
+    if not node then
+        return
+    end
+
+    -- каретка нужна только когда поле реально редактируется
+    if not self.visible or self.screen ~= "main" or not self.input.is_selected then
+        gui.set_alpha(node, 0)
+        return
+    end
+
+    -- мигание: показываем/скрываем по таймеру, чтобы курсор был заметен
+    local blink = (self.caret_time or 0) % (CARET_BLINK_TIME * 2) < CARET_BLINK_TIME
+    gui.set_alpha(node, blink and 1 or 0)
+
+    -- позицию пересчитываем только при изменении текста или индекса курсора:
+    -- get_text_size ходит в ресурсы и в каждом кадре не нужен
+    local value = self.input.value or ""
+    local cursor = self.input.cursor_index or 0
+    if self.caret_value == value and self.caret_index == cursor then
+        return
+    end
+    self.caret_value = value
+    self.caret_index = cursor
+
+    -- поле name_box центрировано по NAME_BOX_X, ширина 500; текст внутри тоже
+    -- центрирован. Считаем левую границу текста и отсчитываем от неё префикс.
+    local total = caret_text_width(self)
+    local prefix = 0
+    if cursor > 0 and #value > 0 then
+        local ok, width = pcall(self.input.text.get_text_size, self.input.text,
+            utf8.sub(value, 1, cursor))
+        if ok and width then
+            prefix = width
+        end
+    end
+
+    local text_left = NAME_BOX_X - total / 2
+    local caret_x = text_left + prefix
+    -- не выпускаем каретку за пределы поля ввода
+    local min_x = NAME_BOX_X - NAME_BOX_HALF_W + NAME_BOX_PADDING
+    local max_x = NAME_BOX_X + NAME_BOX_HALF_W - NAME_BOX_PADDING
+    caret_x = math.max(min_x, math.min(max_x, caret_x))
+
+    gui.set_position(node, vmath.vector3(caret_x, NAME_BOX_Y, 0.2))
+end
+
+-- --- синхронизация с прозрачным DOM-полем -------------------------------------
+-- html5.run возвращает строку. Формат ответов описан в JS_SETUP:
+--   флаги: '0'/'1'; текст: '0' (нет изменений) или '1' + новое значение.
+
+local function poll_text(self)
+    local result = html5_run("window.__bumpyNameTakeText?window.__bumpyNameTakeText():'0'")
+    if type(result) ~= "string" or #result == 0 or result:sub(1, 1) ~= "1" then
+        return
+    end
+    -- фильтр как у Druid: длина и допустимые символы (латиница, цифры, - _ . и
+    -- пробел). Регулярка применяется к ASCII-набору, поэтому байтовый gsub тут
+    -- корректен и не режет многобайтовые символы посередине.
+    local text = result:sub(2)
+    text = utf8.sub(text, 1, NAME_MAX_LEN)
+    local clean = text:gsub("[^%w%-_%. ]", "")
+    self.dom_last_text = clean
+    if clean ~= self.input.value then
+        self.input:set_text(clean)
+        self.input:select_cursor(utf8.len(clean))
+    end
+    -- вернуть отфильтрованное значение в DOM, чтобы Backspace/IME работали
+    -- по той же строке, что видит игрок
+    html5_run("window.__bumpyNameSet&&window.__bumpyNameSet(" .. js_quote(clean) .. ")")
+end
+
+-- Забрать флаги Enter/Esc из DOM-поля. Само действие выполняет update(),
+-- потому что commit_name объявлен ниже по файлу.
+local function poll_flags(self)
+    if not self.input.is_selected then
+        self.dom_enter = false
+        self.dom_esc = false
+        return
+    end
+    if html5_run("window.__bumpyNameTakeEnter?window.__bumpyNameTakeEnter():'0'") == "1" then
+        self.dom_enter = true
+    end
+    if html5_run("window.__bumpyNameTakeEsc?window.__bumpyNameTakeEsc():'0'") == "1" then
+        self.dom_esc = true
+    end
+end
+
+-- Показать/скрыть прозрачное поле вслед за состоянием меню.
+-- Вызывается из update() часто, поэтому тяжёлые вызовы (фокус/blur/скрытие)
+-- делаем только при реальном изменении состояния.
+local function sync_dom_field(self)
+    if not HAS_HTML5 then
+        return
+    end
+
+    local want_visible = self.visible and self.screen == "main"
+    local want_focus = want_visible and self.input.is_selected
+
+    if not want_visible then
+        if self.dom_visible ~= false then
+            self.dom_visible = false
+            self.dom_focused = false
+            html5_run("window.__bumpyNameHide&&window.__bumpyNameHide()")
+        end
+        return
+    end
+
+    if not self.dom_visible then
+        self.dom_visible = true
+        html5_run("window.__bumpyNameShow&&window.__bumpyNameShow()")
+    end
+
+    -- размер/положение canvas могли измениться (fullscreen, поворот, клавиатура)
+    html5_run("window.__bumpyNamePlace&&window.__bumpyNamePlace()")
+
+    if want_focus and not self.dom_focused then
+        self.dom_focused = true
+        html5_run("window.__bumpyNameFocus&&window.__bumpyNameFocus(" ..
+            js_quote(self.input.value or "") .. ")")
+    elseif not want_focus and self.dom_focused then
+        self.dom_focused = false
+        html5_run("window.__bumpyNameBlur&&window.__bumpyNameBlur()")
+    end
+end
+
 -- Подогнать фон и контейнер меню под текущее окно.
 -- Фон (backdrop) занимает окно целиком, контейнер меню стоит по центру и
 -- масштабируется равномерно по меньшей стороне — тогда при любом соотношении
@@ -104,6 +583,26 @@ local function layout(self)
     local scale = math.max(math.min(w / BASE_W, h / BASE_H), MIN_SCALE)
     gui.set_position(self.nodes.screen, vmath.vector3(w / 2, h / 2, 0))
     gui.set_scale(self.nodes.screen, vmath.vector3(scale, scale, 1))
+
+    -- Зона тапа по полю имени в долях canvas: нужна DOM-обработчику, который
+    -- поднимает клавиатуру на мобильном (см. JS_SETUP). Координаты GUI идут
+    -- снизу вверх, DOM — сверху вниз, поэтому Y инвертируем.
+    if HAS_HTML5 then
+        -- в stretch-режиме canvas растянут на окно, поэтому доли считаем от
+        -- размера окна, а не от логического BASE_W/BASE_H
+        local cx = w / 2
+        local cy = h / 2
+        local half_h = 33.0
+        local left = cx + (NAME_BOX_X - NAME_BOX_HALF_W) * scale
+        local right = cx + (NAME_BOX_X + NAME_BOX_HALF_W) * scale
+        local bottom = cy + (NAME_BOX_Y - half_h) * scale
+        local top = cy + (NAME_BOX_Y + half_h) * scale
+        local x0 = math.max(0, left / w)
+        local x1 = math.min(1, right / w)
+        local y0 = math.max(0, 1 - top / h)
+        local y1 = math.min(1, 1 - bottom / h)
+        html5_run(name_rect_js(x0, y0, x1, y1))
+    end
 end
 
 -- Включить/выключить узлы экрана (main или adventure) и сам видимый слой.
@@ -298,6 +797,10 @@ end
 function init(self)
     self.druid = druid.new(self)
 
+    -- HTML5/мобильные: обработчик тапа по полю имени, который поднимает
+    -- системную клавиатуру синхронно внутри жеста (см. JS_SETUP)
+    html5_run(JS_SETUP)
+
     self.nodes = {}
     for _, id in ipairs(MAIN_NODES) do
         self.nodes[id] = gui.get_node(id)
@@ -323,7 +826,20 @@ function init(self)
     self.input = self.druid:new_input("name_box", "name_hint", gui.KEYBOARD_TYPE_DEFAULT)
     self.input:set_max_length(NAME_MAX_LEN)
     self.input:set_allowed_characters(NAME_PATTERN)
+
+    -- Druid по умолчанию переводит кнопку поля в HTML5-режим: клик ждёт
+    -- настоящий browser click/touchend на document. Наши тач-события (и их
+    -- эмуляция из мыши) приходят раньше, чем движок успевает навесить этот
+    -- listener, поэтому выбор поля по тапу не срабатывал. Обычная touch-кнопка
+    -- выбирает поле на отпускании — клавиатуру поднимает наш DOM-хук.
+    self.input.button:set_web_user_interaction(false)
     self.input.on_input_select:subscribe(function(context)
+        -- синхронизируем DOM-поле с текущим значением, чтобы Backspace и IME
+        -- работали по той же строке, что показывает GUI
+        if HAS_HTML5 then
+            html5_run("window.__bumpyNameSet&&window.__bumpyNameSet(" ..
+                js_quote(context.input.value or "") .. ")")
+        end
         refresh(context)
     end, self)
     self.input.on_input_unselect:subscribe(function(context, text)
@@ -332,6 +848,9 @@ function init(self)
             -- профиль мог отбросить пустое имя — возвращаем актуальное
             context.input:set_text(saved or profile.get_name())
         end
+        -- правка закончена: убираем фокус с прозрачного DOM-поля, иначе
+        -- системная клавиатура на мобильном останется открытой
+        html5_run("window.__bumpyNameBlur&&window.__bumpyNameBlur()")
         refresh(context)
     end, self)
 
@@ -366,6 +885,45 @@ end
 
 function update(self, dt)
     self.druid:update(dt)
+
+    -- HTML5: забираем ввод из прозрачного DOM-поля (нативный ввод, Backspace,
+    -- IME) и флаги Enter/Esc, затем держим позицию поля в актуальном месте
+    if HAS_HTML5 then
+        if self.input.is_selected then
+            poll_text(self)
+        end
+        poll_flags(self)
+        -- GLFW слушает keydown в capture-фазе на window, поэтому Enter успевает
+        -- дойти до Druid раньше нашей блокировки и тот сохраняет прежнее
+        -- значение. Поэтому перед сохранением применяем актуальный текст
+        -- прозрачного поля и только потом снимаем выбор.
+        if self.dom_esc then
+            self.dom_esc = false
+            commit_name(self, true)
+        elseif self.dom_enter then
+            self.dom_enter = false
+            -- Druid снимает выбор по Enter со своим (устаревшим) значением и
+            -- сохраняет его в профиль. Поэтому берём текст, зафиксированный
+            -- в DOM в момент Enter, и записываем его в профиль напрямую.
+            local res = html5_run("window.__bumpyNameTakeCommit?window.__bumpyNameTakeCommit():'0'")
+            local committed = nil
+            if type(res) == "string" and res:sub(1, 1) == "1" then
+                committed = res:sub(2):gsub("[^%w%-_%. ]", "")
+            end
+            if committed and committed ~= "" then
+                        profile.set_name(committed)
+                    end
+                    commit_name(self, false)
+                    -- показать в поле именно сохранённое имя (профиль мог его поправить)
+                    self.input:set_text(profile.get_name())
+                end
+        sync_dom_field(self)
+    end
+
+    -- каретка в поле имени: накапливаем время для мигания и пересчитываем
+    -- позицию (текст мог измениться в этом кадре)
+    self.caret_time = (self.caret_time or 0) + dt
+    update_caret(self)
 end
 
 function on_message(self, message_id, message, sender)
