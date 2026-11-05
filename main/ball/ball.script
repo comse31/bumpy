@@ -363,6 +363,7 @@ function init(self)
     self.big_landing_rest = false
     self.slime_flip_started = false
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
@@ -799,12 +800,18 @@ local function update_bounce_tween(self, dt)
     end
     self.bounce_t = math.max(0.0, self.bounce_t - dt)
     local k = self.bounce_t / self.bounce_duration -- 1 (старт) -> 0 (приземление)
-    -- момент касания перегородки (k = 0.5): сплющивание по X в момент удара
-    if self.bounce_squash_pending and k <= 0.5 then
+    -- stop the flight flip shortly before the wall: the sprite is wider than
+    -- the collision radius, so visually the ball touches before k = 0.5
+    if self.bounce_squash_pending and k <= 0.56 then
         self.bounce_squash_pending = false
+        self.bounce_hit_started = true
         self.squash = 1.0
         self.squash_axis = "x"
         self.hero.apply_squash(self)
+    end
+    -- hold at the wall while the hit clip shows its compression
+    if self.bounce_hit_started and k <= 0.5 then
+        self.bounce_hit_started = false
         self.bounce_hold_t = self.bounce_hold_duration or 0.0
         self.bounce_t = self.bounce_duration * 0.5
         local pos = go.get_position()
@@ -863,11 +870,13 @@ local function begin_dwell(self, row)
     self.big_landing_rest = false
     self.slime_flip_started = false
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     self.press_used = false
     -- landing on an earlier frame stops the horizontal tween where it is
     self.move_t = 0.0
     self.bounce_t = 0.0
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     self.bounce_squash_pending = false
     self.bounce_hit_pending = false
     phys.stop()
@@ -941,6 +950,7 @@ local function resolve_dwell_action(self)
     self.big_landing_rest = false
     self.slime_flip_started = false
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     if dir == 0 and not want_jump and self.target_col and self.target_row == self.dwell_row then
         if self.target_col ~= self.col then
             dir = self.target_col > self.col and 1 or -1
@@ -1460,6 +1470,7 @@ local function reset_level_state(self)
     self.move_t = 0.0
     self.bounce_t = 0.0
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     self.high_jump = false
     self.rising = false
     self.hj_row = nil
@@ -1517,6 +1528,7 @@ local function reset_level_state(self)
     self.big_landing_rest = false
     self.slime_flip_started = false
     self.bounce_hold_t = 0.0
+    self.bounce_hit_started = false
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
