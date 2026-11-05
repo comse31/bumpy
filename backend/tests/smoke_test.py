@@ -206,7 +206,111 @@ def auth_scenarios() -> None:
         f"{first} / {second}",
     )
 
+    first_login_scenario()
+
     cleanup(name, other, first["name"], second.get("name", ""))
+
+
+def first_login_scenario() -> None:
+    """Первое посещение: авто-имя устройства и сохранение пароля.
+
+    Регресс-тест главной ошибки: игрок не мог сохранить пароль при первом
+    посещении, а вход создавал вторую запись и терял прогресс устройства.
+    """
+    name = "firstvisit"
+    device = "firstdevice01"
+    other_device = "seconddev001"
+    request("DELETE", f"/api/players/{device}")
+    request("DELETE", f"/api/players/{other_device}")
+    cleanup(name)
+
+    # 1. авто-имя резервируется за устройством и стабильно при повторе
+    status, auto_first = request("GET", f"/api/auth/next-name?player_id={device}")
+    check("авто-имя выдано", status == 200 and auto_first.get("name", "").startswith("Player"), str(auto_first))
+    auto_name = auto_first["name"]
+
+    # устройство присылает прогресс под авто-именем (как при первом запуске)
+    status, player = request(
+        "PUT",
+        f"/api/players/{device}",
+        {
+            "player_id": device,
+            "name": auto_name,
+            "visits": 2,
+            "level": 4,
+            "max_level": 6,
+            "lives": 2,
+            "drops": 3,
+            "keys": 1,
+            "hammers": 2,
+        },
+    )
+    check("профиль устройства сохранён", status == 200, str(player))
+
+    status, auto_second = request("GET", f"/api/auth/next-name?player_id={device}")
+    check("авто-имя стабильно для устройства", auto_second.get("name") == auto_name, str(auto_second))
+
+    # 2. игрок подтверждает авто-имя и задаёт пароль — прогресс сохраняется
+    status, result = request(
+        "POST",
+        "/api/auth/login",
+        {"name": auto_name, "password": "pass1234", "player_id": device},
+    )
+    check("пароль сохранён для авто-имени", status == 200 and result.get("ok") is True, str(result))
+    check("это запись устройства", result.get("player_id") == device, str(result))
+    saved = result.get("player") or {}
+    check("уровень не потерян", saved.get("level") == 4, str(saved))
+    check("жизни не потеряны", saved.get("lives") == 2, str(saved))
+
+    # 3. повторный вход отдаёт статусы для подгрузки на клиенте
+    status, again = request(
+        "POST",
+        "/api/auth/login",
+        {"name": auto_name, "password": "pass1234", "player_id": device},
+    )
+    check("повторный вход с паролем", again.get("ok") is True, str(again))
+    profile_data = again.get("player") or {}
+    check("статусы подгружаются", profile_data.get("level") == 4, str(profile_data))
+    check("карман подгружается", profile_data.get("hammers") == 2, str(profile_data))
+
+    # 4. неверный пароль — отказ, запись не меняется
+    status, wrong = request(
+        "POST",
+        "/api/auth/login",
+        {"name": auto_name, "password": "wrongpass", "player_id": device},
+    )
+    check("неверный пароль отклонён", wrong.get("ok") is False, str(wrong))
+
+    # 5. вход на втором устройстве под именем первого даёт его статусы
+    status, second = request(
+        "POST",
+        "/api/auth/login",
+        {"name": auto_name, "password": "pass1234", "player_id": other_device},
+    )
+    check("вход с другого устройства", second.get("ok") is True, str(second))
+    check("запись первого устройства", second.get("player_id") == device, str(second))
+    check("статусы первого устройства", (second.get("player") or {}).get("level") == 4, str(second))
+
+    # 6. смена имени на новое: переименовывается своя запись, прогресс сохранён
+    status, claimed = request(
+        "POST",
+        "/api/auth/login",
+        {"name": name, "password": "pass1234", "player_id": device},
+    )
+    check("новое имя сохранено", claimed.get("ok") is True, str(claimed))
+    check("это та же запись устройства", claimed.get("player_id") == device, str(claimed))
+    claimed_player = claimed.get("player") or {}
+    check("прогресс пережил переименование", claimed_player.get("level") == 4, str(claimed_player))
+    check("имя обновлено", claimed_player.get("name") == name, str(claimed_player))
+
+    # 7. старое авто-имя освобождено и выдаётся новому устройству
+    status, free_name = request("GET", f"/api/auth/next-name?player_id={other_device}")
+    check("авто-имя выдаётся снова", status == 200, str(free_name))
+
+    cleanup(name)
+    request("DELETE", f"/api/players/{device}")
+    request("DELETE", f"/api/players/{other_device}")
+    request("DELETE", f"/api/players/{free_name.get('player_id') or 'none'}")
 
 
 def cleanup(*names: str) -> None:

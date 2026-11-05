@@ -25,6 +25,7 @@ from .db import Database
 from .passwords import PasswordError, validate as validate_password
 from .repository import Limits, PlayerRepository
 from .schemas import (
+    PLAYER_ID_RE,
     AuthOut,
     CredentialsIn,
     EventIn,
@@ -161,6 +162,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         просит задать пароль, чтобы закрепить имя.
         """
         exists, has_password = repo.check_name(payload.name)
+        # Имя логируем: при разборе «в БД нет введённого имени» сразу видно,
+        # какое имя реально пришло от клиента.
+        log.info("auth/check name=%r exists=%s has_password=%s", payload.name, exists, has_password)
         return NameCheckOut(name=payload.name, exists=exists, has_password=has_password)
 
     @app.post(
@@ -192,6 +196,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         result = repo.register_or_login(payload.name, password, payload.player_id)
+
+        # Пароль НЕ логируем (только его длину): по логу видно, какое имя и
+        # какой player_id пришли, и почему вход отклонён.
+        log.info(
+            "auth/login name=%r player_id=%r password_len=%d -> ok=%s reason=%s pid=%r",
+            payload.name,
+            payload.player_id,
+            len(password),
+            result["ok"],
+            result["reason"],
+            result["player_id"],
+        )
         return AuthOut(
             ok=result["ok"],
             reason=result["reason"],
@@ -205,6 +221,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(require_key)],
     )
     def next_name(
+        player_id: str | None = Query(default=None),
         repo: PlayerRepository = Depends(get_repo),
     ) -> NextNameOut:
         """Свободное имя по умолчанию, уникальное в БД.
@@ -212,9 +229,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         Игра использует его при первом запуске вместо «PlayerN по числу
         визитов»: номер выбирается по фактически занятым именам в БД, поэтому
         два новых устройства не получат одинаковое имя.
+
+        Если передан player_id, имя сразу ЗАКРЕПЛЯЕТСЯ за записью устройства
+        (reserve_default_name): так его не получит параллельно запущенное
+        второе устройство. Устройству, у которого имя уже есть, возвращается
+        прежнее — оно не должно меняться от запуска к запуску.
         """
-        name = repo.next_default_name()
-        return NextNameOut(name=name, player_id="")
+        pid = (player_id or "").strip() or None
+        if pid is not None and not PLAYER_ID_RE.match(pid):
+            raise HTTPException(
+                status_code=422,
+                detail="player_id: ожидается 8..64 символа из [A-Za-z0-9_-]",
+            )
+        name = repo.reserve_default_name(pid)
+        return NextNameOut(name=name, player_id=pid or "")
 
     # --- игроки -------------------------------------------------------------
 

@@ -2,13 +2,20 @@
 --
 -- Правила (требование):
 --   * имя игрока уникально в БД;
---   * если игрок вводит имя, которого в БД нет — игра просит задать пароль и
---     сохраняет его на сервере (регистрация имени);
+--   * при первом запуске устройство получает автоматическое имя от сервера
+--     (GET /api/auth/next-name?player_id=...) — свободное и уже закреплённое
+--     за записью устройства;
+--   * игрок может задать пароль, НЕ меняя автоматическое имя: подтверждение
+--     того же имени отправляет пароль на /api/auth/login, и он сохраняется;
+--   * если имени в БД нет — игра просит задать пароль и сохраняет его
+--     (регистрация имени); запись устройства при этом переименовывается,
+--     поэтому прогресс не теряется;
+--   * если имя уже есть в БД, игра спрашивает пароль и проверяет его; при
+--     неверном пароле имя откатывается к предыдущему;
+--   * после успешного входа с сервера приходит профиль, и все текущие статусы
+--     (уровень, жизни, карман, рекорд) подгружаются в локальное сохранение;
 --   * на устройстве, где игрок уже входил, пароль не спрашивается: он лежит в
---     локальном кэше в постоянном каталоге приложения и отправляется молча;
---   * если игрок вводит имя, которое уже есть в БД, игра спрашивает пароль и
---     проверяет его; при неверном пароле имя откатывается к предыдущему;
---   * имена по умолчанию (PlayerN) генерируются с учётом занятых имён в БД.
+--     локальном кэше в постоянном каталоге приложения и отправляется молча.
 --
 -- Модуль работает поверх main/remote_db.lua (тот же адрес API, тот же ключ) и
 -- не блокирует игру: пока ответа нет, вызывающий код получает состояние
@@ -37,6 +44,18 @@ local last_previous = nil    -- имя, к которому откатывать
 local last_error = nil       -- текст ошибки для UI
 local last_player_id = nil   -- player_id записи в БД (имя может принадлежать
                              -- записи, созданной на другом устройстве)
+
+-- Токен актуального запроса. HTTP-ответы приходят асинхронно и могут
+-- обгонять друг друга: поздний ответ на УСТАРЕВШИЙ запрос выставлял
+-- wrong_password уже после успешного входа, и игрок видел красную подсветку
+-- при сохранённом пароле. Каждой новой проверке/входу выдаётся новый токен,
+-- ответы со старым токеном игнорируются.
+local request_id = 0
+
+local function next_request()
+    request_id = request_id + 1
+    return request_id
+end
 
 -- Кэш пароля на этом устройстве: { name = <последнее имя>, password = <пароль> }.
 -- Хранится в постоянном каталоге приложения (HTML5: IndexedDB через sys.save).
@@ -195,6 +214,26 @@ function M.cached_name()
     return c.name
 end
 
+-- Есть ли на устройстве сохранённый вход для имени.
+--
+-- Нужно, чтобы отличить «игрок уже входил, пароль можно отправить молча» от
+-- «первое посещение: пароль ещё не задан». Без этого повторное подтверждение
+-- неизменённого авто-имени ничего не делало, и игрок не мог задать пароль.
+-- name == nil — проверяется наличие любого сохранённого входа.
+function M.has_cached_login(name)
+    local c = read_cache()
+    if type(c.password) ~= "string" or c.password == "" then
+        return false
+    end
+    if type(c.name) ~= "string" or c.name == "" then
+        return false
+    end
+    if type(name) == "string" and name ~= "" and c.name:lower() ~= name:lower() then
+        return false
+    end
+    return true
+end
+
 -- Запомнить успешный вход: пароль и имя остаются только на этом устройстве,
 -- поэтому при следующем запуске пароль не спрашивается.
 local function remember(name, password, player_id)
@@ -213,8 +252,29 @@ function M.forget()
     write_cache()
 end
 
+-- Очистить кэш, только если он относится к имени name.
+--
+-- Нужно при неверном пароле к НОВОМУ имени: кэш прежнего (рабочего) входа
+-- должен остаться, иначе одно опечатанное имя выбивало бы игрока из аккаунта
+-- на этом устройстве. Без имени (name == nil) кэш очищается полностью.
+function M.forget_if(name)
+    if type(name) ~= "string" or name == "" then
+        M.forget()
+        return
+    end
+    local c = read_cache()
+    if type(c.name) == "string" and c.name:lower() == name:lower() then
+        M.forget()
+    end
+end
+
 -- Сбросить состояние перед новой попыткой.
+--
+-- Токен увеличивается: ответы на уже отправленные запросы перестают быть
+-- актуальными и не должны менять состояние/рисовать ошибку после сброса
+-- (например, после отмены ввода по Esc).
 function M.reset()
+    next_request()
     state = "idle"
     pending_name = nil
     last_error = nil
@@ -228,7 +288,12 @@ function M.check_name(name, previous_name, callback)
     pending_name = name
     last_previous = previous_name
     last_error = nil
+    local token = next_request()
     post("/api/auth/check", { name = name }, function(response)
+        if token ~= request_id then
+            -- ответ на устаревший запрос: состояние уже изменилось
+            return
+        end
         local status = response and response.status or 0
         local parsed = decode(response_body(response))
         if status ~= 200 or not parsed then
@@ -248,24 +313,32 @@ function M.check_name(name, previous_name, callback)
     end)
 end
 
--- Отправить имя и пароль. callback(ok, reason) —
+-- Отправить имя и пароль. callback(ok, reason, player) —
 --   ok = true: пароль принят (вход или регистрация);
+--   player — профиль из БД (уровень, жизни, карман) для подгрузки статусов;
 --   ok = false, reason = "wrong_password" — имя откатывается к предыдущему.
 function M.login(name, password, callback)
     state = "submitting"
     last_error = nil
+    local token = next_request()
     post("/api/auth/login", {
         name = name,
         password = password,
         -- идентификатор устройства: сервер поймёт, что вход повторный
         player_id = remote_db.get_player_id(),
     }, function(response)
+        if token ~= request_id then
+            -- ответ на устаревший запрос: успешный вход уже обработан или
+            -- игрок отменил ввод. Поздний wrong_password не должен рисовать
+            -- красную подсветку поверх успешного результата.
+            return
+        end
         local status = response and response.status or 0
         local parsed = decode(response_body(response))
         if status ~= 200 or not parsed then
             state = "error"
             last_error = (parsed and parsed.detail) or "login_failed"
-            callback(false, last_error)
+            callback(false, last_error, nil)
             return
         end
         if parsed.ok then
@@ -278,18 +351,33 @@ function M.login(name, password, callback)
             if parsed.player_id then
                 remote_db.set_player_id(parsed.player_id)
             end
-            callback(true, nil)
+            callback(true, nil, parsed.player)
             return
         end
         state = "need_pass"
         last_error = parsed.reason or "login_failed"
-        callback(false, last_error)
+        callback(false, last_error, nil)
     end)
+end
+
+-- Тихий вход по кэшу устройства: пароль уже сохранён после первого входа.
+-- callback(ok, player): player — профиль из БД, чтобы подгрузить статусы.
+function M.login_cached(callback)
+    local c = read_cache()
+    if not c.name or not c.password then
+        callback(false, nil)
+        return
+    end
+    M.login(c.name, c.password, callback)
 end
 
 -- Свободное имя по умолчанию (PlayerN), уникальное в БД.
 -- callback(name) — name может быть nil, если сервер недоступен (тогда
 -- вызывающий код использует локальное имя).
+--
+-- Если у устройства есть player_id, сервер сразу ЗАКРЕПЛЯЕТ имя за его
+-- записью: иначе два новых устройства могли получить одинаковое «PlayerN»,
+-- и второе оставалось без имени.
 function M.next_default_name(callback)
     if not http or not http.request then
         callback(nil)
@@ -309,7 +397,12 @@ function M.next_default_name(callback)
             callback(nil)
         end
     end
-    local ok = pcall(http.request, endpoint("/api/auth/next-name"), "GET", done, headers(), nil)
+    local pid = remote_db.get_player_id()
+    local path = "/api/auth/next-name"
+    if type(pid) == "string" and pid ~= "" then
+        path = path .. "?player_id=" .. pid
+    end
+    local ok = pcall(http.request, endpoint(path), "GET", done, headers(), nil)
     if not ok then
         done(nil, nil, nil)
     end

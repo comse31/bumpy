@@ -158,12 +158,66 @@ class PlayerRepository:
             row["password_iterations"],
         )
 
+    # --- вспомогательные операции записи ------------------------------------
+
+    def _insert_player(
+        self, conn: sqlite3.Connection, player_id: str, name: str | None, now: str
+    ) -> None:
+        """Создать запись игрока с нулевым прогрессом."""
+        conn.execute(
+            "INSERT INTO players (player_id, name, visits, level, max_level, "
+            "lives, drops, keys, hammers, created_at, updated_at) "
+            "VALUES (?, ?, 0, 1, 1, 0, 0, 0, 0, ?, ?)",
+            (player_id, name, now, now),
+        )
+
+    def _set_password(
+        self, conn: sqlite3.Connection, player_id: str, password: str, now: str
+    ) -> None:
+        """Записать хэш пароля (PBKDF2, соль на запись)."""
+        hash_hex, salt_hex, iterations = hash_password(password, self.password_iterations)
+        conn.execute(
+            "UPDATE players SET password_hash = ?, password_salt = ?, "
+            "password_iterations = ?, password_updated_at = ?, updated_at = ? "
+            "WHERE player_id = ?",
+            (hash_hex, salt_hex, iterations, now, now, player_id),
+        )
+
+    def _release_own_name(
+        self,
+        conn: sqlite3.Connection,
+        own: sqlite3.Row | None,
+        keep_player_id: str,
+        now: str,
+    ) -> None:
+        """Освободить имя собственной записи устройства.
+
+        Вызывается, когда игрок вошёл под другим именем: незакреплённая
+        запись устройства (автоматическое PlayerN без пароля) не должна
+        удерживать имя в БД и занимать номер для следующих игроков.
+        Прогресс такой записи не удаляется — очищается только имя.
+        """
+        if own is None or own["password_hash"]:
+            return
+        pid = str(own["player_id"])
+        if pid == keep_player_id or own["name"] is None:
+            return
+        conn.execute(
+            "UPDATE players SET name = NULL, updated_at = ? WHERE player_id = ?",
+            (now, pid),
+        )
+
     def register_or_login(self, name: str, password: str, player_id: str | None) -> dict[str, Any]:
         """Вход по имени или первичная привязка пароля к имени.
 
         Сценарии:
-          * имени нет в БД — создаётся новый игрок с этим именем и паролем
-            (player_id: присланный клиентом или новый свободный);
+          * имени нет в БД, а у устройства уже есть незакреплённая запись
+            (автоматическое PlayerN, созданное при первом запуске) — эта
+            запись ПЕРЕИМЕНОВЫВАЕТСЯ, поэтому прогресс и визиты сохраняются,
+            а старое авто-имя освобождается. Раньше здесь создавалась вторая
+            запись, и первый вход фактически терял прогресс;
+          * имени нет и своей записи нет — создаётся новый игрок с этим именем
+            и паролем;
           * имя есть, пароля ещё нет (автоматическое PlayerN) — пароль
             привязывается к существующей записи, прогресс сохраняется;
           * имя есть, пароль задан — проверяется; при неверном пароле вход
@@ -172,33 +226,59 @@ class PlayerRepository:
         Возвращает dict с полями ok/reason/player_id/player.
         """
         now = utc_now()
+        name = (name or "")[: self.max_name_len]
         with self.db.transaction() as conn:
+            # запись этого устройства (может быть с автоматическим именем)
+            own = None
+            if player_id:
+                own = conn.execute(
+                    "SELECT * FROM players WHERE player_id = ?", (player_id,)
+                ).fetchone()
+
             row = conn.execute(
                 "SELECT * FROM players WHERE name = ? COLLATE NOCASE LIMIT 1",
                 (name,),
             ).fetchone()
 
             if row is None:
-                # новое имя: заводим запись. player_id клиента может быть уже
-                # занят другой записью — тогда подбираем свободный
-                pid = player_id
-                if pid is None or conn.execute(
-                    "SELECT 1 FROM players WHERE player_id = ?", (pid,)
-                ).fetchone():
-                    pid = self._free_player_id(conn, name)
-                conn.execute(
-                    "INSERT INTO players (player_id, name, visits, level, max_level, "
-                    "lives, drops, keys, hammers, created_at, updated_at) "
-                    "VALUES (?, ?, 0, 1, 1, 0, 0, 0, 0, ?, ?)",
-                    (pid, name, now, now),
+                # Своя запись устройства: переименовываем её, а не создаём
+                # вторую. Иначе прогресс (уровень, жизни, карман) оставался в
+                # старой записи, а игрок продолжал в новой с нуля.
+                #
+                # Переименование разрешено, если запись ещё не закреплена
+                # паролем (автоматическое PlayerN) или пароль прислан верный.
+                # С неверным паролем чужую/свою защищённую запись не трогаем.
+                own_allowed = own is not None and (
+                    not own["password_hash"]
+                    or verify_password(
+                        password,
+                        own["password_hash"],
+                        own["password_salt"],
+                        own["password_iterations"],
+                    )
                 )
-                hash_hex, salt_hex, iterations = hash_password(password, self.password_iterations)
-                conn.execute(
-                    "UPDATE players SET password_hash = ?, password_salt = ?, "
-                    "password_iterations = ?, password_updated_at = ? WHERE player_id = ?",
-                    (hash_hex, salt_hex, iterations, now, pid),
-                )
-                self._add_event(conn, pid, "name", {"name": name, "via": "register"}, now)
+                if own_allowed:
+                    pid = str(own["player_id"])
+                    conn.execute(
+                        "UPDATE players SET name = ?, updated_at = ? WHERE player_id = ?",
+                        (name, now, pid),
+                    )
+                    # у записи уже мог быть пароль (смена имени): не перезаписываем
+                    if not own["password_hash"]:
+                        self._set_password(conn, pid, password, now)
+                    via = "rename"
+                else:
+                    # своего id нет или это чужая запись — заводим отдельную
+                    pid = player_id
+                    if pid is None or conn.execute(
+                        "SELECT 1 FROM players WHERE player_id = ?", (pid,)
+                    ).fetchone():
+                        pid = self._free_player_id(conn, name)
+                    self._insert_player(conn, pid, name, now)
+                    self._set_password(conn, pid, password, now)
+                    via = "register"
+
+                self._add_event(conn, pid, "name", {"name": name, "via": via}, now)
                 result_row = conn.execute(
                     "SELECT * FROM players WHERE player_id = ?", (pid,)
                 ).fetchone()
@@ -214,13 +294,8 @@ class PlayerRepository:
 
             if not has_password:
                 # автоматическое имя: первый задавший пароль закрепляет его
-                hash_hex, salt_hex, iterations = hash_password(password, self.password_iterations)
-                conn.execute(
-                    "UPDATE players SET password_hash = ?, password_salt = ?, "
-                    "password_iterations = ?, password_updated_at = ?, updated_at = ? "
-                    "WHERE player_id = ?",
-                    (hash_hex, salt_hex, iterations, now, now, pid),
-                )
+                self._set_password(conn, pid, password, now)
+                self._release_own_name(conn, own, pid, now)
                 self._add_event(conn, pid, "name", {"name": name, "via": "claim"}, now)
                 result_row = conn.execute(
                     "SELECT * FROM players WHERE player_id = ?", (pid,)
@@ -238,6 +313,7 @@ class PlayerRepository:
                 row["password_salt"],
                 row["password_iterations"],
             ):
+                self._release_own_name(conn, own, pid, now)
                 self._add_event(conn, pid, "name", {"name": name, "via": "login"}, now)
                 result_row = conn.execute(
                     "SELECT * FROM players WHERE player_id = ?", (pid,)
@@ -290,16 +366,15 @@ class PlayerRepository:
         # практически недостижимо: увеличиваем энтропию
         return f"{slug}{secrets.token_hex(8)}"
 
-    def next_default_name(self) -> str:
+    def _next_free_default(self, conn: sqlite3.Connection) -> str:
         """Свободное имя PlayerN: минимальный N, отсутствующий в БД.
 
         Учитываются и чужие имена: «Player3» может быть занято кем угодно,
         поэтому проверка идёт по всей таблице, а не по числу визитов.
         """
-        with self.db.connection() as conn:
-            rows = conn.execute(
-                "SELECT name FROM players WHERE name LIKE 'Player%' COLLATE NOCASE"
-            ).fetchall()
+        rows = conn.execute(
+            "SELECT name FROM players WHERE name LIKE 'Player%' COLLATE NOCASE"
+        ).fetchall()
         taken: set[int] = set()
         for row in rows:
             suffix = str(row["name"])[6:]
@@ -309,6 +384,48 @@ class PlayerRepository:
         while n in taken:
             n += 1
         return f"Player{n}"
+
+    def next_default_name(self) -> str:
+        """Свободное имя PlayerN без резервирования (совместимость)."""
+        with self.db.connection() as conn:
+            return self._next_free_default(conn)
+
+    def reserve_default_name(self, player_id: str | None) -> str:
+        """Выдать устройству свободное PlayerN и ЗАКРЕПИТЬ его в БД.
+
+        Резервирование важно: между выбором имени и первым сохранением
+        прогресса два устройства могли получить одно и то же «PlayerN», и
+        второе теряло имя (upsert отбрасывал занятое имя). Здесь имя
+        записывается в запись устройства в той же транзакции, поэтому оно уже
+        занято.
+
+        Если у устройства уже есть незакреплённое авто-имя (игрок ещё не задал
+        пароль), оно возвращается повторно: имя не должно меняться от запуска
+        к запуску. Закреплённую паролем запись не переименовываем ни при каких
+        условиях — переименование возможно только через вход по паролю.
+        """
+        now = utc_now()
+        with self.db.transaction() as conn:
+            own = None
+            if player_id:
+                own = conn.execute(
+                    "SELECT * FROM players WHERE player_id = ?", (player_id,)
+                ).fetchone()
+
+            if own is not None:
+                if own["name"] is not None:
+                    # имя уже есть (авто-имя или выбранное игроком) — не меняем
+                    return str(own["name"])
+
+            name = self._next_free_default(conn)
+            if own is not None:
+                conn.execute(
+                    "UPDATE players SET name = ?, updated_at = ? WHERE player_id = ?",
+                    (name, now, player_id),
+                )
+            elif player_id:
+                self._insert_player(conn, player_id, name, now)
+            return name
 
     # --- запись -------------------------------------------------------------
 

@@ -140,6 +140,64 @@ function M.store(data)
     })
 end
 
+-- Подгрузить статусы из БД после успешного входа по паролю.
+--
+-- Требование: если игрок уже есть в системе и пароль проверен, все текущие
+-- статусы (уровень, жизни, карман, рекорд) берутся из БД — на новом устройстве
+-- прогресс продолжается с того места, где игрок остановился.
+--
+-- Слияние осторожное, чтобы не потерять данные:
+--   * рекорд (max_level) только растёт — локальный рекорд не уменьшается,
+--     если игра шла без сети;
+--   * если серверная запись «пустая» (уровень 1, рекорд 1, жизней нет — так
+--     выглядит запись, созданная только именем), локальный прогресс остаётся:
+--     затирать им реальную игру нельзя;
+--   * иначе состояние аккаунта (уровень/жизни/карман) берётся с сервера.
+--
+-- player — профиль из ответа /api/auth/login (может быть nil).
+-- Возвращает true, если локальное сохранение обновлено.
+function M.import(player)
+    if type(player) ~= "table" then
+        return false
+    end
+    if test_mode.is_enabled() then
+        return false
+    end
+    local server_level = math.max(1, tonumber(player.level) or 1)
+    local server_max = math.max(1, tonumber(player.max_level) or server_level)
+    local server_lives = tonumber(player.lives) or 0
+
+    local prev = M.load()
+    local prev_max = prev and tonumber(prev.max_level) or 0
+    local prev_level = prev and math.max(1, tonumber(prev.level) or 1) or 1
+    local prev_lives = prev and tonumber(prev.lives) or 0
+
+    -- серверная запись пуста: игрок только завёл имя (пароль), прогресса там
+    -- ещё нет — сохраняем локальную игру как есть
+    local server_empty = server_level <= 1 and server_max <= 1 and server_lives <= 0
+    if server_empty then
+        M.store({
+            level = prev_level,
+            max_level = math.max(prev_max, server_max),
+            lives = prev_lives,
+            drops = prev and prev.drops or 0,
+            keys = prev and prev.keys or 0,
+            hammers = prev and prev.hammers or 0,
+        })
+        return false
+    end
+
+    M.store({
+        level = server_level,
+        max_level = math.max(server_max, prev_max or 0),
+        lives = server_lives,
+        drops = tonumber(player.drops) or 0,
+        keys = tonumber(player.keys) or 0,
+        hammers = tonumber(player.hammers) or 0,
+    })
+    return true
+end
+
 -- обнулить сохранение: используется, когда продолжать нельзя (жизни кончились).
 -- Записываем lives = 0 — при следующем запуске это означает «новая игра».
 -- Рекорд (max_level) при этом сохраняется: его подставляет M.store.

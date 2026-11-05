@@ -43,6 +43,8 @@ local MAIN_NODES = {
     "name_box",
     "name_hint",
     "name_caret",
+    "btn_name_save",
+    "btn_name_save_label",
     "edit_hint",
 }
 
@@ -67,7 +69,12 @@ local LABEL_CLASSIC = "Classic game"
 local LABEL_ADVENTURE = "Adventure"
 local HINT_EDIT = "F2 or tap the name to change"
 local HINT_SAVE = "Enter - save, Esc - cancel"
+-- Подсказки различают два случая: имя свободно (игрок ЗАДАЁТ пароль) и имя
+-- занято (игрок ВВОДИТ существующий пароль). Раньше текст был один, и при
+-- попытке занять чужое имя игрок не понимал, почему пароль «не подошёл».
+local HINT_NEW_PASSWORD = "New name: set a password, Enter - ok, Esc - cancel"
 local HINT_PASSWORD = "Enter your password, Enter - ok, Esc - cancel"
+local HINT_NAME_TAKEN = "This name is taken - enter its password"
 local NAME_PREFIX = "Name: "
 
 -- Надпись перед полем ввода: в режиме пароля подменяется на «Password:».
@@ -93,6 +100,7 @@ local MODE_PASSWORD = "password"
 -- бэкенда (по умолчанию 4..32), но клиент ограничивает сверху 32 символами,
 -- чтобы буфер поля не разрастался.
 local PASSWORD_PATTERN = "[%w%-_%. ]"
+local PASSWORD_MIN_LEN = 4
 local PASSWORD_MAX_LEN = 32
 
 local ADV_TITLE = "Choose level"
@@ -199,6 +207,33 @@ local JS_SETUP = [[
         ev.preventDefault();
       }
     });
+
+    // Глобальный перехват Enter/Esc в CAPTURE-фазе на документе.
+    //
+    // Обработчик на самом <textarea> срабатывает только когда фокус там. На
+    // мобильных (и при программном show_keyboard движка) фокус мог уйти на
+    // canvas: тогда Enter уходил в GLFW, а значение поля оставалось в DOM —
+    // подтверждение пароля/имени терялось, и запрос на сервер не уходил
+    // вовсе (в логах backend не было /auth/login). Здесь же событие
+    // перехватывается раньше и независимо от того, где фокус.
+    if (!window.__bumpyKeyWire) {
+      window.__bumpyKeyWire = true;
+      document.addEventListener('keydown', function(ev){
+        if (!window.__bumpyNameWantFocus) { return; }
+        if (ev.key === 'Enter') {
+          window.__bumpyNameEnter = true;
+          window.__bumpyNameCommit = window.__bumpyNameEl
+            ? window.__bumpyNameEl.value
+            : (window.__bumpyNameValue || '');
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+        } else if (ev.key === 'Escape' || ev.key === 'Esc') {
+          window.__bumpyNameEsc = true;
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+        }
+      }, true);
+    }
     el.addEventListener('keypress', function(ev){ ev.stopPropagation(); });
     el.addEventListener('keyup', function(ev){ ev.stopPropagation(); });
 
@@ -314,6 +349,15 @@ local JS_SETUP = [[
     if (!window.__bumpyNameDirty) { return '0'; }
     window.__bumpyNameDirty = false;
     return '1' + (window.__bumpyNameValue || '');
+  };
+  // Актуальное содержимое DOM-поля. Нужно при Enter: Druid успевает снять
+  // выделение и вернуть своё (прежнее) значение раньше, чем мы прочитаем
+  // компонент, а enter-событие могло не дойти до DOM-поля (потерян фокус) —
+  // тогда commit пуст, и без этого геттера введённый пароль терялся.
+  window.__bumpyNameCurrent = function(){
+    var el = window.__bumpyNameEl;
+    if (el && typeof el.value === 'string') { return '1' + el.value; }
+    return '0';
   };
   window.__bumpyNameBlur = function(){
     window.__bumpyNameWantFocus = false;
@@ -547,11 +591,17 @@ end
 -- Забрать флаги Enter/Esc из DOM-поля. Само действие выполняет update(),
 -- потому что commit_name объявлен ниже по файлу.
 local function poll_flags(self)
-    if not self.input.is_selected then
-        self.dom_enter = false
-        self.dom_esc = false
-        return
-    end
+    -- Флаги Enter/Esc забираем ВСЕГДА, даже если is_selected уже false.
+    --
+    -- Раньше здесь стоял early-return при неактивном поле, и это теряло
+    -- подтверждение ввода: в HTML5 GLFW-событие Enter приходит раньше кадра,
+    -- Druid успевает сам снять выделение (is_selected=false), флаг из DOM
+    -- сбрасывался вместе с ним, и запрос на сервер не отправлялся вовсе —
+    -- в логах backend не было ни одного /auth/check для введённого имени.
+    --
+    -- Флаги одноразовые (JS сбрасывает их при чтении), а ставятся они только
+    -- из keydown внутри сфокусированного DOM-поля, поэтому вне редактирования
+    -- они и так пустые.
     if html5_run("window.__bumpyNameTakeEnter?window.__bumpyNameTakeEnter():'0'") == "1" then
         self.dom_enter = true
     end
@@ -665,6 +715,9 @@ local function apply_screen(self)
     self.btn_classic:set_input_enabled(main_on)
     self.btn_adventure:set_input_enabled(main_on)
     self.input:set_input_enabled(main_on)
+    if self.btn_name_save then
+        self.btn_name_save:set_input_enabled(main_on)
+    end
     self.btn_prev:set_input_enabled(adv_on)
     self.btn_next:set_input_enabled(adv_on)
     self.btn_play:set_input_enabled(adv_on)
@@ -700,8 +753,16 @@ local function refresh(self)
     self.lb_classic:set_text(classic_label())
     self.lb_adventure:set_text(adventure_label())
     if self.auth_mode == MODE_PASSWORD then
-        -- во время ввода пароля объясняем, что вводится именно пароль
-        self.hint:set_text(self.input.is_selected and HINT_PASSWORD or HINT_EDIT)
+        -- во время ввода пароля объясняем, что вводится именно пароль.
+        -- Подсказка зависит от случая: имя свободно (пароль задаётся впервые)
+        -- или занято (нужен существующий пароль).
+        if not self.input.is_selected then
+            self.hint:set_text(HINT_EDIT)
+        elseif self.password_is_new == false then
+            self.hint:set_text(HINT_PASSWORD)
+        else
+            self.hint:set_text(HINT_NEW_PASSWORD)
+        end
     else
         self.hint:set_text(self.input.is_selected and HINT_SAVE or HINT_EDIT)
     end
@@ -795,10 +856,11 @@ local FIELD_ERROR_TIME = 3.0
 -- попробовать пароль снова. Надпись «Password:» и плашка подсвечиваются
 -- красным, чтобы отказ был заметен без чтения подсказки.
 local function rollback_name(self, reason)
-    local previous = auth.previous_name() or profile.get_name()
-    -- профиль откатывается к прежнему имени — сохранён он будет только
-    -- после успешной проверки пароля
-    profile.set_name(previous)
+    local previous = auth.previous_name()
+    -- Профиль откатывается к прежнему имени, но автоматическое PlayerN при
+    -- этом НЕ закрепляется за игроком (см. profile.rollback_to): иначе откат
+    -- навсегда делал бы авто-имя «пользовательским».
+    profile.rollback_to(previous)
     self.field_error = true
     self.field_error_timer = FIELD_ERROR_TIME
     if reason == "cancelled" then
@@ -816,9 +878,16 @@ local function rollback_name(self, reason)
         self.input:set_text("")
         self.dom_last_text = ""
         html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
-        set_hint(self, reason == "wrong_password"
-            and "Wrong password - try again"
-            or "Login failed - try again")
+        -- Разные причины — разные подсказки: при попытке войти в чужой
+        -- аккаунт игрок должен понимать, что имя уже занято, а не думать,
+        -- что пароль не сохранился.
+        if reason == "wrong_password" then
+            set_hint(self, "Wrong password - try again (Esc to cancel)")
+        elseif reason == "name_taken" then
+            set_hint(self, "Name is taken - choose another")
+        else
+            set_hint(self, "Login failed - try again (Esc to cancel)")
+        end
         self.input:select()
     end
     auth.reset()
@@ -826,37 +895,83 @@ local function rollback_name(self, reason)
 end
 
 -- Завершить вход: применить имя, подставить его в поле, обновить подсказку.
-local function finish_login(self, name)
+--
+-- player — профиль из ответа /api/auth/login. Если игрок уже был в системе и
+-- пароль проверен, все текущие статусы (уровень, жизни, карман) подгружаются
+-- из БД в локальное сохранение, поэтому на новом устройстве игра продолжается
+-- с того места, где игрок остановился.
+local function finish_login(self, name, player)
     self.auth_mode = MODE_NAME
     self.pending_name = nil
     self.field_error = false
     self.field_error_timer = 0
     profile.set_name(name)
+    if player then
+        save.import(player)
+    end
     self.input:set_text(profile.get_name())
     set_hint(self, "Signed in as " .. profile.get_name())
     auth.reset()
     refresh(self)
+    -- уровень/рекорд могли прийти из БД — обновляем подписи подменю
+    refresh_adventure(self)
 end
 
 -- Отправить пароль на сервер.
+--
+-- Каждая отправка получает номер попытки (self.auth_seq). Если игрок нажал
+-- Enter дважды (или ответ на первый запрос пришёл позже второго), колбэк
+-- устаревшей попытки НЕ должен менять UI: иначе запоздалый wrong_password
+-- рисовал красную подсветку уже после успешного входа, и игрок видел
+-- «ошибку» при сохранённом пароле.
 local function submit_password(self, password)
     local name = self.pending_name or profile.get_name()
-    auth.login(name, password, function(ok, reason)
+    -- длина проверяется и на клиенте: короткий пароль сервер отвергнет (422),
+    -- и игрок увидел бы общую ошибку входа вместо понятной подсказки
+    if utf8.len(password or "") < PASSWORD_MIN_LEN then
+        self.field_error = true
+        self.field_error_timer = FIELD_ERROR_TIME
+        set_hint(self, string.format("Password is too short (min %d)", PASSWORD_MIN_LEN))
+        refresh(self)
+        -- false: пароль НЕ отправлен. Поле не очищаем, чтобы игрок дописал
+        -- символы, а не набирал всё заново.
+        return false
+    end
+    self.auth_seq = (self.auth_seq or 0) + 1
+    local seq = self.auth_seq
+    auth.login(name, password, function(ok, reason, player)
+        if seq ~= self.auth_seq then
+            -- ответ устаревшей попытки: игрок уже отправил новую
+            return
+        end
         if ok then
             -- имя могло быть создано на другом устройстве: сервер вернул его
             -- канонический вид и player_id — клиент уже подменил его в auth
-            finish_login(self, auth.pending_name() or name)
+            finish_login(self, auth.cached_name() or name, player)
         else
+            -- пароль отвергнут: если кэш относился к ЭТОМУ имени, он больше не
+            -- актуален (иначе тихий вход повторял бы неверный пароль). Кэш
+            -- другого (рабочего) аккаунта не трогаем.
+            if reason == "wrong_password" then
+                auth.forget_if(name)
+            end
             rollback_name(self, reason)
         end
     end)
+    return true
 end
 
 -- Начать вход для имени: либо тихий вход по кэшу, либо запрос пароля.
 local function begin_auth(self, name, previous)
     self.pending_name = name
     self.pending_password = nil
+    -- новая проверка имени отменяет ответы прежних попыток
+    self.auth_seq = (self.auth_seq or 0) + 1
+    local seq = self.auth_seq
     auth.check_name(name, previous, function(info)
+        if seq ~= self.auth_seq then
+            return
+        end
         if not info then
             -- сервер недоступен: работаем локально, как раньше
             self.auth_mode = MODE_NAME
@@ -882,6 +997,11 @@ local function begin_auth(self, name, previous)
         self.auth_mode = MODE_PASSWORD
         self.field_error = false
         self.field_error_timer = 0
+        -- Имя занято и защищено паролем → игрок вводит СУЩЕСТВУЮЩИЙ пароль.
+        -- Свободное имя / автоматическое PlayerN → игрок ЗАДАЁТ новый пароль.
+        -- Подсказка объясняет разницу: иначе занятое имя выглядело как ошибка
+        -- ввода пароля.
+        self.password_is_new = not (info.exists and info.has_password)
         -- Поле очищаем: пароль должен вводиться с пустой строки, иначе к нему
         -- приклеится имя («Player3secret12»). set_text("") безопасен —
         -- в commit_name значение перед unselect приводится к строке.
@@ -890,7 +1010,11 @@ local function begin_auth(self, name, previous)
         self.dom_last_text = ""
         html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
         self.input:select()
-        set_hint(self, HINT_PASSWORD)
+        if info.exists and info.has_password then
+            set_hint(self, HINT_NAME_TAKEN)
+        else
+            set_hint(self, HINT_NEW_PASSWORD)
+        end
         -- надпись «Name:» -> «Password:», обычные цвета
         if set_field_style then
             set_field_style(self, MODE_PASSWORD, false)
@@ -899,10 +1023,16 @@ local function begin_auth(self, name, previous)
 end
 
 -- Снять выделение с поля имени и сохранить введённое (если не отмена).
+--
+-- suppress_unselect помечает программные вызовы (Enter/Esc/закрытие меню):
+-- они снимают выделение не потому, что игрок «подтвердил ввод» уже
+-- обработанным способом, а как часть нашей же логики. on_input_unselect
+-- пропускает такие вызовы и не ставит unselect_pending.
 local function commit_name(self, cancelled)
     if not self.input.is_selected then
         return
     end
+    self.suppress_unselect = true
     -- Druid внутри unselect делает self.value:gsub(...), а value может
     -- оказаться nil (например, после программного set_text). Без строки
     -- получили бы "attempt to call method 'gsub' (a nil value)".
@@ -917,6 +1047,52 @@ local function commit_name(self, cancelled)
         self.input:unselect()
     end
     self.cancelling = false
+    self.suppress_unselect = false
+end
+
+-- Тихий вход при старте: если на устройстве уже сохранён пароль, он
+-- отправляется без запроса, а из ответа подгружаются текущие статусы игрока
+-- (уровень, жизни, карман, рекорд). Это требование сценария «игрок уже есть в
+-- системе»: после проверки пароля состояние берётся из БД, а не из локального
+-- файла, поэтому переустановка браузера не сбрасывает прогресс.
+--
+-- Ошибки намеренно игнорируются: без сети игра продолжает работать локально,
+-- кэш не очищается (пароль мог не подойти из-за смены на другом устройстве —
+-- тогда игрок увидит это при ручном входе и красную подсветку).
+local function silent_login(self)
+    if not auth.has_cached_login() then
+        return
+    end
+    -- тихий вход не должен вмешиваться в ручной ввод: если игрок уже начал
+    -- задавать пароль/менять имя, ответ тихого входа игнорируется
+    local seq = self.auth_seq or 0
+    auth.login_cached(function(ok, reason, player)
+        if (self.auth_seq or 0) ~= seq then
+            return
+        end
+        if not ok then
+            -- пароль на другом устройстве сменили: кэш недействителен.
+            -- Очищаем его, чтобы не пытаться войти им при каждом запуске —
+            -- игрок задаст пароль вручную и обновит кэш. Кэш относится к
+            -- текущему имени устройства, поэтому имя проверять не нужно.
+            if reason == "wrong_password" then
+                auth.forget()
+            end
+            auth.reset()
+            return
+        end
+        save.import(player)
+        local name = auth.cached_name()
+        if name then
+            profile.set_name(name)
+            if self.auth_mode == MODE_NAME and not self.input.is_selected then
+                self.input:set_text(name)
+            end
+        end
+        refresh(self)
+        refresh_adventure(self)
+        print("menu: silent login from cached password")
+    end)
 end
 
 -- Открыть меню (старт игры, GAME OVER или конец уровня в «Приключении»):
@@ -1020,6 +1196,48 @@ local function on_click_back(self)
     back_to_main(self)
 end
 
+-- Нажатие кнопки «Save»: подтвердить текущее содержимое поля.
+--
+-- Это независимый от Enter путь сохранения. В HTML5 на мобильных Enter может
+-- не дойти до игры (перехватывается браузером или экранной клавиатурой), и
+-- игрок не мог завершить ввод пароля/имени.
+local function on_click_name_save(self)
+    local mode_now = self.auth_mode
+    -- актуальное значение берём из DOM-поля: компонент Druid синхронизируется
+    -- только в update(), а нажатие приходит раньше кадра
+    local value = nil
+    local cur = html5_run("window.__bumpyNameCurrent?window.__bumpyNameCurrent():'0'")
+    if type(cur) == "string" and cur:sub(1, 1) == "1" then
+        value = cur:sub(2)
+    end
+    if value == nil or value == "" then
+        value = self.input.value
+    end
+    value = (value or ""):gsub("[^%w%-_%. ]", "")
+    print(string.format("menu: SAVE mode=%s value=%q (component=%q)",
+        tostring(mode_now), tostring(value), tostring(self.input.value)))
+
+    if mode_now == MODE_PASSWORD then
+        if value == "" then
+            set_hint(self, "Enter a password first")
+            refresh(self)
+            return
+        end
+        self.pending_password = value
+        if submit_password(self, value) then
+            self.input.value = ""
+            self.input:set_text("")
+            self.dom_last_text = ""
+            html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+            self.input:select()
+        end
+    elseif value ~= "" then
+        begin_auth(self, value, profile.get_name())
+        self.input:set_text(profile.get_name())
+    end
+    refresh(self)
+end
+
 function init(self)
     self.druid = druid.new(self)
 
@@ -1047,6 +1265,11 @@ function init(self)
     self.btn_adventure = self.druid:new_button("btn_adventure", on_click_adventure)
     self.lb_adventure = self.druid:new_text("btn_adventure_label")
     self.hint = self.druid:new_text("edit_hint", HINT_EDIT)
+    -- Кнопка сохранения имени/пароля. Нужна как ГАРАНТИРОВАННЫЙ путь: Enter
+    -- в HTML5 на мобильных может перехватываться браузером/клавиатурой и не
+    -- доходить до игры — тогда игрок физически не мог подтвердить пароль.
+    self.btn_name_save = self.druid:new_button("btn_name_save", on_click_name_save)
+    self.lb_name_save = self.druid:new_text("btn_name_save_label", "Save")
 
     -- Поле имени: druid.input сам следит за выбором, клавиатурой и выделением
     self.input = self.druid:new_input("name_box", "name_hint", gui.KEYBOARD_TYPE_DEFAULT)
@@ -1060,21 +1283,41 @@ function init(self)
     -- выбирает поле на отпускании — клавиатуру поднимает наш DOM-хук.
     self.input.button:set_web_user_interaction(false)
     self.input.on_input_select:subscribe(function(context)
-        -- синхронизируем DOM-поле с текущим значением, чтобы Backspace и IME
-        -- работали по той же строке, что показывает GUI
-        if HAS_HTML5 then
+        -- Синхронизируем DOM-поле с компонентом ТОЛЬКО в режиме имени.
+        --
+        -- В режиме пароля DOM-полем управляем сами: при входе в режим оно
+        -- очищается, игрок набирает пароль в <textarea>, а poll_text переносит
+        -- текст в компонент. Если здесь перезаписать DOM значением компонента
+        -- (а оно к моменту повторного select ещё старое/пустое), набранный
+        -- пароль стирался — и кнопка Save отправляла пустую строку, из-за чего
+        -- запрос на сервер не уходил, а поле краснело («слишком короткий»).
+        if HAS_HTML5 and context.auth_mode ~= MODE_PASSWORD then
             html5_run("window.__bumpyNameSet&&window.__bumpyNameSet(" ..
                 js_quote(context.input.value or "") .. ")")
         end
         refresh(context)
     end, self)
     self.input.on_input_unselect:subscribe(function(context, text)
-        -- ВАЖНО: здесь НЕ проверяем имя и не отправляем пароль. Druid в этот
-        -- момент ещё внутри своего обработчика, и любое изменение значения
-        -- поля (set_text/select) рассогласует его состояние. Проверка идёт
-        -- по подтверждению (Enter) в on_input, где значение доступно напрямую.
-        -- Здесь только снимаем фокус с прозрачного DOM-поля, чтобы системная
-        -- клавиатура на мобильном не осталась открытой.
+        -- Здесь НЕ проверяем имя и не отправляем пароль: Druid в этот момент
+        -- ещё внутри своего обработчика, и изменение значения поля
+        -- (set_text/select) рассогласует его состояние. Но ЗАПОМНИТЬ, что
+        -- выделение снято, нужно обязательно.
+        --
+        -- Причина: когда Enter обрабатывает сам Druid (GLFW-событие приходит
+        -- раньше, чем наш poll_flags), Druid снимает выделение и сохраняет
+        -- значение. К моменту update() is_selected уже false, poll_flags
+        -- сбрасывает dom_enter, и подтверждение имени/пароля ТЕРЯЛОСЬ —
+        -- введённое имя никуда не отправлялось. Здесь только ставим флаг, а
+        -- действие выполняется в update(), вне обработчика Druid.
+        if not context.cancelling
+            and not context.commit_from_enter
+            and not context.suppress_unselect then
+            context.unselect_pending = true
+            context.unselect_text = text
+            context.unselect_mode = context.auth_mode
+        end
+        -- снимаем фокус с прозрачного DOM-поля, чтобы системная клавиатура на
+        -- мобильном не осталась открытой
         html5_run("window.__bumpyNameBlur&&window.__bumpyNameBlur()")
     end, self)
 
@@ -1100,6 +1343,9 @@ function init(self)
     self.pending_name = nil
     self.pending_password = nil
     self.pending_action = nil
+    -- true: имя свободно, игрок задаёт пароль; false: имя занято, нужен
+    -- существующий пароль. Управляет текстом подсказки в режиме пароля.
+    self.password_is_new = true
     -- красная подсветка поля при неверном пароле и её таймер
     self.field_error = false
     self.field_error_timer = 0
@@ -1123,6 +1369,9 @@ function init(self)
     -- меню появляется сразу после загрузки игры: игра стоит на паузе до
     -- выбора пункта (game_mode.is_menu_open)
     open_menu(self)
+    -- устройство уже входило раньше: пароль отправляем молча и подгружаем
+    -- статусы из БД (уровень, жизни, карман, рекорд)
+    silent_login(self)
 end
 
 function final(self)
@@ -1155,16 +1404,43 @@ function update(self, dt)
             if type(res) == "string" and res:sub(1, 1) == "1" then
                 committed = res:sub(2):gsub("[^%w%-_%. ]", "")
             end
+            -- Enter мог не дойти до DOM-поля (например, фокус уже потерян):
+            -- тогда берём АКТУАЛЬНОЕ значение прозрачного поля. Подставлять
+            -- self.input.value нельзя: Druid к этому моменту уже вернул в
+            -- компонент прежнее имя, и введённый пароль терялся, отправляя
+            -- вместо него имя (сервер отвечал wrong_password).
+            if not committed or committed == "" then
+                local cur = html5_run("window.__bumpyNameCurrent?window.__bumpyNameCurrent():'0'")
+                if type(cur) == "string" and cur:sub(1, 1) == "1" then
+                    committed = cur:sub(2):gsub("[^%w%-_%. ]", "")
+                end
+            end
+            if not committed or committed == "" then
+                local current = self.input.value
+                -- В режиме пароля в компоненте ввода может лежать ИМЯ: его
+                -- подставляет меню, пока пароль не отправлен. Если принять его
+                -- за пароль, на сервер уйдёт «Max» вместо пароля, и вход
+                -- всегда отклонялся (красная подсветка при верных данных).
+                if self.auth_mode == MODE_PASSWORD
+                    and (current == nil or current == profile.get_name()) then
+                    current = ""
+                end
+                committed = current or ""
+            end
             -- Введённый текст запоминаем и передаём в update: там он будет
             -- обработан, когда Druid закончит свой обработчик unselect.
             local value = committed
-            if not value or value == "" then
-                value = self.input.value
-            end
             local mode_now = self.auth_mode
-            -- возвращаем в поле имя до снятия выделения: иначе Druid
-            -- сохранит в профиль введённый пароль как имя
-            self.input.value = profile.get_name() or ""
+            -- Перед снятием выделения подставляем в компонент значение,
+            -- которое Druid не должен сохранить в профиль. В режиме пароля
+            -- это ПУСТАЯ строка: раньше сюда возвращалось имя, и оно оставалось
+            -- в поле — игрок видел «Max» вместо пароля, а повторный Enter
+            -- отправлял имя как пароль (сервер: wrong_password → красное).
+            if mode_now == MODE_PASSWORD then
+                self.input.value = ""
+            else
+                self.input.value = profile.get_name() or ""
+            end
             -- флаг: unselect ниже — часть этого же Enter, а не отдельное
             -- действие пользователя, поэтому он не должен ставить свой
             -- pending_action и перезаписывать только что подготовленный
@@ -1172,17 +1448,75 @@ function update(self, dt)
             commit_name(self, false)
             self.commit_from_enter = false
             self.pending_action = { value = value or "", mode = mode_now }
-            self.input:set_text(profile.get_name())
+            if mode_now == MODE_PASSWORD then
+                -- поле пароля остаётся пустым до ответа сервера
+                self.input.value = ""
+                self.input:set_text("")
+                self.dom_last_text = ""
+                html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+            else
+                self.input:set_text(profile.get_name())
+            end
         end
         sync_dom_field(self)
+    end
+
+    -- Выделение снял сам Druid (Enter/клик мимо). Если это произошло НЕ из-за
+    -- отмены и НЕ из нашего же commit_name, считаем это подтверждением ввода:
+    -- иначе Enter, обработанный Druid раньше poll_flags, терялся и введённое
+    -- имя никуда не отправлялось (в логах backend запроса не было вовсе).
+    if self.unselect_pending then
+        self.unselect_pending = false
+        local text = self.unselect_text
+        local mode_now = self.unselect_mode or MODE_NAME
+        self.unselect_text = nil
+        self.unselect_mode = nil
+        if mode_now == MODE_PASSWORD then
+            -- Druid мог вернуть в поле имя — для пароля это недопустимо
+            if type(text) ~= "string" or text == "" then
+                text = html5_run("window.__bumpyNameCurrent?window.__bumpyNameCurrent():'0'") or "0"
+                if type(text) == "string" and text:sub(1, 1) == "1" then
+                    text = text:sub(2)
+                else
+                    text = ""
+                end
+            end
+            text = (text or ""):gsub("[^%w%-_%. ]", "")
+            if text ~= "" and utf8.len(text) >= PASSWORD_MIN_LEN then
+                self.pending_password = text
+                submit_password(self, text)
+                self.input.value = ""
+                self.input:set_text("")
+                self.dom_last_text = ""
+                html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+            end
+        else
+            local value = (text or ""):gsub("[^%w%-_%. ]", "")
+            if value ~= "" then
+                local previous = profile.get_name()
+                begin_auth(self, value, previous)
+            end
+            self.input:set_text(profile.get_name())
+        end
+        refresh(self)
     end
 
     -- Режим пароля: поле должно быть активно, иначе игрок его не увидит и
     -- Enter уйдёт в «запуск игры». Druid может снять выбор сам (клик мимо,
     -- потеря фокуса), поэтому возвращаем выделение, пока пароль не отправлен
     -- и меню показано.
+    --
+    -- ВАЖНО: перед select держим компонент и DOM-поле пустыми. Druid в
+    -- select() запоминает текущее значение, а on_input_select вернул бы его
+    -- в DOM — набранный пароль затирался бы именем.
     if self.auth_mode == MODE_PASSWORD and self.visible
         and self.screen == "main" and not self.input.is_selected then
+        if self.input.value ~= "" then
+            self.input.value = ""
+            self.input:set_text("")
+            self.dom_last_text = ""
+            html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+        end
         self.input:select()
     end
 
@@ -1197,17 +1531,36 @@ function update(self, dt)
             -- ввод пароля: пустое значение = отмена, имя вернётся к прежнему
             if value == "" then
                 rollback_name(self, "cancelled")
+                self.input:set_text(profile.get_name())
             else
                 self.pending_password = value
-                submit_password(self, value)
+                -- submit_password возвращает false, если пароль не отправлен
+                -- (слишком короткий): тогда поле не трогаем, чтобы игрок мог
+                -- дописать символы вместо повторного набора.
+                if submit_password(self, value) then
+                    -- ВАЖНО: поле остаётся ПУСТЫМ. Раньше сюда подставлялось
+                    -- имя, и набранный пароль склеивался с ним в следующей
+                    -- попытке («Maxsecret»), сервер отвечал wrong_password,
+                    -- а игрок видел красную подсветку и имя в поле.
+                    self.input.value = ""
+                    self.input:set_text("")
+                    self.dom_last_text = ""
+                    html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+                    self.input:select()
+                end
             end
-            self.input:set_text(profile.get_name())
         elseif value ~= "" then
-            -- ввод имени: проверяем уникальность и пароль в БД
+            -- Ввод имени: проверяем уникальность и пароль в БД.
+            --
+            -- Проверка запускается и для НЕИЗМЕНЁННОГО имени: при первом
+            -- посещении игрок получает автоматическое PlayerN и должен иметь
+            -- возможность сохранить пароль, просто подтвердив это имя. Раньше
+            -- при value == previous не происходило ничего, и пароль задать было
+            -- нельзя. Если на устройстве уже есть сохранённый вход, повторное
+            -- подтверждение имени выполняет тихий вход по кэшу (пароль не
+            -- спрашивается) и подгружает статусы.
             local previous = profile.get_name()
-            if value ~= previous then
-                begin_auth(self, value, previous)
-            end
+            begin_auth(self, value, previous)
             self.input:set_text(profile.get_name())
         else
             -- пустое имя: возвращаем актуальное
@@ -1264,6 +1617,82 @@ function on_input(self, action_id, action)
             self.input:set_text(profile.get_name())
         end
         commit_name(self, true)
+        return true
+    end
+
+    -- Enter при активном поле: подтвердить ввод имени/пароля.
+    --
+    -- Обрабатываем ЗДЕСЬ, до druid:on_input. Раньше подтверждение ждало
+    -- on_input_unselect/poll_flags, но в HTML5 GLFW-событие Enter приходит
+    -- раньше кадра: Druid успевал сам снять выделение и сохранить значение,
+    -- а наш код уже не видел ни is_selected, ни флага Enter. Запрос на сервер
+    -- вообще не отправлялся (в логах backend не было /auth/check).
+    --
+    -- Берём текст из Druid-компонента (он актуален: poll_text переносит туда
+    -- ввод из DOM-поля каждый кадр) и сами снимаем выделение с
+    -- suppress_unselect, чтобы on_input_unselect не считал это новым
+    -- подтверждением.
+    -- Диагностика: видно в консоли браузера (print в Defold HTML5 идёт в
+    -- console.log). Помогает отличить «событие не дошло» от «дошло, но
+    -- значение пустое».
+    if action_id == hash("name_enter") and action.pressed then
+        print(string.format("menu: ENTER selected=%s mode=%s value=%q",
+            tostring(self.input.is_selected), tostring(self.auth_mode),
+            tostring(self.input.value)))
+    end
+
+    if action_id == hash("name_enter") and action.pressed and self.input.is_selected then
+        local mode_now = self.auth_mode
+        -- ВСЕГДА берём актуальное значение из прозрачного DOM-поля, а не из
+        -- компонента Druid. Причина: poll_text переносит ввод из <textarea> в
+        -- компонент раз в кадр (в update), а Enter приходит РАНЬШЕ кадра —
+        -- self.input.value ещё содержит предыдущее значение (например,
+        -- автоматическое "Player1"), и на сервер уходило именно оно вместо
+        -- только что набранного имени. Отсюда «в запросе уходит что-то другое»
+        -- и отсутствие введённого имени в БД.
+        local value = nil
+        local cur = html5_run("window.__bumpyNameCurrent?window.__bumpyNameCurrent():'0'")
+        if type(cur) == "string" and cur:sub(1, 1) == "1" then
+            value = cur:sub(2)
+        end
+        if value == nil then
+            value = self.input.value
+        end
+        value = (value or ""):gsub("[^%w%-_%. ]", "")
+        print(string.format("menu: ENTER mode=%s value=%q (component=%q)",
+            tostring(mode_now), tostring(value), tostring(self.input.value)))
+        if mode_now == MODE_PASSWORD then
+            if value == "" then
+                rollback_name(self, "cancelled")
+                self.input:set_text(profile.get_name())
+            else
+                self.pending_password = value
+                if submit_password(self, value) then
+                    self.input.value = ""
+                    self.input:set_text("")
+                    self.dom_last_text = ""
+                    html5_run("window.__bumpyNameSet&&window.__bumpyNameSet('')")
+                end
+            end
+        elseif value ~= "" then
+            local previous = profile.get_name()
+            begin_auth(self, value, previous)
+            self.input:set_text(profile.get_name())
+        else
+            self.input:set_text(profile.get_name())
+        end
+        refresh(self)
+        -- снять выделение без побочной обработки в on_input_unselect
+        if self.input.is_selected then
+            self.input.value = profile.get_name() or ""
+            self.suppress_unselect = true
+            self.input:unselect()
+            self.suppress_unselect = false
+        end
+        -- режим пароля держит поле активным
+        if mode_now == MODE_PASSWORD and not self.input.is_selected then
+            self.input:select()
+        end
         return true
     end
 

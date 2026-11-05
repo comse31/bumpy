@@ -69,12 +69,17 @@ end
 -- name, счётчик визитов — в visits: обе величины дублируются в серверной
 -- таблице players. progress-поля сюда не входят, поэтому сервер сохранит уже
 -- известные ему значения уровня/жизней/кармана.
+--
+-- Локальное имя, придуманное клиентом (PlayerN по числу визитов), НЕ
+-- отправляется: имя должно быть уникальным в БД, и его выдаёт сервер
+-- (GET /api/auth/next-name). Иначе клиент «занимал» имя, которое могло уже
+-- принадлежать другому игроку, а сервер это имя отбрасывал.
 local function push_to_db(state)
     if not state then
         return
     end
     remote_db.sync({
-        name = state.name,
+        name = state.custom and state.name or nil,
         visits = state.visits,
     })
 end
@@ -174,10 +179,14 @@ function M.init()
     local prev_visits = data and tonumber(data.visits) or 0
     local visits = math.max(0, math.floor(prev_visits)) + 1
     local custom = data and sanitize(data.name) or nil
+    local fallback = "Player" .. visits
     state = {
         visits = visits,
         custom = custom,
-        name = custom or ("Player" .. visits),
+        -- автоматическое имя (может прийти от сервера): к нему возвращаемся,
+        -- если игрок отменил правку или пароль не подошёл
+        default_name = custom or fallback,
+        name = custom or fallback,
     }
     write(state.custom, state.visits)
     -- первый запуск: заводим запись в БД вместе с именем и номером визита
@@ -205,6 +214,7 @@ function M.refresh_default_name()
             return
         end
         state.name = name
+        state.default_name = name
         write(state.custom, state.visits)
         push_to_db(state)
         print("player_profile: default name from DB: " .. name)
@@ -263,6 +273,46 @@ function M.set_name(name)
     push_to_db(state)
     print("player_profile: name saved: " .. state.name)
     return state.name
+end
+
+-- Откатить имя к прежнему (отмена правки или неверный пароль).
+--
+-- Если прежним было автоматическое имя (state.default_name), оно НЕ
+-- закрепляется: state.custom остаётся nil, поэтому сервер по-прежнему может
+-- выдать свободный PlayerN. Иначе любой откат делал авто-имя
+-- «пользовательским», и игрок навсегда оставался с ним.
+-- Для обычного пользовательского имени оно просто восстанавливается.
+function M.rollback_to(name)
+    if not state then
+        M.init()
+    end
+    local clean = sanitize(name)
+    local target = clean or state.default_name or state.name
+    state.name = target
+    if clean and clean ~= state.default_name then
+        state.custom = clean
+        write(clean, state.visits)
+    else
+        state.custom = nil
+        write(nil, state.visits)
+    end
+    if M.on_name_changed then
+        M.on_name_changed(target)
+    end
+    return target
+end
+
+-- Вернуть автоматическое имя устройства (без закрепления).
+function M.restore_default()
+    return M.rollback_to(nil)
+end
+
+-- Автоматическое имя устройства (для отката и подсказок).
+function M.default_name()
+    if not state then
+        M.init()
+    end
+    return state.default_name or state.name
 end
 
 -- Текущее имя без побочных эффектов (см. M.peek).

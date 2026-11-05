@@ -232,6 +232,51 @@ nodes {
 }
 nodes {
   position {
+    x: 468.0
+    y: -108.0
+    z: 0.1
+  }
+  size {
+    x: 148.0
+    y: 66.0
+  }
+  color {
+    x: 0.16
+    y: 0.42
+    z: 0.72
+  }
+  type: TYPE_BOX
+  texture: "menu/menu_white"
+  id: "btn_name_save"
+  parent: "screen"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: 468.0
+    y: -108.0
+    z: 0.2
+  }
+  size {
+    x: 140.0
+    y: 44.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "Save"
+  font: "normal"
+  id: "btn_name_save_label"
+  parent: "screen"
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
     y: -188.0
     z: 0.1
   }
