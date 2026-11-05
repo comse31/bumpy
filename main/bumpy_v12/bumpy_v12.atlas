@@ -1,0 +1,5208 @@
+margin: 0
+extrude_borders: 2
+inner_padding: 0
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_feet/contact_feet_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/contact_head/contact_head_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up/flight_up_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/landing/landing_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/land_head/land_head_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/idle/idle_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_in/turn_in_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_out/turn_out_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/turn_rl/turn_rl_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/blink/blink_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation/anticipation_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_35.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_36.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_37.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_38.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_39.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_40.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_41.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_42.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_43.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_44.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/high_jump/high_jump_45.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall/fall_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/hurt/hurt_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/death/death_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/win/win_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/collect/collect_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+animations {
+  id: "contact_feet"
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_feet/contact_feet_14.png"
+  }
+}
+animations {
+  id: "contact_head"
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/contact_head/contact_head_14.png"
+  }
+}
+animations {
+  id: "flight_up"
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up/flight_up_34.png"
+  }
+}
+animations {
+  id: "flight_up_blink"
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_up_blink/flight_up_blink_34.png"
+  }
+}
+animations {
+  id: "flight_feet_to_head"
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head/flight_feet_to_head_34.png"
+  }
+}
+animations {
+  id: "flight_feet_to_head_blink"
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_feet_to_head_blink/flight_feet_to_head_blink_34.png"
+  }
+}
+animations {
+  id: "flight_head_hop"
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop/flight_head_hop_34.png"
+  }
+}
+animations {
+  id: "flight_head_hop_blink"
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_hop_blink/flight_head_hop_blink_34.png"
+  }
+}
+animations {
+  id: "flight_head_side"
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side/flight_head_side_34.png"
+  }
+}
+animations {
+  id: "flight_head_side_blink"
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/flight_head_side_blink/flight_head_side_blink_34.png"
+  }
+}
+animations {
+  id: "landing"
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/landing/landing_18.png"
+  }
+}
+animations {
+  id: "land_head"
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/land_head/land_head_18.png"
+  }
+}
+animations {
+  id: "idle"
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/idle/idle_23.png"
+  }
+}
+animations {
+  id: "turn_in"
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_in/turn_in_09.png"
+  }
+}
+animations {
+  id: "turn_out"
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_out/turn_out_09.png"
+  }
+}
+animations {
+  id: "turn_rl"
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/turn_rl/turn_rl_15.png"
+  }
+}
+animations {
+  id: "half_turn_loop"
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/half_turn_loop/half_turn_loop_18.png"
+  }
+}
+animations {
+  id: "blink"
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/blink/blink_12.png"
+  }
+}
+animations {
+  id: "anticipation"
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation/anticipation_14.png"
+  }
+}
+animations {
+  id: "anticipation_high"
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/anticipation_high/anticipation_high_20.png"
+  }
+}
+animations {
+  id: "high_jump"
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_34.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_35.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_36.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_37.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_38.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_39.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_40.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_41.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_42.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_43.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_44.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/high_jump/high_jump_45.png"
+  }
+}
+animations {
+  id: "fall"
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall/fall_12.png"
+  }
+}
+animations {
+  id: "fall_surprise_in"
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprise_in/fall_surprise_in_09.png"
+  }
+}
+animations {
+  id: "fall_surprised"
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/fall_surprised/fall_surprised_12.png"
+  }
+}
+animations {
+  id: "head_hit_top"
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_top/head_hit_top_20.png"
+  }
+}
+animations {
+  id: "feet_hit_top"
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_top/feet_hit_top_20.png"
+  }
+}
+animations {
+  id: "head_hit_side_up"
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
+  }
+}
+animations {
+  id: "feet_hit_side_up"
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
+  }
+}
+animations {
+  id: "head_hit_side_inv"
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
+  }
+}
+animations {
+  id: "feet_hit_side_inv"
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
+  }
+}
+animations {
+  id: "hurt"
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/hurt/hurt_17.png"
+  }
+}
+animations {
+  id: "death"
+  images {
+    image: "/main/bumpy_v12/frames/death/death_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/death/death_24.png"
+  }
+}
+animations {
+  id: "win"
+  images {
+    image: "/main/bumpy_v12/frames/win/win_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/win/win_24.png"
+  }
+}
+animations {
+  id: "collect"
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/collect/collect_18.png"
+  }
+}

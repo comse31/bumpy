@@ -395,3 +395,43 @@ key_trigger {
   input: KEY_G
   action: "v5_preview_g"
 }
+key_trigger {
+  input: KEY_H
+  action: "v5_preview_h"
+}
+key_trigger {
+  input: KEY_J
+  action: "v5_preview_j"
+}
+key_trigger {
+  input: KEY_K
+  action: "v5_preview_k"
+}
+key_trigger {
+  input: KEY_L
+  action: "v5_preview_l"
+}
+key_trigger {
+  input: KEY_N
+  action: "v5_preview_n"
+}
+key_trigger {
+  input: KEY_B
+  action: "v5_preview_b"
+}
+key_trigger {
+  input: KEY_M
+  action: "v5_preview_m"
+}
+key_trigger {
+  input: KEY_F10
+  action: "bumpy_preview_toggle"
+}
+key_trigger {
+  input: KEY_C
+  action: "v5_preview_c"
+}
+key_trigger {
+  input: KEY_V
+  action: "v5_preview_v"
+}

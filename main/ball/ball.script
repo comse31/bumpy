@@ -1,13 +1,33 @@
+-- TEMPO: 1.10 = slower ~0.65 s period. Set 1.0 to return to 0.588 s.
+local TEMPO = 1.0
+
 -- реестр экземпляров, созданных загрузчиком уровня (main/level/level.script)
 local state = require("main.level.level_state")
 -- герои: вся специфика мячика и Slinky вынесена в отдельные модули
 local hero_ball = require("main.ball.hero_ball")
 local hero_slinky = require("main.ball.hero_slinky")
-local hero_bumpy = require("main.bumpy_v10.hero_bumpy_v10")
+local hero_bumpy = require("main.bumpy_v12.hero_bumpy_v12")
 
 -- константы игрового баланса вынесены в main/ball/ball_config.lua; здесь
 -- только локальные псевдонимы, чтобы формулы и геометрия читались компактно
 local cfg = require("main.ball.ball_config")
+
+-- TEMPO is the single timing knob. BPM and music are untouched.
+cfg.PERIOD = (60.0 / cfg.BPM / 0.85) * TEMPO
+cfg.CONTACT_DWELL = 0.10
+cfg.T_AIR = cfg.PERIOD - cfg.CONTACT_DWELL
+cfg.H_DEFAULT = cfg.HEIGHT
+cfg.GRAVITY = 8.0 * cfg.HEIGHT / (cfg.PERIOD * cfg.PERIOD)
+cfg.JUMP_SPEED = cfg.GRAVITY * cfg.PERIOD * 0.5
+cfg.HIGH_JUMP_SPEED = math.sqrt(2.0 * cfg.GRAVITY * cfg.HIGH_JUMP_HEIGHT)
+-- DWELL scheme is active again (the ball-like experiment is off)
+cfg.BUMPY_BALL_BOUNCE = true
+cfg.ENV.period = cfg.PERIOD
+cfg.ENV.jump_speed = cfg.JUMP_SPEED
+cfg.ENV.contact_dwell = cfg.CONTACT_DWELL
+cfg.ENV.t_air = cfg.T_AIR
+cfg.ENV.h_default = cfg.H_DEFAULT
+
 -- отладочный вывод: печатается при bumpy.debug = 1 в game.project
 local dbg = require("main.ball.ball_debug")
 -- физическое тело мяча: единая точка доступа к #collision_object
@@ -66,9 +86,16 @@ local MOVE_DURATION = cfg.MOVE_DURATION
 local BLOCK_HALF_W = cfg.BLOCK_HALF_W
 local BLOCK_HEIGHT = cfg.BLOCK_HEIGHT
 local ENV = cfg.ENV
+-- v12 contact state machine (Bumpy only; other heroes keep their own rules)
+local CONTACT_DWELL = cfg.CONTACT_DWELL
+local T_AIR = cfg.T_AIR
+local V12_INPUT_BUFFER = cfg.V12_INPUT_BUFFER
+local BUMPY_BALL_BOUNCE = cfg.BUMPY_BALL_BOUNCE
+local BIG_FALL_DROP = cfg.BIG_FALL_DROP
+local LANDING_CONTACT_TIME = cfg.LANDING_CONTACT_TIME
+local PLATFORM_HALF_W = 70.0
 
--- переключение героя по клавише T: мячик <-> Slinky. Общий код знает только
--- интерфейс героя (activate/deactivate/reset), вся специфика — в модулях
+-- переключение героя по клавише T: bumpy -> мячик -> Slinky.
 local function toggle_character(self)
     self.hero.deactivate(self)
     if self.character == "bumpy" then
@@ -91,7 +118,17 @@ local function toggle_character(self)
     self.sticky_action_used = false
     self.sticky_cell = nil
     self.high_jump_locked = false
+    if self.hero.contact_dwell then
+        self.contact_phase = "flight"
+        self.jump_takeoff_time = self.time
+        self.release_time = nil
+        self.t_land = nil
+        self.landed_flight_id = -1
+    else
+        self.contact_phase = "flight"
+    end
     self.hero.activate(self)
+    motion.restore_gravity()
     dbg.always("CHARACTER: " .. self.character)
 end
 
@@ -267,6 +304,18 @@ local function settle_or_stick(self)
         self.next_touch_time = nil
     else
         self.hero.settle(self)
+        if self.hero.contact_dwell then
+            -- scripted (swept) landing may not have produced contact_point_response
+            if self.contact_phase ~= "dwell" then
+                self.contact_phase = "dwell"
+                self.dwell_until = self.time + (BUMPY_BALL_BOUNCE and 0.0 or CONTACT_DWELL)
+                self.dwell_ground_y = self.ground_y
+                self.dwell_pending = nil
+                phys.stop()
+                motion.restore_gravity()
+            end
+            motion.schedule_vertical(self)
+        end
     end
 end
 
@@ -289,6 +338,32 @@ landing.bind({
 function init(self)
     msg.post(".", "acquire_input_focus")
     physics.set_gravity(vmath.vector3(0.0, -GRAVITY, 0.0))
+    -- clip preview is off by default; F10 toggles it. This prevents a second
+    -- Bumpy from appearing/running on its own during normal play.
+    self.preview_enabled = false
+    if go.get_id("/bumpy_v12_preview") then
+        msg.post("/bumpy_v12_preview", "disable")
+    end
+    -- v12 Bumpy: DWELL/FLIGHT starts in FLIGHT so the first fall is accepted
+    self.contact_phase = "flight"
+    self.dwell_until = 0.0
+    self.dwell_pending = nil
+    self.dwell_ground_y = nil
+    self.dwell_row = nil
+    self.dwell_slope_dir = nil
+    self.jump_takeoff_time = -math.huge
+    self.release_time = nil
+    self.t_land = nil
+    self.release_y = nil
+    self.flight_id = 0
+    self.landed_flight_id = -1
+    self.candidate_seen = {}
+    self.air_peak_y = nil
+    self.ignore_jump_until = -math.huge
+    self.big_landing_rest = false
+    self.v12_dir_buffer = nil
+    self.v12_dir_buffer_time = -math.huge
+    self.v12_jump_buffer_time = -math.huge
     self.squash = 0.0
     self.squash_axis = "y"
     self.move_t = 0.0
@@ -459,6 +534,12 @@ local function update_high_jump(self, position)
         self.rising = false
         go.set_position(vmath.vector3(position.x, SCREEN_H - RADIUS, position.z))
         phys.stop()
+        self.squash = 1.0
+        self.squash_axis = "y"
+        if self.hero.on_ceiling then
+            self.hero.on_ceiling(self)
+        end
+        self.hero.apply_squash(self)
         dbg.log("CEILING: high jump stopped at the top edge of the field")
     end
     -- стена (блок) выше в колонке: мяч упирается в её нижнюю грань — подъём
@@ -479,6 +560,12 @@ local function update_high_jump(self, position)
                 -- а самый первый удар по стене расходует один молоток
                 -- (без молотка кладка остаётся целой)
                 hit_block_from_below(self, r, self.col)
+                self.squash = 1.0
+                self.squash_axis = "y"
+                if self.hero.on_ceiling then
+                    self.hero.on_ceiling(self)
+                end
+                self.hero.apply_squash(self)
                 dbg.log(string.format("CEILING: high jump hit the bottom of block cell=(%d, %d)", self.col, r))
             end
             break
@@ -537,11 +624,41 @@ local function update_high_jump_steer(self, position)
     end
 end
 
+-- v12 sticky rest: a command from rest goes through the same contact -> flight
+-- path, so the clip / trajectory stay consistent with a normal beat.
+local function begin_rest_dwell(self, force_anticipation)
+    self.contact_phase = "dwell"
+    local rdwell = BUMPY_BALL_BOUNCE and 0.0 or CONTACT_DWELL
+    self.dwell_until = self.time + rdwell
+    self.dwell_ground_y = self.ground_y
+    self.dwell_row = self.row
+    self.dwell_slope_dir = world.slope_direction(self.row, self.col)
+    self.dwell_pending = nil
+    self.release_time = nil
+    self.t_land = nil
+    self.release_y = nil
+    self.press_used = false
+    phys.stop()
+    motion.restore_gravity()
+    if BUMPY_BALL_BOUNCE and not force_anticipation then
+        -- no contact clip: keep the last flight frame until the next launch
+    elseif self.hero.begin_anticipation then
+        local dur = self.hero.begin_anticipation(self)
+        self.dwell_until = self.time + math.max(CONTACT_DWELL, dur or 0.0)
+    elseif self.hero.begin_contact then
+        self.hero.begin_contact(self)
+    end
+end
+
 -- реагирование на состояние клавиш (нажата/отжата) в окне threshold вокруг
 -- касания; стоящий Slinky не отскакивает, поэтому команда принимается в любой
 -- момент, пока он находится в покое. На липкой поверхности мяч лежит и ждёт
 -- команды: влево/вправо для него — соскок на соседнюю ячейку
 local function update_held_move(self)
+    -- v12: the jump is chosen at the end of DWELL, input is not executed here
+    if self.hero.contact_dwell and self.contact_phase == "dwell" then
+        return
+    end
     local dir = held_direction(self)
     -- сброс блокировки действия при отпускании клавиши: удержание даёт ровно
     -- одно действие (соскок/прыжок), следующее — только по новому нажатию
@@ -559,11 +676,16 @@ local function update_held_move(self)
         -- соседнюю ячейку (мяч отталкивается и прыгает, а не скатывается).
         -- За одно касание — ровно одно действие
         if not self.sticky_action_used then
-            self.sticky_action_used = true
-            self.sticky_rest = false
-            self.pending_dir = 0
-            hop_and_move(self, dir)
-            self.press_used = true
+            if self.hero.contact_dwell then
+                self.sticky_action_used = true
+                begin_rest_dwell(self)
+            else
+                self.sticky_action_used = true
+                self.sticky_rest = false
+                self.pending_dir = 0
+                hop_and_move(self, dir)
+                self.press_used = true
+            end
         end
         return
     end
@@ -596,6 +718,10 @@ end
 -- перемещении с платформы того же ряда. Пока мяч лежит (sticky_rest) —
 -- высоко не прыгает
 local function update_held_jump(self)
+    -- v12: the jump is chosen at the end of DWELL, input is not executed here
+    if self.hero.contact_dwell and self.contact_phase == "dwell" then
+        return
+    end
     local from_rest = self.hero.allow_from_rest(self)
     -- высокий прыжок запрещён на верху кирпичной кладки (high_jump_locked) и
     -- на липкой платформе, если действие за это касание уже израсходовано
@@ -704,6 +830,333 @@ local function update_squash(self, dt)
     end
 end
 
+local function ignored_contact(self, reason)
+    print(string.format("IGNORED contact t=%.3f reason=%s", self.time, reason))
+end
+
+-- accepted contact: contact_* starts at cursor 0, the ball is frozen for DWELL.
+local function begin_dwell(self, row)
+    self.contact_phase = "dwell"
+    self.dwell_until = self.time + (BUMPY_BALL_BOUNCE and 0.0 or CONTACT_DWELL)
+    self.dwell_ground_y = BOUNCE_Y[row]
+    self.dwell_row = row
+    self.dwell_pending = nil
+    self.dwell_slope_dir = 0
+    self.big_landing_rest = false
+    self.press_used = false
+    -- landing on an earlier frame stops the horizontal tween where it is
+    self.move_t = 0.0
+    self.bounce_t = 0.0
+    self.bounce_squash_pending = false
+    self.bounce_hit_pending = false
+    phys.stop()
+    motion.restore_gravity()
+    self.release_time = nil
+    self.t_land = nil
+    self.release_y = nil
+    self.landed_flight_id = self.flight_id
+    local pos = go.get_position()
+    local pid = world.platform_id(row, self.col)
+    print(string.format("LAND t=%.3f x=%.1f platform=%s",
+        self.time, pos.x, pid and tostring(pid) or "none"))
+    local sticky_here = world.platform_flag(row, self.col, "sticky")
+    local apex = self.air_peak_y or self.dwell_ground_y
+    local drop = math.max(0.0, apex - self.dwell_ground_y)
+    local long_air = self.air_start_time
+        and (self.time - self.air_start_time) > 1.2 * PERIOD
+    local over_gap = self.hero.is_over_gap and self.hero.is_over_gap(self)
+    print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f long_air=%s gap=%s",
+        self.time, sticky_here and "true" or "false", drop,
+        long_air and "true" or "false", over_gap and "true" or "false"))
+    local surprised = self.hero.is_surprised_fall
+        and self.hero.is_surprised_fall(self)
+    local falling = self.hero.is_falling and self.hero.is_falling(self)
+    local falling_big = falling and drop > 0.25 * CELL_H
+    if sticky_here then
+        -- slime: no landing squash at all, stay round and stuck as landed
+        self.dwell_until = self.time
+    elseif (drop > BIG_FALL_DROP or long_air or over_gap or surprised or falling_big)
+        and self.hero.begin_big_landing then
+        -- long fall: landing / land_head, then normal bounce (no rest/stick)
+        local dur = self.hero.begin_big_landing(self)
+        self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
+    elseif self.hero.begin_contact then
+        local contact_time = BUMPY_BALL_BOUNCE and LANDING_CONTACT_TIME
+            or CONTACT_DWELL
+        self.hero.begin_contact(self, contact_time)
+        self.dwell_until = self.time + contact_time
+    elseif self.hero.settle then
+        self.hero.settle(self)
+    end
+    self.air_peak_y = self.dwell_ground_y
+end
+
+local function dwell_direction(self)
+    local dir = held_direction(self)
+    if dir ~= 0 then
+        return dir
+    end
+    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= V12_INPUT_BUFFER then
+        return self.pending_dir
+    end
+    if self.v12_dir_buffer and (self.time - self.v12_dir_buffer_time) <= V12_INPUT_BUFFER then
+        return self.v12_dir_buffer
+    end
+    return 0
+end
+
+local function dwell_jump(self)
+    if jump_active(self) or self.pending_jump then
+        return true
+    end
+    return self.v12_jump_buffer_time
+        and (self.time - self.v12_jump_buffer_time) <= V12_INPUT_BUFFER
+end
+
+-- DWELL end: choose contact -> flight immediately from the input at this moment.
+local function resolve_dwell_action(self)
+    local dir = dwell_direction(self)
+    local want_jump = dwell_jump(self)
+    local slope = self.dwell_slope_dir or 0
+    local from_target = false
+
+    -- a high-jump sideways move already happened in the air; it must not
+    -- swallow the held direction on the first landing after it
+    self.rising_moved = false
+    if slope ~= 0 then
+        -- slope traps must still arm the YOU ARE TRAPPED countdown
+        check_slope_trap(self, self.dwell_row or self.row, self.col, slope)
+        dir = slope
+        want_jump = false
+    end
+    self.big_landing_rest = false
+    if dir == 0 and not want_jump and self.target_col and self.target_row == self.dwell_row then
+        if self.target_col ~= self.col then
+            dir = self.target_col > self.col and 1 or -1
+            from_target = true
+        else
+            self.target_col = nil
+            self.target_row = nil
+        end
+    end
+
+    if self.sticky_rest then
+        if dir == 0 and not want_jump then
+            self.contact_phase = "flight"
+            self.jump_takeoff_time = self.time
+            self.release_time = nil
+            self.t_land = nil
+            self.dwell_ground_y = nil
+            self.hero.begin_rest(self)
+            return
+        end
+        self.sticky_action_used = true
+        self.sticky_rest = false
+    end
+
+    self.dwell_pending = nil
+    if want_jump and not self.high_jump_locked then
+        self.hero.begin_high_jump(self)
+        self.dwell_pending = { kind = "high_jump" }
+    elseif dir ~= 0 then
+        self.hero.begin_flight(self, dir)
+        motion.hop_and_move(self, dir)
+    else
+        self.hero.begin_flight(self, 0)
+        self.dwell_pending = { kind = "vertical" }
+    end
+
+    self.contact_phase = "flight"
+    self.jump_takeoff_time = self.time
+    self.flight_id = (self.flight_id or 0) + 1
+    self.landed_flight_id = -1
+    self.candidate_seen = {}
+    self.pending_dir = 0
+    self.pending_jump = false
+    self.v12_dir_buffer = nil
+    self.v12_jump_buffer_time = nil
+    self.press_used = true
+    if from_target then
+        clear_cell_cmd(self)
+    end
+
+    if self.dwell_pending and self.dwell_pending.kind ~= "high_jump" then
+        self.release_time = self.time
+        -- motion.launch_pending fills t_land from the ballistic jump
+    else
+        self.release_time = nil
+        self.t_land = nil
+    end
+    self.dwell_ground_y = nil
+    self.dwell_row = nil
+    self.dwell_slope_dir = nil
+    if self.dwell_pending then
+        motion.launch_pending(self)
+    end
+end
+
+local function update_contact_state(self, dt)
+    if not self.hero.contact_dwell or self.contact_phase ~= "dwell" then
+        return
+    end
+    -- DWELL: zero speed and the exact surface position; new contacts are ignored
+    phys.stop()
+    local pos = go.get_position()
+    if self.dwell_ground_y then
+        go.set_position(vmath.vector3(pos.x, self.dwell_ground_y, pos.z))
+    end
+    if self.time >= self.dwell_until then
+        resolve_dwell_action(self)
+    end
+end
+
+local function platform_at_x(row, x)
+    local best = nil
+    for col = 0, COLS - 1 do
+        local id = world.platform_id(row, col)
+        if id and not world.block_state(row, col)
+            and not world.platform_flag(row, col, "gone") then
+            local center = grid.column_center(col)
+            local overlap = x + RADIUS > center - PLATFORM_HALF_W
+                and x - RADIUS < center + PLATFORM_HALF_W
+            local dist = math.abs(x - center)
+            if overlap and (not best or dist < best.dist) then
+                best = { id = id, col = col, center = center, dist = dist }
+            end
+        end
+    end
+    return best
+end
+
+local function log_candidate(self, pos, row, col, id, top, t_since, accepted, reason)
+    local key = row * COLS + col
+    if self.candidate_seen[key] then
+        return
+    end
+    self.candidate_seen[key] = true
+    print(string.format(
+        "CANDIDATE t=%.3f x=%.1f y=%.1f platform=%s top=%.1f t_since_release=%.3f accepted=%s reason=%s",
+        self.time, pos.x, pos.y, tostring(id), top, t_since,
+        accepted and "true" or "false", reason))
+end
+
+-- geometric landing: in the falling phase the first platform whose top the
+-- ball's bottom crosses is always accepted if x overlaps the platform.
+local function scan_landing_candidates(self)
+    if BUMPY_BALL_BOUNCE then
+        return
+    end
+    if not self.hero.contact_dwell or self.high_jump or self.sticky_rest then
+        return
+    end
+    if self.game_over then
+        return
+    end
+    local pos = go.get_position()
+    local curr_bottom = pos.y - RADIUS
+    local prev_bottom = (self.prev_pos_y or pos.y) - RADIUS
+    local t_since = self.release_time and (self.time - self.release_time) or 999.0
+    local falling_phase = (self.release_time == nil) or (t_since >= 0.5 * (self.t_land or T_AIR))
+    local list = {}
+
+    for row = 0, COLS - 1 do
+        local top = BOUNCE_Y[row] - RADIUS
+        local crossed = prev_bottom >= top - 0.5
+            and curr_bottom <= top + 0.5
+            and curr_bottom <= prev_bottom + 0.01
+        if crossed then
+            for col = 0, COLS - 1 do
+                local id = world.platform_id(row, col)
+                local center = grid.column_center(col)
+                if id and not world.block_state(row, col)
+                    and not world.platform_flag(row, col, "gone")
+                    and math.abs(pos.x - center)
+                        <= PLATFORM_HALF_W + RADIUS + CELL_W then
+                    local overlap = pos.x + RADIUS > center - PLATFORM_HALF_W
+                        and pos.x - RADIUS < center + PLATFORM_HALF_W
+                    local reason
+                    if self.contact_phase == "dwell" then
+                        reason = "dwell"
+                    elseif not falling_phase then
+                        reason = "too_early"
+                    elseif not overlap then
+                        reason = "side"
+                    elseif self.landed_flight_id == self.flight_id then
+                        reason = "below"
+                    else
+                        reason = "ok"
+                    end
+                    list[#list + 1] = {
+                        row = row, col = col, id = id, center = center,
+                        top = top, reason = reason,
+                        dist = math.abs(pos.x - center),
+                    }
+                end
+            end
+        end
+    end
+
+    local chosen = nil
+    for _, c in ipairs(list) do
+        if c.reason == "ok" and (not chosen
+            or c.top > chosen.top
+            or (c.top == chosen.top and c.dist < chosen.dist)) then
+            chosen = c
+        end
+    end
+    for _, c in ipairs(list) do
+        local accepted = chosen == c
+        local reason = c.reason
+        if accepted then
+            reason = "ok"
+        elseif reason == "ok" then
+            -- another overlapping platform won this crossing
+            reason = "below"
+        end
+        log_candidate(self, pos, c.row, c.col, c.id, c.top, t_since, accepted, reason)
+    end
+
+    if chosen then
+        self.col = chosen.col
+        begin_dwell(self, chosen.row)
+        land_on_platform(self, chosen.row)
+    end
+end
+
+-- forced landing keeps the rhythm even if physics misses a contact
+local function update_forced_landing(self)
+    if BUMPY_BALL_BOUNCE then
+        return
+    end
+    if not self.hero.contact_dwell or self.contact_phase ~= "flight" then
+        return
+    end
+    if self.high_jump or not self.release_time or not self.t_land then
+        return
+    end
+    local since = self.time - self.release_time
+    local tag = nil
+    if since >= self.t_land + 0.15 then
+        tag = "WATCHDOG_LAND"
+    elseif since >= self.t_land then
+        tag = "FORCED_LAND"
+    end
+    if not tag then
+        return
+    end
+    local row = self.row or 0
+    local pos = go.get_position()
+    local found = platform_at_x(row, pos.x)
+    if not found then
+        return
+    end
+    self.col = found.col
+    print(string.format("%s t=%.3f row=%d col=%d", tag, self.time, row, self.col))
+    go.set_position(vmath.vector3(pos.x, BOUNCE_Y[row], pos.z))
+    begin_dwell(self, row)
+    land_on_platform(self, row)
+end
+
 -- сбор предметов по фактической ячейке мяча: кандидат — предмет в той же
 -- ячейке (в том числе при пролёте ячейки без платформы), но берётся он
 -- только при фактическом касании мяча (см. goodie_touched)
@@ -751,11 +1204,15 @@ function update(self, dt)
     end
 
     local position = go.get_position()
+    if self.contact_phase == "flight" or self.high_jump then
+        self.air_peak_y = math.max(self.air_peak_y or position.y, position.y)
+    end
     if update_bounds(self, position) then
         return
     end
 
     update_high_jump(self, position)
+    update_contact_state(self, dt)
 
     -- сброс защиты от повторных контактов: on_message приходит после update в том же кадре
     self.contact_processed = false
@@ -764,7 +1221,9 @@ function update(self, dt)
     -- как только мяч готов к действию (вне высокого прыжка и вне середины шага).
     -- Вызывается ДО обработки высокого прыжка, чтобы сторона соскока,
     -- назначенная тапом в этом кадре, применилась сразу
-    try_cell_command(self)
+    if not (self.hero.contact_dwell and self.contact_phase == "dwell") then
+        try_cell_command(self)
+    end
     update_high_jump_steer(self, position)
 
     update_held_move(self)
@@ -780,6 +1239,8 @@ function update(self, dt)
 
     update_move_tween(self, dt)
     update_bounce_tween(self, dt)
+    scan_landing_candidates(self)
+    update_forced_landing(self)
     update_landing(self, dt)
     update_squash(self, dt)
 
@@ -803,6 +1264,18 @@ function on_input(self, action_id, action)
     if game_mode.is_menu_open() then
         return
     end
+    if action_id == hash("bumpy_preview_toggle") then
+        if action.pressed then
+            self.preview_enabled = not self.preview_enabled
+            if self.preview_enabled then
+                msg.post("/bumpy_v12_preview", "enable")
+                msg.post("/bumpy_v12_preview", "acquire_input_focus")
+            else
+                msg.post("/bumpy_v12_preview", "disable")
+            end
+        end
+        return true
+    end
     -- Ввод текста (text-триггер в input/game.input_binding нужен меню для
     -- редактирования имени) перехватывает печатные клавиши раньше
     -- key-триггеров. Пробел приходит сюда как текст " ", а не как action
@@ -815,9 +1288,16 @@ function on_input(self, action_id, action)
             action_id = hash("jump")
             action = { pressed = true, released = false, value = 1.0 }
         elseif typed == " " then
-            -- пробел — прыжок (в игре он тоже приходит как текст)
-            action_id = hash("jump")
-            action = { pressed = true, released = false, value = 1.0 }
+            if self.time < (self.ignore_jump_until or -math.huge) then
+                return
+            end
+            -- пробел приходит как текст и не имеет release-события. Держать
+            -- jump_held нельзя (он залипнет и высокий прыжок будет на каждом
+            -- касании), поэтому ставим одноразовый буфер до конца DWELL.
+            self.jump_held = false
+            self.pending_jump = true
+            self.v12_jump_buffer_time = self.time
+            return
         else
             -- прочий текст игре не нужен: он принадлежит меню
             return
@@ -828,6 +1308,10 @@ function on_input(self, action_id, action)
     if self.ready_wait then
         if action.pressed then
             self.ready_wait = false
+            self.jump_held = false
+            self.pending_jump = false
+            self.v12_jump_buffer_time = -math.huge
+            self.ignore_jump_until = self.time + 0.15
             msg.post("/ready", "hide")
             -- старт уровня: камера плавно переходит от полного вида поля
             -- (как на плашке READY) к режиму игры — масштаб по длинному краю
@@ -866,19 +1350,26 @@ function on_input(self, action_id, action)
     -- мяч запускает высокий прыжок при каждом отскоке нового уровня
     if action_id == hash("jump") then
         if action.pressed then
-            self.jump_held = true
+            if self.time >= (self.ignore_jump_until or -math.huge) then
+                self.jump_held = true
+                self.v12_jump_buffer_time = self.time
+            end
         elseif action.released then
             self.jump_held = false
         end
     elseif action_id == hash("right") then
         if action.pressed then
             self.right_held = true
+            self.v12_dir_buffer = 1
+            self.v12_dir_buffer_time = self.time
         elseif action.released then
             self.right_held = false
         end
     elseif action_id == hash("left") then
         if action.pressed then
             self.left_held = true
+            self.v12_dir_buffer = -1
+            self.v12_dir_buffer_time = self.time
         elseif action.released then
             self.left_held = false
         end
@@ -948,6 +1439,27 @@ local function reset_level_state(self)
     self.block_hit_time = -math.huge
     self.block_top_time = -math.huge
     self.squash = 0.0
+    -- contact state is not carried between levels
+    self.contact_phase = "flight"
+    self.dwell_until = 0.0
+    self.dwell_pending = nil
+    self.dwell_ground_y = nil
+    self.dwell_row = nil
+    self.dwell_slope_dir = nil
+    self.jump_takeoff_time = -math.huge
+    self.release_time = nil
+    self.t_land = nil
+    self.release_y = nil
+    self.flight_id = 0
+    self.landed_flight_id = -1
+    self.candidate_seen = {}
+    self.air_peak_y = nil
+    self.ignore_jump_until = -math.huge
+    self.big_landing_rest = false
+    self.v12_dir_buffer = nil
+    self.v12_dir_buffer_time = -math.huge
+    self.v12_jump_buffer_time = -math.huge
+    motion.restore_gravity()
     phys.stop()
     -- сбросить деформации визуала и вернуть визуал активного героя
     self.hero.reset(self)
@@ -967,39 +1479,98 @@ local function handle_contact(self, message)
         return
     end
     self.contact_processed = true
-    -- дедупликация между кадрами: пока мяч ещё не оторвался от поверхности,
-    -- Box2D присылает контакт повторно в следующем шаге физики; один прыжок
-    -- должен дать ровно одну запись
-    if self.time - self.last_contact_time < CONTACT_DEDUP then
-        return
-    end
-    -- только что начали действие: контакт этого кадра ещё «до отрыва», не
-    -- считаем его приземлением (иначе мгновенно повторный шаг через платформу)
-    if self.time - (self.action_time or -math.huge) < CONTACT_GUARD then
-        return
-    end
-    self.last_contact_time = self.time
-    -- Slinky уже стоит на платформе: пока он в покое, повторные контакты
-    -- игнорируем (иначе каждые CONTACT_DEDUP секунд он бы «приземлялся» заново)
-    if self.hero.ignore_contacts(self) then
-        return
-    end
-    -- отладка: момент касания мяча платформы; координаты игровой ячейки (от левого нижнего угла)
+
     local pos = go.get_position()
+    local ny = message.normal.y
+    local top_hit = self.hero.contact_dwell and (ny > 0.5) or (ny > 0.0)
+    local bottom_hit = self.hero.contact_dwell and (ny < -0.5)
+
+    if self.hero.contact_dwell then
+        if top_hit then
+            -- DWELL: every new contact is ignored
+            if self.contact_phase == "dwell" then
+                ignored_contact(self, "dwell")
+                return
+            end
+            if self.landed_flight_id == self.flight_id then
+                return
+            end
+            local t_since = self.release_time
+                and (self.time - self.release_time) or math.huge
+            local contact_y = pos.y - RADIUS
+            local row = vmath.clamp(math.floor(contact_y / CELL_H + 1e-6), 0, COLS - 1)
+            local found = platform_at_x(row, pos.x)
+            if self.release_time and t_since < 0.5 * (self.t_land or T_AIR) then
+                if found then
+                    log_candidate(self, pos, row, found.col, found.id,
+                        BOUNCE_Y[row] - RADIUS, t_since, false, "too_early")
+                end
+                ignored_contact(self, "too_early")
+                return
+            end
+            if self.hero.ignore_contacts(self) then
+                return
+            end
+            self.last_contact_time = self.time
+            if found then
+                self.col = found.col
+                log_candidate(self, pos, row, found.col, found.id,
+                    BOUNCE_Y[row] - RADIUS, t_since, true, "ok")
+            else
+                self.col = vmath.clamp(math.floor(pos.x / CELL_W), 0, COLS - 1)
+            end
+            begin_dwell(self, row)
+            land_on_platform(self, row)
+            return
+        elseif bottom_hit then
+            -- ceiling / underside hit, only while the ball is rising
+            local t_since = self.release_time
+                and (self.time - self.release_time) or math.huge
+            if not (self.rising or (self.release_time
+                and t_since < 0.5 * (self.t_land or T_AIR))) then
+                return
+            end
+            -- Box2D repeats the contact every step while pressed to the surface
+            if self.time - (self.last_ceiling_time or -math.huge) < CONTACT_DEDUP then
+                return
+            end
+            self.last_ceiling_time = self.time
+            self.last_contact_time = self.time
+        else
+            -- side contact: neither a landing nor a ceiling
+            return
+        end
+    else
+        -- legacy heroes: deduplication and resting contacts
+        if self.time - self.last_contact_time < CONTACT_DEDUP then
+            return
+        end
+        if self.time - (self.action_time or -math.huge) < CONTACT_GUARD then
+            return
+        end
+        self.last_contact_time = self.time
+        if self.hero.ignore_contacts(self) then
+            return
+        end
+    end
+
     -- точка контакта по Y (низ/верх мяча) лежит в той же ячейке, что и платформа
-    local contact_y = message.normal.y > 0.0 and (pos.y - RADIUS) or (pos.y + RADIUS)
+    local contact_y = top_hit and (pos.y - RADIUS) or (pos.y + RADIUS)
     local row = vmath.clamp(math.floor(contact_y / CELL_H + 1e-6), 0, COLS - 1)
-    local side = message.normal.y > 0.0 and "сверху" or "снизу"
+    local side = top_hit and "сверху" or "снизу"
     dbg.log(string.format("TOUCH t=%.3f cell=(%d, %d) side=%s", self.time, self.col, row, side))
     -- столкновение с платформой снизу: не прилипаем, подъем прекращается, мяч падает;
     -- платформа при этом упруго прогибается вверх (удар снизу). Шипы опасны
     -- и снизу: контакт с нижней гранью тоже лопает мяч.
-    if message.normal.y <= 0.0 then
+    if not top_hit then
         self.rising = false
         self.high_jump = false
         bend_platform(self, row, self.col, -1)
         self.squash = 1.0
         self.squash_axis = "y"
+        if self.hero.on_ceiling then
+            self.hero.on_ceiling(self)
+        end
         self.hero.apply_squash(self)
         if is_spike(row, self.col) then
             lose_life(self, "spikes")
@@ -1024,6 +1595,22 @@ function on_message(self, message_id, message, sender)
     if message_id == hash("cell_tap") then
         if not game_mode.is_menu_open() and not self.ready_wait
             and not self.game_over and not self.trap_active then
+            local mdir = tonumber(message.dir) or 0
+            local mcol = tonumber(message.col)
+            if mdir == 0 and mcol then
+                if mcol > self.col then
+                    mdir = 1
+                elseif mcol < self.col then
+                    mdir = -1
+                end
+            end
+            if mdir ~= 0 then
+                self.v12_dir_buffer = mdir > 0 and 1 or -1
+                self.v12_dir_buffer_time = self.time
+            end
+            if (tonumber(message.row) or 0) > (self.row or 0) then
+                self.v12_jump_buffer_time = self.time
+            end
             set_cell_cmd(self, message)
             -- в высоком прыжке команда исполняется сразу, не дожидаясь
             -- следующего update: на постоянной скорости мяч проходит ячейку
@@ -1049,10 +1636,21 @@ function on_message(self, message_id, message, sender)
             local pressed = (message and message.pressed) or false
             if control == "left" then
                 self.touch_left = pressed
+                if pressed then
+                    self.v12_dir_buffer = -1
+                    self.v12_dir_buffer_time = self.time
+                end
             elseif control == "right" then
                 self.touch_right = pressed
+                if pressed then
+                    self.v12_dir_buffer = 1
+                    self.v12_dir_buffer_time = self.time
+                end
             elseif control == "high" then
                 self.touch_jump = pressed
+                if pressed then
+                    self.v12_jump_buffer_time = self.time
+                end
             end
         end
         return

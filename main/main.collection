@@ -228,9 +228,10 @@ instances {
   }
 }
 
+# --- v12: gameplay hero + shadow + clip preview ---
 instances {
-  id: "bumpy_v10_visual"
-  prototype: "/main/bumpy_v10/bumpy_v10_visual.go"
+  id: "bumpy_v12_visual"
+  prototype: "/main/bumpy_v12/bumpy_v12_visual.go"
   position {
     x: 80.0
     y: 579.33
@@ -242,25 +243,14 @@ instances {
   }
 }
 instances {
-  id: "bumpy_v10_shadow_visual"
-  prototype: "/main/bumpy_v10/bumpy_v10_shadow_visual.go"
+  id: "bumpy_v12_shadow_visual"
+  prototype: "/main/bumpy_v12/bumpy_v12_shadow_visual.go"
   position {
     x: 80.0
     y: 563.33
-    z: -0.1
+    z: 0.01
   }
 }
-# --- режим просмотра клипов v10 (Shift+клавиша показывает клип и подпись) ---
-instances {
-  id: "bumpy_v10_preview"
-  prototype: "/main/bumpy_v10/bumpy_v10_preview.go"
-  position {
-    x: 480.0
-    y: 300.0
-    z: 0.5
-  }
-}
-# --- пул сегментов-колец для героя-пружинки (Slinky) ---
 instances {
   id: "ball"
   prototype: "/main/ball/ball.go"

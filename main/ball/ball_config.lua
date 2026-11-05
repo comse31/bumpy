@@ -57,6 +57,19 @@ C.PERIOD = 60.0 / C.BPM / C.HERO_TIME_SCALE
 C.HEIGHT = 1.5 * C.SIZE
 C.GRAVITY = 8.0 * C.HEIGHT / (C.PERIOD * C.PERIOD)
 C.JUMP_SPEED = C.GRAVITY * C.PERIOD * 0.5
+
+-- v12 Bumpy: contact hold and fixed airborne time. H is unchanged; the airborne
+-- duration is fixed, so v0/g are derived from H and T_AIR.
+C.CONTACT_DWELL = 0.10
+C.T_AIR = C.PERIOD - C.CONTACT_DWELL
+C.H_DEFAULT = C.HEIGHT
+C.H_MIN = 0.6 * C.SIZE
+C.CLEARANCE_PAD = 8.0
+-- input buffer for the DWELL-end decision (pressed up to this long before touch)
+C.V12_INPUT_BUFFER = 0.15
+-- temporary: Bumpy bounces like the ball, without a DWELL stop on contact.
+-- false restores the contact_* hold (0.10 s) and the old rhythm.
+C.BUMPY_BALL_BOUNCE = true
 -- высокий прыжок (Space/Up): начальный импульс как при прыжке на один этаж;
 -- первый уровень подъёма замедляется гравитацией, выше скорость становится
 -- постоянной (JUMP_SPEED) — мяч летит до платформы сверху или верхнего края
@@ -114,6 +127,12 @@ C.MOVE_DURATION = 0.25
 C.BLOCK_HALF_W = 70.0
 C.BLOCK_HEIGHT = C.CELL_H
 
+-- падение с высоты больше ~одной ячейки: включаем удивление в полёте и
+-- глубокое сплющивание landing / land_head при касании
+C.BIG_FALL_DROP = C.CELL_H * 0.5
+C.LANDING_CONTACT_TIME = 0.03
+C.BIG_FALL_HURT_DROP = C.CELL_H * 0.7
+
 -- общие значения, которые нужны героям; передаются им в setup
 C.ENV = {
     jump_speed = C.JUMP_SPEED,
@@ -121,6 +140,14 @@ C.ENV = {
     hop_height = C.HEIGHT,
     high_jump_height = C.HIGH_JUMP_HEIGHT,
     squash_amount = C.SQUASH_AMOUNT,
+    contact_dwell = C.CONTACT_DWELL,
+    t_air = C.T_AIR,
+    h_default = C.H_DEFAULT,
+    h_min = C.H_MIN,
+    clearance_pad = C.CLEARANCE_PAD,
+    cell_h = C.CELL_H,
+    big_fall_drop = C.BIG_FALL_DROP,
+    big_fall_hurt_drop = C.BIG_FALL_HURT_DROP,
 }
 
 return C

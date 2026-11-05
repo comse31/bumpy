@@ -1,4 +1,0 @@
-tile_set: "/main/bumpy_v10/bumpy_v10.atlas"
-default_animation: "idle"
-material: "/builtins/materials/sprite.material"
-blend_mode: BLEND_MODE_ALPHA
