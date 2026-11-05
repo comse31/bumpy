@@ -42,6 +42,15 @@ local CELL_H = 106.6666667
 local PLATFORM_Y_BASE = 20.0
 local PLATFORM_H = 20.0
 
+local ROTATION_END = {
+    flight_feet_to_head = 32,
+    flight_feet_to_head_blink = 32,
+    flight_head_side = 32,
+    flight_head_side_blink = 32,
+    flight_head_hop = 16,
+    flight_head_hop_blink = 16,
+}
+
 local FLIGHT_BLINK = {
     flight_up = "flight_up_blink",
     flight_feet_to_head = "flight_feet_to_head_blink",
@@ -56,6 +65,16 @@ local function clip_by_name(name)
         end
     end
     return nil
+end
+
+local function stretched_flight_target(name, target)
+    local endf = ROTATION_END[name]
+    local clip = clip_by_name(name)
+    if endf and clip and endf > 1 then
+        -- map the last rotation frame to the landing moment
+        return target * clip.frames / (endf - 1)
+    end
+    return target
 end
 
 local function blink_delay()
@@ -106,14 +125,19 @@ local function play_clip(self, name, target, force, reason)
     self.v12_current_name = name
     self.v12_kind = clip.kind or "event"
     self.v12_start_time = self.time
-    self.v12_target = target or clip.duration_sec
+    local tempo = self.env.tempo or 1.0
+    local eff_target = target
+    if not eff_target and clip.kind ~= "flight" and clip.kind ~= "contact" then
+        eff_target = clip.duration_sec * tempo
+    end
+    self.v12_target = eff_target or clip.duration_sec
     if self.v12_target <= 0.0 then
         self.v12_target = clip.duration_sec
     end
     msg.post(VISUAL .. "#sprite", "play_animation", { id = hash(name) })
     if clip.loop then
         go.set(VISUAL .. "#sprite", "playback_rate",
-            (clip.frames / 30.0) / math.max(clip.duration_sec, 0.001))
+            (clip.frames / 30.0) / math.max(clip.duration_sec, 0.001) / tempo)
     else
         go.set(VISUAL .. "#sprite", "playback_rate", 0.0)
         go.set(VISUAL .. "#sprite", "cursor", 0.0)
@@ -488,6 +512,7 @@ function M.begin_flight(self, direction, duration)
     self.v12_flight_start_on_head = start_on_head
     self.v12_on_head = lands_on_head
     local target = duration or self.env.t_air
+    target = stretched_flight_target(name, target)
     play_clip(self, name, target, false, "release")
     self.v12_kind = "flight"
     self.v12_fall_hurt_done = false
@@ -496,7 +521,9 @@ end
 function M.set_flight_target(self, duration)
     if self.v12_kind == "flight" and self.v12_clip
         and not self.v12_clip.loop and duration and duration > 0.0 then
-        self.v12_target = duration
+        local target = duration
+        target = stretched_flight_target(self.v12_current_name, target)
+        self.v12_target = target
     end
 end
 
