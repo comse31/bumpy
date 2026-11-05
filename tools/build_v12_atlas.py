@@ -47,6 +47,11 @@ def main() -> int:
             if (name.startswith("flight_") or name == "high_jump") and index == 1:
                 copy_src = src_files[1]
                 phi[0] = phi[1]
+            elif "hit_side" in name and index <= 5:
+                # wall-hit clips start with an upright pose; use the compressed
+                # frame so Bumpy hits the wall instead of standing in the air
+                copy_src = src_files[5]
+                phi[index - 1] = phi[5]
             shutil.copyfile(copy_src, dst)
             rel = f"/main/bumpy_v12/frames/{name}/{src.name}"
             images.append(rel)
