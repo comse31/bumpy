@@ -32,6 +32,9 @@ local SHADOW_FADE = 0.08
 local SHADOW_X_SMOOTH = 0.06
 local SHADOW_LEVEL_SMOOTH = 0.2
 local SHADOW_LEVELS = 9
+local LAND_SQUASH_TIME = 0.12
+local LAND_SQUASH_X = 0.22
+local LAND_SQUASH_Y = 0.35
 local SHADOW_MAX_HEIGHT_K = 3.0
 local PLATFORM_HALF_W = 70.0
 local CELL_W = 160.0
@@ -60,8 +63,10 @@ local function blink_delay()
 end
 
 local function set_visual_scale(self)
+    local sx = self.v12_squash_x or 1.0
+    local sy = self.v12_squash_y or 1.0
     go.set(VISUAL .. "#sprite", "scale",
-        vmath.vector3(self.v12_sprite_k * self.v12_dir, self.v12_sprite_k, 1.0))
+        vmath.vector3(self.v12_sprite_k * self.v12_dir * sx, self.v12_sprite_k * sy, 1.0))
 end
 
 local function sync_visual(self)
@@ -372,6 +377,10 @@ function M.setup(self, env)
     self.v12_shadow_log_hidden = nil
     self.v12_shadow_log_platform = nil
     self.v12_dir = 1
+    self.v12_squash_t = 0.0
+    self.v12_squash_strength = 0.0
+    self.v12_squash_x = 1.0
+    self.v12_squash_y = 1.0
     self.v12_turn_to = nil
     self.v12_current_name = nil
     self.v12_kind = nil
@@ -404,6 +413,10 @@ end
 
 function M.reset(self)
     self.v12_dir = 1
+    self.v12_squash_t = 0.0
+    self.v12_squash_strength = 0.0
+    self.v12_squash_x = 1.0
+    self.v12_squash_y = 1.0
     self.v12_turn_to = nil
     self.v12_current_name = nil
     self.v12_kind = nil
@@ -549,8 +562,28 @@ local function start_fall(self)
     self.v12_kind = "fall"
 end
 
+function M.start_land_squash(self, strength)
+    strength = vmath.clamp(strength or 0.0, 0.0, 1.0)
+    if strength <= 0.0 then
+        return
+    end
+    self.v12_squash_t = LAND_SQUASH_TIME
+    self.v12_squash_strength = strength
+    self.v12_squash_x = 1.0 + LAND_SQUASH_X * strength
+    self.v12_squash_y = 1.0 - LAND_SQUASH_Y * strength
+    set_visual_scale(self)
+end
+
 function M.update(self, dt)
     sync_visual(self)
+    if self.v12_squash_t > 0.0 then
+        self.v12_squash_t = math.max(0.0, self.v12_squash_t - dt)
+        local k = self.v12_squash_t / LAND_SQUASH_TIME
+        local amt = self.v12_squash_strength * k
+        self.v12_squash_x = 1.0 + LAND_SQUASH_X * amt
+        self.v12_squash_y = 1.0 - LAND_SQUASH_Y * amt
+        set_visual_scale(self)
+    end
     update_shadow(self, dt, go.get_position())
     self.v12_blink_timer = self.v12_blink_timer - dt
 
