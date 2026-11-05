@@ -861,8 +861,7 @@ local function begin_dwell(self, row)
     local drop = math.max(0.0, apex - self.dwell_ground_y)
     print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
         self.time, sticky_here and "true" or "false", drop))
-    if not sticky_here and drop > BIG_FALL_DROP
-        and self.hero.start_land_squash then
+    if not sticky_here and self.hero.start_land_squash then
         local strength = math.min(1.0, 0.25 + drop / (3.0 * cfg.HEIGHT))
         self.hero.start_land_squash(self, strength)
     end

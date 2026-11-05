@@ -488,11 +488,7 @@ function M.begin_flight(self, direction, duration)
     self.v12_flight_start_on_head = start_on_head
     self.v12_on_head = lands_on_head
     local target = duration or self.env.t_air
-    local clip = play_clip(self, name, target, false, "release")
-    if clip and clip.frames > 1 then
-        -- skip the flattened contact frame; start from the round pose
-        self.v12_start_time = self.time - (1.0 / clip.frames) * target
-    end
+    play_clip(self, name, target, false, "release")
     self.v12_kind = "flight"
     self.v12_fall_hurt_done = false
 end
@@ -501,10 +497,6 @@ function M.set_flight_target(self, duration)
     if self.v12_kind == "flight" and self.v12_clip
         and not self.v12_clip.loop and duration and duration > 0.0 then
         self.v12_target = duration
-        local clip = self.v12_clip
-        if clip.frames > 1 then
-            self.v12_start_time = self.time - (1.0 / clip.frames) * duration
-        end
     end
 end
 

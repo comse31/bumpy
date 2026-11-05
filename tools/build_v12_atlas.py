@@ -26,7 +26,7 @@ def main() -> int:
     total = 0
     for name, meta in data.items():
         frames = int(meta["frames"])
-        phi = meta.get("phi_deg") or []
+        phi = list(meta.get("phi_deg") or [])
         if len(phi) != frames:
             raise SystemExit(f"{name}: phi len {len(phi)} != frames {frames}")
         src_dir = SRC / "frames" / name
@@ -41,7 +41,13 @@ def main() -> int:
             if src.name != expected:
                 raise SystemExit(f"{name}: unexpected {src.name}, expected {expected}")
             dst = dst_dir / src.name
-            shutil.copyfile(src, dst)
+            # Flight clips: frame 1 is the flattened contact pose. Use frame 2
+            # (round) as the first flight frame so it never flashes separately.
+            copy_src = src
+            if name.startswith("flight_") and index == 1:
+                copy_src = src_files[1]
+                phi[0] = phi[1]
+            shutil.copyfile(copy_src, dst)
             rel = f"/main/bumpy_v12/frames/{name}/{src.name}"
             images.append(rel)
             anim_images.append(rel)
