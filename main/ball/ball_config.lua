@@ -130,7 +130,7 @@ C.BLOCK_HEIGHT = C.CELL_H
 -- падение с высоты больше ~одной ячейки: включаем удивление в полёте и
 -- глубокое сплющивание landing / land_head при касании
 C.BIG_FALL_DROP = C.CELL_H * 0.5
-C.LANDING_CONTACT_TIME = 0.03
+C.LANDING_CONTACT_TIME = 0.08
 C.BIG_FALL_HURT_DROP = C.CELL_H * 0.7
 
 -- общие значения, которые нужны героям; передаются им в setup

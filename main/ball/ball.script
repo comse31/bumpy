@@ -864,12 +864,12 @@ local function begin_dwell(self, row)
     local drop = math.max(0.0, apex - self.dwell_ground_y)
     print(string.format("LAND_DECIDE t=%.3f sticky=%s drop=%.1f",
         self.time, sticky_here and "true" or "false", drop))
-    if not BUMPY_BALL_BOUNCE and not sticky_here then
-        -- non-ball mode keeps the explicit contact squash
-        if self.hero.begin_contact then
-            self.hero.begin_contact(self)
-            self.dwell_until = self.time + CONTACT_DWELL
-        end
+    if not sticky_here and self.hero.begin_contact then
+        -- visible squash on every normal landing and on big falls
+        local contact_time = BUMPY_BALL_BOUNCE and LANDING_CONTACT_TIME
+            or CONTACT_DWELL
+        self.hero.begin_contact(self, contact_time)
+        self.dwell_until = self.time + contact_time
     end
     self.air_peak_y = self.dwell_ground_y
 end
