@@ -106,6 +106,8 @@ function M.launch_pending(self)
         self.bounce_duration = t_land
         self.bounce_t = t_land
         self.bounce_squash_pending = true
+        self.bounce_hold_t = 0.0
+        self.bounce_hold_duration = 0.12 * ((self.hero.env and self.hero.env.tempo) or 1.0)
         self.action_time = self.time
         self.next_touch_time = self.time + t_land
         x1_target = self.bounce_x_end
@@ -137,6 +139,9 @@ function M.bounce_off_barrier(self, direction, face_x, inset)
     self.next_touch_time = self.time + self.bounce_duration
     -- сплющивание по X (горизонтальное) включается в момент касания грани
     self.bounce_squash_pending = true
+    self.bounce_hold_t = 0.0
+    local tempo = (self.hero.env and self.hero.env.tempo) or 1.0
+    self.bounce_hold_duration = 0.12 * tempo
     self.action_time = self.time
     -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
     self.hero.on_action(self, direction, self.bounce_duration)
