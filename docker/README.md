@@ -281,17 +281,58 @@ HTML5 не зашиваются: нужный однопоточный движ�
 > затем поднимается новый. На раннере должны быть установлены Docker и Python 3
 > (для разбора `info.json`). Все workflow используют `runs-on: [self-hosted]`.
 
+## 5.1. Backend и база данных (SQLite)
+
+Игра сохраняет прогресс двумя способами:
+
+1. **локально** — `sys.save` (IndexedDB в HTML5), файлы `bumpy_save` и
+   `bumpy_profile`; это основной путь, работающий без сети;
+2. **на сервере** — те же данные отправляются в backend
+   ([`main/remote_db.lua`](../main/remote_db.lua)) по адресу `/api/...`.
+
+Backend — FastAPI + **SQLite** (лёгкая встраиваемая СУБД: один файл вместо
+отдельного сервера, WAL, ACID-транзакции). Подробности: [`backend/README.md`](../backend/README.md).
+
+```bash
+# весь стек: игра (nginx) + backend + том с базой
+docker compose -f docker/docker-compose.yml up -d --build
+
+curl http://localhost:8080/api/health          # через прокси nginx
+curl http://localhost:8000/api/players         # напрямую (лидерборд)
+docker volume inspect bumpy-db                 # файл БД переживает деплой
+```
+
+- **настройки БД и API** — только в [`backend/config.yml`](../backend/config.yml)
+  (путь к файлу, `journal_mode`, лимиты, ключ); в коде и compose путей нет;
+- **схема** создаётся миграциями [`backend/migrations`](../backend/migrations)
+  при старте контейнера — отдельного шага деплоя нет;
+- **данные** лежат в томе `bumpy-db` (`/data/bumpy.db`) и **не удаляются**
+  при пересоздании контейнеров;
+- **CORS настроен** (`cors_origins: ["*"]` в `backend/config.yml`): даже на том
+  же origin браузер делает preflight `OPTIONS` перед `PUT` с
+  `Content-Type: application/json` — без CORS-обработчика он получал 405 и
+  сохранение в БД молча не работало;
+- **имя и пароль**: имя игрока уникально в БД, вход по нему требует пароль
+  (PBKDF2-хэш, открытый пароль не хранится); на устройстве, где игрок уже
+  входил, пароль берётся из локального кэша и не запрашивается; имена по
+  умолчанию (`PlayerN`) выдаёт сервер с учётом занятых имён;
+- если backend недоступен, игра продолжает работать на локальном сохранении —
+  синхронизация в БД необязательна.
+
 ## Структура
 
 | Файл | Назначение |
 |------|------------|
 | [`.github/workflows/fetch-bob.yml`](.github/workflows/fetch-bob.yml) | Ручная загрузка `bob.jar` и публикация как ассет GitHub Release |
 | [`.github/workflows/build-bob-image.yml`](.github/workflows/build-bob-image.yml) | Ручная сборка и публикация образа-сборщика в ghcr.io (тег = версия bob) |
+| [`backend/Dockerfile`](../backend/Dockerfile) | Образ `bumpy-backend` (FastAPI + SQLite, том `/data`) |
+| [`backend/config.yml`](../backend/config.yml) | Все настройки БД и API (единственный источник) |
+| [`backend/migrations/`](../backend/migrations) | SQL-миграции схемы БД (применяются при старте) |
 | [`docker/Dockerfile`](docker/Dockerfile) | Образ `nginx:1.27-alpine`, копирует бандл в `/usr/share/nginx/html` |
 | [`docker/bob-builder.Dockerfile`](docker/bob-builder.Dockerfile) | Образ-сборщик `bumpy-bob-builder` (JDK 25 + библиотеки X11/GL + bob.jar) для CI |
-| [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback |
-| [`docker/docker-compose.yml`](docker/docker-compose.yml) | Сборка образа из исходников и запуск, порт `8080:80` |
-| [`docker/docker-compose.image.yml`](docker/docker-compose.image.yml) | Запуск уже загруженного образа (без сборки) |
+| [`docker/nginx.conf`](docker/nginx.conf) | MIME `application/wasm`, gzip, кэширование, SPA-fallback, прокси `/api/` на backend |
+| [`docker/docker-compose.yml`](docker/docker-compose.yml) | Сборка и запуск игры + backend + том БД, порты `8080:80` и `8000:8000` |
+| [`docker/docker-compose.image.yml`](docker/docker-compose.image.yml) | Запуск уже загруженных образов (игра + backend, без сборки) |
 | [`docker/build-and-run.sh`](docker/build-and-run.sh) | Сборка бандла + образ + запуск |
 | [`docker/export-image.sh`](docker/export-image.sh) / [`docker/export-image.cmd`](docker/export-image.cmd) | Экспорт образа в `dist/bumpy-web-image.tar.gz` |
 | [`docker/load-image.sh`](docker/load-image.sh) / [`docker/load-image.cmd`](docker/load-image.cmd) | Импорт образа из архива и запуск |

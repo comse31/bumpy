@@ -14,6 +14,8 @@ local dbg = require("main.ball.ball_debug")
 local trap = require("main.ball.ball_trap")
 local state = require("main.level.level_state")
 local save = require("main.save")
+-- дублирование игровых событий в серверную БД (прохождение, game over, старт)
+local remote_db = require("main.remote_db")
 -- режим игры (classic/adventure) и флаг открытого стартового меню
 local game_mode = require("main.game_mode")
 -- минимальные требования уровня по снаряжению (п. 19 плана)
@@ -135,6 +137,8 @@ function M.lose_life(self, cause)
     -- стартовое меню. Обнуляем сохранение (lives = 0), иначе после переоткрытия
     -- браузера игрок вернулся бы в проигранную игру
     save.clear()
+    -- в историю БД: игрок потерял все жизни на этом уровне
+    remote_db.event("game_over", { level = state.index, cause = cause })
     msg.post("/game_over", "show")
     -- меню открывается поверх плашки GAME OVER: игрок выбирает режим заново
     game_mode.set_menu_open(true)
@@ -279,6 +283,8 @@ function M.start_game(self, chosen)
     -- сохранение под режим: в «Приключении» жизни всегда полные, иначе
     -- переоткрытие браузера вернуло бы уменьшенный счётчик
     M.persist(self, level)
+    -- в историю БД: игрок начал игру в этом режиме
+    remote_db.event("start", { mode = tostring(new_mode), level = level, lives = self.lives })
     msg.post("/level", "reload_level", { level = level })
 end
 

@@ -39,6 +39,17 @@ env:
   CONTAINER_NAME: bumpy-web
   HOST_PORT: "9999"
 
+  # Backend (FastAPI + SQLite) и его данные.
+  BACKEND_IMAGE: bumpy-backend
+  BACKEND_CONTAINER: bumpy-backend
+  # Именованный docker-том с файлом БД (/data/bumpy.db, database.path в
+  # backend/config.yml). Том НЕ удаляется при деплое — данные игроков
+  # переживают пересоздание контейнеров.
+  DB_VOLUME: bumpy-db
+  # Общая сеть игры и backend: nginx (bumpy-web) проксирует /api на
+  # bumpy-backend по имени контейнера.
+  DOCKER_NETWORK: bumpy-net
+
 jobs:
   build-and-deploy:
     name: Сборка образа и развёртывание на self-hosted
@@ -246,43 +257,101 @@ jobs:
 
           grep -o 'build-version[^<]*</span>' "$INDEX" || true
 
-      - name: Остановка и удаление старого контейнера
+      - name: Подготовка docker-сети и тома БД
+        # Сеть создаётся до контейнеров: nginx резолвит имя bumpy-backend по
+        # DNS docker, а том bumpy-db переиспользуется между деплоями — данные
+        # игроков не теряются. Существующие сеть и том не пересоздаются.
         run: |
           set -euo pipefail
-          # Есть ли контейнер вообще (запущенный или остановленный).
-          if ! docker ps -a --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
-            echo "Контейнер ${CONTAINER_NAME} не найден — пропускаю"
-            exit 0
-          fi
-          # Запущен ли он — останавливаем только работающий контейнер.
-          if docker ps --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
-            echo "Останавливаю запущенный контейнер ${CONTAINER_NAME}"
-            docker stop "${CONTAINER_NAME}"
+          if docker network inspect "${DOCKER_NETWORK}" >/dev/null 2>&1; then
+            echo "Сеть ${DOCKER_NETWORK} уже существует"
           else
-            echo "Контейнер ${CONTAINER_NAME} уже остановлен — stop не требуется"
+            docker network create "${DOCKER_NETWORK}"
+            echo "Сеть ${DOCKER_NETWORK} создана"
           fi
-          echo "Удаляю контейнер ${CONTAINER_NAME}"
-          docker rm "${CONTAINER_NAME}"
+          if docker volume inspect "${DB_VOLUME}" >/dev/null 2>&1; then
+            echo "Том БД ${DB_VOLUME} уже существует — данные сохраняются"
+          else
+            docker volume create "${DB_VOLUME}"
+            echo "Том БД ${DB_VOLUME} создан"
+          fi
 
-      - name: Сборка Docker-образа
+      - name: Остановка и удаление старых контейнеров
         run: |
           set -euo pipefail
+          # Порядок важен: сначала игра (она проксирует /api), затем backend.
+          for name in "${CONTAINER_NAME}" "${BACKEND_CONTAINER}"; do
+            if ! docker ps -a --format '{{.Names}}' | grep -qx "${name}"; then
+              echo "Контейнер ${name} не найден — пропускаю"
+              continue
+            fi
+            if docker ps --format '{{.Names}}' | grep -qx "${name}"; then
+              echo "Останавливаю запущенный контейнер ${name}"
+              docker stop "${name}"
+            else
+              echo "Контейнер ${name} уже остановлен — stop не требуется"
+            fi
+            echo "Удаляю контейнер ${name}"
+            docker rm "${name}"
+          done
+
+      - name: Сборка Docker-образов (backend + игра)
+        run: |
+          set -euo pipefail
+          # Backend: FastAPI + SQLite. Настройки БД берутся из backend/config.yml,
+          # он копируется в образ — отдельных переменных окружения не нужно.
+          docker build \
+            -f backend/Dockerfile \
+            -t "${BACKEND_IMAGE}:${IMAGE_TAG}" \
+            .
+          docker image inspect "${BACKEND_IMAGE}:${IMAGE_TAG}" \
+            --format 'Образ backend собран: {{.RepoTags}} ({{.Size}} байт)'
+
           docker build \
             -f docker/Dockerfile \
             -t "${IMAGE_NAME}:${IMAGE_TAG}" \
             .
           docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
-            --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
+            --format 'Образ игры собран: {{.RepoTags}} ({{.Size}} байт)'
 
-      - name: Развёртывание контейнера на self-hosted раннере (teliot)
-        # `docker` здесь — это Docker-демон self-hosted раннера `teliot`
-        # (реальная машина), на которой выполняется job. Контейнер остаётся
-        # работать после завершения workflow (в отличие от эфемерных
-        # GitHub-hosted раннеров). Старый контейнер удаляется отдельным шагом.
+      - name: Развёртывание backend и БД
+        # `docker` здесь — Docker-демон self-hosted раннера (реальная машина),
+        # поэтому контейнеры остаются работать после завершения workflow.
+        # Том ${DB_VOLUME} монтируется в /data — это database.path из
+        # backend/config.yml (файл SQLite). Схема создаётся при старте backend
+        # из backend/migrations, отдельного шага миграций не требуется.
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name "${BACKEND_CONTAINER}" \
+            --network "${DOCKER_NETWORK}" \
+            -v "${DB_VOLUME}:/data" \
+            -p "8000:8000" \
+            --restart unless-stopped \
+            "${BACKEND_IMAGE}:${IMAGE_TAG}"
+
+      - name: Ожидание готовности backend
+        # Миграции применяются на старте: ждём, пока /api/health вернёт 200,
+        # прежде чем поднимать игру (её nginx проксирует /api на backend).
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null "http://localhost:8000/api/health"; then
+              echo "Backend отвечает на http://localhost:8000/api/health"
+              break
+            fi
+            echo "Ожидание backend... (${i}/40)"
+            sleep 2
+          done
+          curl -fsS "http://localhost:8000/api/health"
+          echo
+
+      - name: Развёртывание контейнера игры
         run: |
           set -euo pipefail
           docker run -d \
             --name "${CONTAINER_NAME}" \
+            --network "${DOCKER_NETWORK}" \
             -p "${HOST_PORT}:80" \
             --restart unless-stopped \
             "${IMAGE_NAME}:${IMAGE_TAG}"
@@ -298,11 +367,17 @@ jobs:
             echo "Ожидание запуска nginx... (${i}/30)"
             sleep 2
           done
-          curl -fsS -o /dev/null -w "HTTP %{http_code}\n" "http://localhost:${HOST_PORT}/"
+          curl -fsS -o /dev/null -w "Игра: HTTP %{http_code}\n" "http://localhost:${HOST_PORT}/"
+          # /api отдаётся через прокси nginx — проверяем весь путь целиком.
+          curl -fsS -o /dev/null -w "API через nginx: HTTP %{http_code}\n" \
+            "http://localhost:${HOST_PORT}/api/health"
           docker ps --filter "name=${CONTAINER_NAME}"
+          docker ps --filter "name=${BACKEND_CONTAINER}"
 
       - name: Диагностика при ошибке
         if: failure()
         run: |
           docker ps -a || true
           docker logs "${CONTAINER_NAME}" || true
+          docker logs "${BACKEND_CONTAINER}" || true
+          docker volume ls || true

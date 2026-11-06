@@ -37,6 +37,8 @@
 local state = require("main.level.level_state")
 -- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
 local save = require("main.save")
+-- дублирование игровых событий в серверную БД (backend, SQLite)
+local remote_db = require("main.remote_db")
 -- тестовый режим (bumpy.test_level = 1): тестовый набор уровней без сохранения
 local test_mode = require("main.test_mode")
 -- режим игры: в «Приключении» после прохождения уровня возвращаемся в меню
@@ -490,6 +492,11 @@ function on_message(self, message_id, message, sender)
             load(self)
             return
         end
+        -- событие в историю БД: уровень пройден (номер и режим)
+        remote_db.event("level", {
+            level = self.level,
+            mode = game_mode.is_adventure() and "adventure" or "classic",
+        })
         -- «Приключение»: одна попытка на выбранном уровне. После прохождения
         -- следующий уровень НЕ загружается — игра возвращается в стартовое
         -- меню, где можно выбрать любой открытый уровень и сыграть снова

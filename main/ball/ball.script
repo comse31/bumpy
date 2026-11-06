@@ -31,6 +31,8 @@ local input = require("main.ball.ball_input")
 local motion = require("main.ball.ball_motion")
 -- приземление: поверхности и swept-тест
 local landing = require("main.ball.ball_landing")
+-- дублирование сохранения в серверную БД: досылка отложенных снимков
+local remote_db = require("main.remote_db")
 
 local SIZE = cfg.SIZE
 local COLS = cfg.COLS
@@ -721,6 +723,11 @@ local function update_exit(self)
 end
 
 function update(self, dt)
+    -- серверная синхронизация: досылает снимок, отложенный троттлингом.
+    -- Вызывается до проверок паузы — сохранение могло случиться при открытом
+    -- меню (GAME OVER), и его нужно отправить даже пока игра на паузе
+    remote_db.update(dt)
+
     -- стартовое меню открыто: игра на паузе, физика и логика не выполняются
     if game_mode.is_menu_open() then
         return
