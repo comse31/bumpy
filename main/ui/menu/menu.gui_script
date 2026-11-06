@@ -8,11 +8,14 @@
 -- заморожен, ввод получает меню, а не мяч.
 --
 -- Экраны:
---   1. main      — Classic game / Adventure и строка «Name: ...»;
+--   1. main      — Classic game / Adventure / Records и строка «Name: ...»;
 --   2. adventure — подменю выбора любого открытого уровня
 --      (1..максимальный, достигнутый в классическом режиме), игра на нём
 --      с фиксированным набором: 3 жизни и по 5 капель/ключей/молотков.
---      После прохождения уровня игра возвращается в это меню.
+--      После прохождения уровня игра возвращается в это меню;
+--   3. records   — топ-10 игроков из БД (main/records.lua): имя и достижение
+--      «Игрок - максимальный уровень». Данные приходят с backend
+--      (GET /api/players); без сети показывается сообщение об ошибке.
 --
 -- Приветствия нет: сверху только заголовок BUMPY. Имя игрока показывается
 -- в строке «Name: ...» и его можно изменить (клавиша F2 или тап по строке).
@@ -31,6 +34,8 @@ local mode = require("main.game_mode")
 local save = require("main.save")
 -- вход по имени и паролю: имя уникально в БД, пароль хранится на устройстве
 local auth = require("main.auth")
+-- таблица рекордов: топ игроков из БД (GET /api/players)
+local records = require("main.records")
 
 -- узлы главного экрана (main/ui/menu/menu.gui)
 local MAIN_NODES = {
@@ -39,6 +44,8 @@ local MAIN_NODES = {
     "btn_classic_label",
     "btn_adventure",
     "btn_adventure_label",
+    "btn_records",
+    "btn_records_label",
     "name_label",
     "name_box",
     "name_hint",
@@ -65,8 +72,30 @@ local ADV_NODES = {
     "adv_back_label",
 }
 
+-- узлы экрана «Records»: заголовок, строка состояния и 10 строк таблицы
+local REC_NODES = {
+    "rec_title",
+    "rec_status",
+    "rec_row1",
+    "rec_row2",
+    "rec_row3",
+    "rec_row4",
+    "rec_row5",
+    "rec_row6",
+    "rec_row7",
+    "rec_row8",
+    "rec_row9",
+    "rec_row10",
+    "rec_back",
+    "rec_back_label",
+}
+
+-- сколько строк таблицы помещается в меню (узлы rec_row1..rec_row10)
+local REC_ROWS = 10
+
 local LABEL_CLASSIC = "Classic game"
 local LABEL_ADVENTURE = "Adventure"
+local LABEL_RECORDS = "Records"
 local HINT_EDIT = "F2 or tap the name to change"
 local HINT_SAVE = "Enter - save, Esc - cancel"
 -- Подсказки различают два случая: имя свободно (игрок ЗАДАЁТ пароль) и имя
@@ -693,12 +722,13 @@ local function layout(self)
     end
 end
 
--- Включить/выключить узлы экрана (main или adventure) и сам видимый слой.
+-- Включить/выключить узлы экрана (main, adventure или records) и сам видимый слой.
 -- Вместе с узлами гасим ввод компонентов Druid: невидимые кнопки не должны
 -- ловить тапы, а скрытое поле имени — клавиатуру.
 local function apply_screen(self)
     local main_on = self.visible and self.screen == "main"
     local adv_on = self.visible and self.screen == "adventure"
+    local rec_on = self.visible and self.screen == "records"
 
     gui.set_enabled(self.nodes.backdrop, self.visible)
     for _, id in ipairs(MAIN_NODES) do
@@ -706,6 +736,9 @@ local function apply_screen(self)
     end
     for _, id in ipairs(ADV_NODES) do
         gui.set_enabled(self.nodes[id], adv_on)
+    end
+    for _, id in ipairs(REC_NODES) do
+        gui.set_enabled(self.nodes[id], rec_on)
     end
 
     -- блокер фона перекрывает игровое поле: пока меню скрыто, он не должен
@@ -717,6 +750,7 @@ local function apply_screen(self)
 
     self.btn_classic:set_input_enabled(main_on)
     self.btn_adventure:set_input_enabled(main_on)
+    self.btn_records:set_input_enabled(main_on)
     self.input:set_input_enabled(main_on)
     if self.btn_name_save then
         self.btn_name_save:set_input_enabled(main_on)
@@ -725,6 +759,7 @@ local function apply_screen(self)
     self.btn_next:set_input_enabled(adv_on)
     self.btn_play:set_input_enabled(adv_on)
     self.btn_back:set_input_enabled(adv_on)
+    self.btn_rec_back:set_input_enabled(rec_on)
 end
 
 -- Подпись классического пункта: к названию добавляется текущий и максимально
@@ -755,6 +790,7 @@ local function refresh(self)
     self.title:set_text("BUMPY")
     self.lb_classic:set_text(classic_label())
     self.lb_adventure:set_text(adventure_label())
+    self.lb_records:set_text(LABEL_RECORDS)
     if self.auth_mode == MODE_PASSWORD then
         -- во время ввода пароля объясняем, что вводится именно пароль.
         -- Подсказка зависит от случая: имя свободно (пароль задаётся впервые)
@@ -796,6 +832,57 @@ local function refresh_adventure(self)
     -- «задизейбленное» состояние кнопки
     self.btn_prev:set_enabled(self.adv_level > 1)
     self.btn_next:set_enabled(self.adv_level < self.adv_max)
+end
+
+-- Показать строки таблицы рекордов: «N. Игрок - максимальный уровень».
+--
+-- entries — список из main/records.lua (может быть пустым). Пустые строки
+-- скрываются (alpha 0), чтобы не оставлять «висящие» номера. Текст строк
+-- задаётся здесь же: обработчик Druid-текста с автоподгонкой сам уменьшит
+-- шрифт, если имя длинное.
+local function render_records(self, entries, message)
+    entries = entries or {}
+    for index = 1, REC_ROWS do
+        local node = self.rec_rows and self.rec_rows[index]
+        if node then
+            local entry = entries[index]
+            if entry then
+                node:set_text(records.format_entry(entry))
+                node:set_alpha(1)
+            else
+                node:set_text("")
+                node:set_alpha(0)
+            end
+        end
+    end
+
+    if message then
+        self.rec_status:set_text(message)
+    elseif #entries == 0 then
+        self.rec_status:set_text("No records yet")
+    else
+        self.rec_status:set_text(string.format("Top %d players by max level", #entries))
+    end
+end
+
+-- Загрузить таблицу рекордов с сервера.
+--
+-- Запрос асинхронный: пока ответа нет, показывается «Loading...», а строки
+-- прошлого запроса скрываются (иначе таблица выглядела бы уже загруженной).
+-- Ответ применяется только если запрос всё ещё актуален: игрок мог выйти и
+-- зайти в Records повторно, и поздний ответ первого запроса не должен
+-- перезаписать свежий.
+local function load_records(self)
+    self.records_seq = (self.records_seq or 0) + 1
+    local seq = self.records_seq
+    render_records(self, nil, "Loading...")
+    records.load(function(entries, error)
+        if seq ~= (self.records_seq or 0) then
+            -- устаревший ответ: игрок запросил таблицу повторно
+            return
+        end
+        render_records(self, entries, error)
+    end, REC_ROWS)
 end
 
 -- --- вход по имени и паролю ---------------------------------------------------
@@ -1147,6 +1234,20 @@ local function back_to_main(self)
     self.druid:reset_hovers()
 end
 
+-- Перейти к таблице рекордов: топ-10 игроков из БД.
+--
+-- Экран не закрывает меню и не запускает игру: пока он открыт, игра на паузе.
+-- Данные запрашиваются при каждом входе, чтобы таблица была актуальной.
+local function open_records(self)
+    commit_name(self, false)
+    self.screen = "records"
+    self.rec_title:set_text(LABEL_RECORDS)
+    self.rec_back_label:set_text(ADV_BACK)
+    apply_screen(self)
+    self.druid:reset_hovers()
+    load_records(self)
+end
+
 -- Сменить выбранный уровень «Приключения» на delta (±1) с зажимом в 1..max.
 local function change_level(self, delta)
     local next_level = (self.adv_level or 1) + (delta or 0)
@@ -1181,6 +1282,14 @@ end
 
 local function on_click_adventure(self)
     open_adventure(self)
+end
+
+local function on_click_records(self)
+    open_records(self)
+end
+
+local function on_click_records_back(self)
+    back_to_main(self)
 end
 
 local function on_click_prev(self)
@@ -1255,6 +1364,9 @@ function init(self)
     for _, id in ipairs(ADV_NODES) do
         self.nodes[id] = gui.get_node(id)
     end
+    for _, id in ipairs(REC_NODES) do
+        self.nodes[id] = gui.get_node(id)
+    end
     self.nodes.backdrop = gui.get_node("backdrop")
     self.nodes.screen = gui.get_node("screen")
 
@@ -1267,6 +1379,9 @@ function init(self)
     self.lb_classic = self.druid:new_text("btn_classic_label")
     self.btn_adventure = self.druid:new_button("btn_adventure", on_click_adventure)
     self.lb_adventure = self.druid:new_text("btn_adventure_label")
+    -- Records: таблица рекордов (топ игроков по максимальному уровню)
+    self.btn_records = self.druid:new_button("btn_records", on_click_records)
+    self.lb_records = self.druid:new_text("btn_records_label", LABEL_RECORDS)
     self.hint = self.druid:new_text("edit_hint", HINT_EDIT)
     -- Кнопка сохранения имени/пароля. Нужна как ГАРАНТИРОВАННЫЙ путь: Enter
     -- в HTML5 на мобильных может перехватываться браузером/клавиатурой и не
@@ -1335,6 +1450,17 @@ function init(self)
     self.adv_play_label = self.druid:new_text("adv_play_label")
     self.btn_back = self.druid:new_button("adv_back", on_click_back)
     self.adv_back_label = self.druid:new_text("adv_back_label", ADV_BACK)
+
+    -- Экран «Records»: заголовок, строка состояния, 10 строк и кнопка Back
+    self.rec_title = self.druid:new_text("rec_title", LABEL_RECORDS)
+    self.rec_status = self.druid:new_text("rec_status")
+    self.rec_rows = {}
+    for index = 1, REC_ROWS do
+        self.rec_rows[index] = self.druid:new_text("rec_row" .. index)
+        self.rec_rows[index]:set_alpha(0)
+    end
+    self.btn_rec_back = self.druid:new_button("rec_back", on_click_records_back)
+    self.rec_back_label = self.druid:new_text("rec_back_label", ADV_BACK)
 
     self.visible = false
     self.screen = "main"
@@ -1709,6 +1835,9 @@ function on_input(self, action_id, action)
         elseif action.text == "2" and self.screen == "main" then
             open_adventure(self)
             return true
+        elseif action.text == "3" and self.screen == "main" then
+            open_records(self)
+            return true
         end
     end
 
@@ -1735,6 +1864,15 @@ function on_input(self, action_id, action)
             start_mode(self, mode.ADVENTURE)
             return true
         elseif action_id == hash("name_cancel") and action.pressed then
+            back_to_main(self)
+            return true
+        end
+    end
+
+    -- Экран рекордов: Enter/Esc возвращают в главное меню, поле имени скрыто.
+    if self.screen == "records" then
+        if (action_id == hash("name_enter") or action_id == hash("name_cancel"))
+            and action.pressed then
             back_to_main(self)
             return true
         end
