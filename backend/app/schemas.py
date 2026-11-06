@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -221,3 +222,81 @@ class NextNameOut(BaseModel):
 
     name: str
     player_id: str
+
+
+# --- сгенерированные уровни --------------------------------------------------
+# Уровень попадает в generated_levels (backend/migrations/003_generated_levels.sql)
+# только после проверки проходимости решателем tools/solve_level.py. Клиент
+# получает уровень целиком и строит его тем же main/level/level.script, что и
+# классические уровни из main/levels.json, поэтому payload — это JSON уровня в
+# формате levels.json.
+
+
+class GeneratedLevelIn(BaseModel):
+    """Уровень, который присылает генератор (tools/gen_hourly.py).
+
+    Поля повторяют колонки generated_levels. payload передаётся JSON-строкой,
+    чтобы сервер не зависел от внутренней структуры уровня.
+    """
+
+    seed: int = Field(..., ge=0)
+    level: int = Field(default=1, ge=1)
+    payload: str = Field(..., min_length=2, max_length=20000)
+    status: str = Field(default="solvable", max_length=16)
+    drops: int = Field(default=0, ge=0)
+    keys: int = Field(default=0, ge=0)
+    hammers: int = Field(default=0, ge=0)
+    generator: str | None = Field(default=None, max_length=64)
+
+    @field_validator("status")
+    @classmethod
+    def _status(cls, value: str) -> str:
+        status = (value or "").strip().lower()
+        # Сохраняются только доказанно проходимые уровни: иначе в БД попадут
+        # уровни, которые игрок физически не может пройти.
+        if status != "solvable":
+            raise ValueError("status: сохраняются только уровни со статусом solvable")
+        return status
+
+    @field_validator("payload")
+    @classmethod
+    def _payload(cls, value: str) -> str:
+        try:
+            decoded = json.loads(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("payload: ожидается JSON-строка уровня") from exc
+        if not isinstance(decoded, dict):
+            raise ValueError("payload: ожидается JSON-объект уровня")
+        for field in ("grid_lo", "grid_hi", "objects"):
+            grid = decoded.get(field)
+            if not isinstance(grid, list) or len(grid) != 6:
+                raise ValueError(f"payload: поле {field} должно быть сеткой 6x6")
+            for row in grid:
+                if not isinstance(row, list) or len(row) != 6:
+                    raise ValueError(f"payload: поле {field} должно быть сеткой 6x6")
+        for field in ("start_cell", "timer_cell"):
+            if not isinstance(decoded.get(field), int):
+                raise ValueError(f"payload: поле {field} должно быть целым")
+        return value
+
+
+class GeneratedLevelOut(BaseModel):
+    """Сгенерированный уровень в ответе API."""
+
+    level_id: str
+    seed: int
+    level: int
+    status: str
+    drops: int = 0
+    keys: int = 0
+    hammers: int = 0
+    created_at: str | None = None
+    # JSON уровня (формат main/levels.json) строкой — клиент декодирует сам
+    payload: str
+
+
+class GeneratedLevelsStatsOut(BaseModel):
+    """Сколько сгенерированных уровней есть в БД."""
+
+    total: int
+    latest_at: str | None = None

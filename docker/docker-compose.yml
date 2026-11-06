@@ -32,6 +32,24 @@ services:
     networks:
       - bumpy-net
 
+  bumpy-gen:
+    build:
+      context: ..
+      dockerfile: docker/gen/Dockerfile
+    image: bumpy-gen:latest
+    container_name: bumpy-gen
+    restart: unless-stopped
+    # Генератор пишет уровень в backend каждые 3600 с (см. CMD образа).
+    # Внутри контейнера нет расписания: --loop держит паузу между запусками.
+    environment:
+      BUMPY_API_URL: http://bumpy-backend:8000
+      BUMPY_API_KEY: ""
+    depends_on:
+      bumpy-backend:
+        condition: service_healthy
+    networks:
+      - bumpy-net
+
   bumpy-web:
     build:
       context: ..

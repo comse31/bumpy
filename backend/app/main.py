@@ -1,4 +1,4 @@
-"""HTTP-API Bumpy: профиль игрока и игровой прогресс.
+"""HTTP-API Bumpy: профиль игрока, игровой прогресс и сгенерированные уровни.
 
 Эндпоинты (префикс /api, за nginx он же и проксируется):
     GET    /api/health              — состояние сервиса и БД;
@@ -6,7 +6,14 @@
     GET    /api/players/{id}        — профиль игрока + последние события;
     PUT    /api/players/{id}        — создать/обновить профиль (идемпотентно);
     POST   /api/players/{id}/events — добавить событие игрока;
-    DELETE /api/players/{id}        — удалить данные игрока.
+    DELETE /api/players/{id}        — удалить данные игрока;
+    GET    /api/levels/random       — случайный сгенерированный уровень;
+    GET    /api/levels/latest       — последние сгенерированные уровни;
+    GET    /api/levels/stats        — счётчик уровней в БД;
+    POST   /api/levels              — сохранить уровень (часовой генератор).
+
+Уровни попадают в БД только после проверки проходимости решателем
+(tools/solve_level.py: is_solvable → "solvable").
 
 Клиент игры работает только через PUT: при каждом сохранении он отправляет
 полный снимок (имя, визиты, уровень, жизни, карман) и сервер сам решает, что
@@ -22,6 +29,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import Database
+from .levels_repository import GeneratedLevelRepository
 from .passwords import PasswordError, validate as validate_password
 from .repository import Limits, PlayerRepository
 from .schemas import (
@@ -29,6 +37,9 @@ from .schemas import (
     AuthOut,
     CredentialsIn,
     EventIn,
+    GeneratedLevelIn,
+    GeneratedLevelOut,
+    GeneratedLevelsStatsOut,
     HealthOut,
     LeaderboardOut,
     NameCheckIn,
@@ -37,7 +48,7 @@ from .schemas import (
     PlayerOut,
     PlayerSyncIn,
 )
-from .settings import ApiSettings, Settings, load_settings
+from .settings import ApiSettings, LevelsSettings, Settings, load_settings
 
 log = logging.getLogger("bumpy")
 
@@ -66,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         password_iterations=settings.api.password_iterations,
         max_name_len=settings.api.max_name_len,
     )
+    levels = GeneratedLevelRepository(database, window=settings.levels.window)
 
     # Миграции применяются на старте: при первом запуске в docker-томе пусто,
     # и схема создаётся здесь же — отдельного шага деплоя не требуется.
@@ -108,6 +120,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_repo() -> PlayerRepository:
         return repository
+
+    def get_levels() -> GeneratedLevelRepository:
+        return levels
+
+    def get_levels_settings() -> LevelsSettings:
+        return settings.levels
 
     def get_api() -> ApiSettings:
         return settings.api
@@ -329,6 +347,80 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> Response:
         repo.delete(player_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # --- сгенерированные уровни ---------------------------------------------
+    #
+    # Уровни создаёт tools/gen_hourly.py (запуск по расписанию раз в час) и
+    # сохраняет через POST /api/levels. В БД попадают только уровни, для
+    # которых решатель tools/solve_level.py доказал проходимость
+    # (is_solvable → "solvable"), поэтому клиент всегда получает проходимый
+    # уровень.
+
+    @app.get(
+        "/api/levels/random",
+        response_model=GeneratedLevelOut,
+        dependencies=[Depends(require_key)],
+    )
+    def random_level(
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> GeneratedLevelOut:
+        """Случайный сгенерированный уровень для режима Adventure.
+
+        404 — если в БД ещё нет ни одного уровня (генератор не запускался).
+        Клиент в этом случае остаётся в меню и показывает сообщение.
+        """
+        level = store.random()
+        if level is None:
+            raise HTTPException(
+                status_code=404,
+                detail="сгенерированных уровней пока нет",
+            )
+        return level
+
+    @app.get(
+        "/api/levels/latest",
+        response_model=list[GeneratedLevelOut],
+        dependencies=[Depends(require_key)],
+    )
+    def latest_levels(
+        limit: int = Query(default=None, ge=1, le=100),
+        store: GeneratedLevelRepository = Depends(get_levels),
+        cfg: LevelsSettings = Depends(get_levels_settings),
+    ) -> list[GeneratedLevelOut]:
+        """Последние сгенерированные уровни (отладка/админка)."""
+        page = cfg.latest_limit if limit is None else limit
+        return store.latest(page)
+
+    @app.get(
+        "/api/levels/stats",
+        response_model=GeneratedLevelsStatsOut,
+        dependencies=[Depends(require_key)],
+    )
+    def levels_stats(
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> GeneratedLevelsStatsOut:
+        """Сколько уровней в БД и когда добавлен последний."""
+        return store.stats()
+
+    @app.post(
+        "/api/levels",
+        response_model=GeneratedLevelOut,
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(require_key)],
+    )
+    def add_level(
+        payload: GeneratedLevelIn,
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> GeneratedLevelOut:
+        """Сохранить сгенерированный уровень (вызывает часовой генератор).
+
+        Схема GeneratedLevelIn принимает только status = "solvable": попытка
+        сохранить непроверенный уровень — 422, а не «мусор» в БД.
+        """
+        try:
+            return store.add(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):  # pragma: no cover

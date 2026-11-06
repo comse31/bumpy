@@ -42,6 +42,11 @@ env:
   # Backend (FastAPI + SQLite) и его данные.
   BACKEND_IMAGE: bumpy-backend
   BACKEND_CONTAINER: bumpy-backend
+
+  # Часовой генератор уровней (tools/gen_hourly.py в docker/gen/Dockerfile).
+  # Пишет ровно один проходимый уровень в час в таблицу generated_levels.
+  GEN_IMAGE: bumpy-gen
+  GEN_CONTAINER: bumpy-gen
   # Именованный docker-том с файлом БД (/data/bumpy.db, database.path в
   # backend/config.yml). Том НЕ удаляется при деплое — данные игроков
   # переживают пересоздание контейнеров.
@@ -279,8 +284,9 @@ jobs:
       - name: Остановка и удаление старых контейнеров
         run: |
           set -euo pipefail
-          # Порядок важен: сначала игра (она проксирует /api), затем backend.
-          for name in "${CONTAINER_NAME}" "${BACKEND_CONTAINER}"; do
+          # Порядок важен: сначала игра (она проксирует /api), затем backend,
+          # затем генератор (он пишет в backend).
+          for name in "${CONTAINER_NAME}" "${GEN_CONTAINER}" "${BACKEND_CONTAINER}"; do
             if ! docker ps -a --format '{{.Names}}' | grep -qx "${name}"; then
               echo "Контейнер ${name} не найден — пропускаю"
               continue
@@ -295,7 +301,7 @@ jobs:
             docker rm "${name}"
           done
 
-      - name: Сборка Docker-образов (backend + игра)
+      - name: Сборка Docker-образов (backend + игра + генератор)
         run: |
           set -euo pipefail
           # Backend: FastAPI + SQLite. Настройки БД берутся из backend/config.yml,
@@ -313,6 +319,14 @@ jobs:
             .
           docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" \
             --format 'Образ игры собран: {{.RepoTags}} ({{.Size}} байт)'
+
+          # Генератор уровней: python3 + tools/, зависимостей нет.
+          docker build \
+            -f docker/gen/Dockerfile \
+            -t "${GEN_IMAGE}:${IMAGE_TAG}" \
+            .
+          docker image inspect "${GEN_IMAGE}:${IMAGE_TAG}" \
+            --format 'Образ генератора собран: {{.RepoTags}} ({{.Size}} байт)'
 
       - name: Развёртывание backend и БД
         # `docker` здесь — Docker-демон self-hosted раннера (реальная машина),
@@ -356,6 +370,41 @@ jobs:
             --restart unless-stopped \
             "${IMAGE_NAME}:${IMAGE_TAG}"
 
+      - name: Развёртывание часового генератора уровней
+        # Генератор пишет РОВНО ОДИН проходимый уровень в час в backend
+        # (таблица generated_levels). Внутри образа — --loop 3600, поэтому
+        # внешнее расписание не нужно. В БД попадают только уровни со
+        # status = "solvable" (проверено решателем is_solvable).
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name "${GEN_CONTAINER}" \
+            --network "${DOCKER_NETWORK}" \
+            -e "BUMPY_API_URL=http://${BACKEND_CONTAINER}:8000" \
+            -e "BUMPY_API_KEY=${BUMPY_API_KEY:-}" \
+            --restart unless-stopped \
+            "${GEN_IMAGE}:${IMAGE_TAG}"
+
+      - name: Проверка генератора (первый уровень)
+        # Ждём первую запись генератора: он запускается сразу, а не через час.
+        # Если уровень не появился за отведённое время — деплой не валим
+        # (backend и игра уже работают), но печатаем логи для диагностики.
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            TOTAL="$(curl -fsS "http://localhost:8000/api/levels/stats" \
+              | python3 -c 'import sys,json; print(json.load(sys.stdin).get("total",0))' 2>/dev/null || echo 0)"
+            if [ "${TOTAL}" -gt 0 ]; then
+              echo "В БД ${TOTAL} сгенерированных уровней"
+              curl -fsS "http://localhost:8000/api/levels/stats"
+              echo
+              break
+            fi
+            echo "Ожидание первого сгенерированного уровня... (${i}/30)"
+            sleep 2
+          done
+          docker logs --tail 20 "${GEN_CONTAINER}" || true
+
       - name: Проверка доступности (health check)
         run: |
           set -euo pipefail
@@ -373,6 +422,7 @@ jobs:
             "http://localhost:${HOST_PORT}/api/health"
           docker ps --filter "name=${CONTAINER_NAME}"
           docker ps --filter "name=${BACKEND_CONTAINER}"
+          docker ps --filter "name=${GEN_CONTAINER}"
 
       - name: Диагностика при ошибке
         if: failure()
@@ -380,4 +430,5 @@ jobs:
           docker ps -a || true
           docker logs "${CONTAINER_NAME}" || true
           docker logs "${BACKEND_CONTAINER}" || true
+          docker logs "${GEN_CONTAINER}" || true
           docker volume ls || true

@@ -20,6 +20,8 @@ local remote_db = require("main.remote_db")
 local game_mode = require("main.game_mode")
 -- минимальные требования уровня по снаряжению (п. 19 плана)
 local requirements = require("main.level.level_requirements")
+-- случайный сгенерированный уровень из БД (режим «Приключение»)
+local random_level = require("main.random_level")
 
 local M = {}
 
@@ -167,6 +169,13 @@ function M.require_gear(self)
     if game_mode.is_menu_open() then
         return true
     end
+    -- Сгенерированный уровень из БД: минимальный набор предметов посчитан
+    -- тем же решателем на сервере и уже выдан игроку в start_game, поэтому
+    -- проверять его по main/level_requirements.json (там данные классических
+    -- уровней) нельзя — индекс у сгенерированного уровня всегда 1.
+    if game_mode.is_adventure() and random_level.has() then
+        return true
+    end
     local ok, lack = requirements.check(state.index,
         self.pocket, self.key_pocket, self.hammer_pocket)
     if ok then
@@ -236,13 +245,27 @@ function M.start_game(self, chosen)
     local resumable = data and (data.lives or 0) > 0
     local level = 1
     if game_mode.is_adventure() then
-        -- «Приключение»: выбранный в меню уровень и 3 жизни на попытку.
-        -- Снаряжение выдаётся ровно в минимально требуемом объёме (п. 19):
-        -- набор из main/level_requirements.json. Сохранение классической игры
-        -- (уровень, карман, жизни) не подмешивается.
+        -- «Приключение»: случайный сгенерированный уровень из БД
+        -- (main/random_level.lua) и 3 жизни на попытку.
+        --
+        -- Снаряжение выдаётся ровно в минимально требуемом объёме: для
+        -- сгенерированного уровня требования приходят с сервера вместе с
+        -- уровнем (поля drops/keys/hammers из generated_levels), для
+        -- классического — из main/level_requirements.json (п. 19).
+        -- Сохранение классической игры (уровень, карман, жизни) не
+        -- подмешивается.
         level = game_mode.get_adventure_level()
         self.lives = ADVENTURE_LIVES
-        local need_drops, need_keys, need_hammers = requirements.required(level)
+        local generated = random_level.current()
+        local need_drops, need_keys, need_hammers
+        if generated then
+            level = 1
+            need_drops = generated.drops or 0
+            need_keys = generated.keys or 0
+            need_hammers = generated.hammers or 0
+        else
+            need_drops, need_keys, need_hammers = requirements.required(level)
+        end
         if need_drops == nil then
             -- данных о требованиях нет — запасной набор по 5 предметов
             self.pocket = ADVENTURE_ITEMS

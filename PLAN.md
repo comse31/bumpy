@@ -2,6 +2,10 @@
 
 ## Текущее состояние
 - Экран 960×640 (поле) + полоса HUD 640..720: сетка 6×6, ячейка 160×106.7.
+- «Приключение» играет на случайном сгенерированном уровне из БД
+  ([`tools/gen_level.py`](tools/gen_level.py:1) + `generated_levels`,
+  см. этап 20): в БД попадают только уровни, проходимость которых доказана
+  решателем.
 - Уровень **не прописан статически** в [`main.collection`](main/main.collection:1): его
   генерирует [`main/level/level.script`](main/level/level.script:1) из метаданных
   [`main/levels.json`](main/levels.json:1) (100 уровней оригинала, извлекаются
@@ -70,6 +74,47 @@
 - Формат данных — [`main/levels.json`](main/levels.json:1) (генерируется скриптом).
 - Загрузка/генерация экземпляров — [`level.script`](main/level/level.script:1)
   (`build_level`, очистка и пересборка между уровнями).
+
+## Этап 20. Процедурная генерация уровней в БД — ВЫПОЛНЕНО
+- **Генератор** [`tools/gen_level.py`](tools/gen_level.py:1): по seed строит уровень
+  в формате `levels.json` (слой lo/hi, объекты, старт, выход, `timer`), затем
+  проверяет проходимость решателем
+  [`tools/solve_level.py`](tools/solve_level.py:937) (`is_solvable`).
+  Принимается только `"solvable"`; `"impossible"` — брак, `"limit"` (недоказанная
+  проходимость) — тоже брак. Уровень полностью воспроизводим по seed;
+  `--bench N` показывает долю проходимых кандидатов (~65%).
+- **Часовой запуск** [`tools/gen_hourly.py`](tools/gen_hourly.py:1): генерирует
+  ровно один уровень за запуск и сохраняет его через `POST /api/levels`.
+  Расписания:
+  - **docker-контейнер** `bumpy-gen`
+    ([`docker/gen/Dockerfile`](docker/gen/Dockerfile:1)) — `--loop 3600` внутри
+    образа, сервис в [`docker/docker-compose.yml`](docker/docker-compose.yml:1),
+    разворачивается вместе с игрой и backend в
+    [`deploy-master.yml`](.github/workflows/deploy-master.yml:1);
+  - systemd: [`tools/bumpy-gen.timer`](tools/bumpy-gen.timer:1) +
+    [`tools/gen_hourly.service`](tools/gen_hourly.service:1);
+  - cron-строка (см. [`tools/GENERATED_LEVELS.md`](tools/GENERATED_LEVELS.md:1));
+  - workflow [`generate-level.yml`](.github/workflows/generate-level.yml:1)
+    (`cron: "5 * * * *"`, `runs-on: [self-hosted]`).
+- **БД**: таблица `generated_levels`
+  ([`003_generated_levels.sql`](backend/migrations/003_generated_levels.sql:1)):
+  `level_id`, `seed` (уникален), `payload` (JSON уровня), `status`,
+  требования `drops`/`keys`/`hammers`, `created_at`. Правило «только проходимые»
+  продублировано в генераторе, в схеме
+  [`GeneratedLevelIn`](backend/app/schemas.py:1) (422 на `status != solvable`) и в
+  [`GeneratedLevelRepository.add()`](backend/app/levels_repository.py:1).
+- **API**: `GET /api/levels/random` (клиент), `GET /api/levels/latest`,
+  `GET /api/levels/stats`, `POST /api/levels`. Настройки — секция `levels`
+  в [`backend/config.yml`](backend/config.yml:1) (`window`, `latest_limit`, `keep`).
+- **Клиент**: [`main/random_level.lua`](main/random_level.lua:1) грузит уровень
+  (`GET /api/levels/random`); [`level.script`](main/level/level.script:1) строит его
+  тем же `build_level` — формат payload совпадает с `levels.json`.
+- **Меню**: пункт «Adventure» больше не открывает подменю выбора уровня — он
+  скачивает случайный сгенерированный уровень и сразу запускает его
+  («Adventure - random level», при загрузке «loading...», при ошибке — причина).
+  Снаряжение выдаётся ровно в минимально требуемом объёме, который пришёл
+  с уровнем ([`ball_progress.lua`](main/ball/ball_progress.lua:1)).
+- Подробности и команды проверки — [`tools/GENERATED_LEVELS.md`](tools/GENERATED_LEVELS.md:1).
 
 ## Этап 8. Плашка READY перед уровнем — ВЫПОЛНЕНО
 - Перед началом каждого уровня показывается плашка «READY FOR LEVEL N?» (N —
