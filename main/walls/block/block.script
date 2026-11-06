@@ -1,0 +1,83 @@
+-- Кирпичная стена (block, код слоя lo = 10): непроходимая кладка, которую мяч
+-- разбивает снизу серией ударов. Каждый удар снизу сносит один ряд кладки
+-- (ряды считаются снизу), а когда ряды кончились — стена разрушается (меш и
+-- коллизия отключаются). Визуально разбитые снизу ряды исчезают: срез
+-- передаётся в шейдер (block.fp, uniform brick_break) и фрагменты ниже среза
+-- отбрасываются — стена как бы «осыпается» снизу вверх.
+--
+-- Удары присылает ball.script сообщением "hit" (он же решает вопрос с
+-- молотком: первый удар снизу по стене расходует один молоток из кармана).
+--
+-- Состояние доступно другим скриптам через свойства компонента #block:
+--   rows      — всего рядов кладки,
+--   broken    — сколько рядов уже разбито снизу,
+--   destroyed — 1 после полного разрушения.
+go.property("rows", 8)      -- всего рядов кладки
+go.property("broken", 0)    -- сколько рядов уже разбито снизу
+go.property("destroyed", 0) -- 1 = стена разрушена
+
+-- Границы рядов кладки в локальных координатах Y меша (снизу вверх), снятые
+-- с block.png скриптом tools/gen_block_rows.py. Ряды на текстуре нарисованы
+-- неравномерно, поэтому срез берётся по реальным швам раствора, а не по
+-- равномерной сетке: иначе после удара остаётся «половинчатый» кирпич.
+-- Длина таблицы = rows + 1: [1] — низ кладки, [#] — верх кладки.
+local ROW_CUT = {
+    -47.77, -33.37, -21.12, -7.74, 5.24, 15.19, 30.38, 43.33, 54.59,
+}
+
+-- локальный Y среза для текущего числа разбитых рядов
+local function cut_for(broken, rows)
+    if rows == #ROW_CUT - 1 then
+        local i = math.floor(broken) + 1
+        i = math.max(1, math.min(#ROW_CUT, i))
+        return ROW_CUT[i]
+    end
+    -- другая сетка ряда: линейно между низом и верхом кладки
+    local lo, hi = ROW_CUT[1], ROW_CUT[#ROW_CUT]
+    return lo + (broken / rows) * (hi - lo)
+end
+
+-- передать срез кладки в шейдер: x — локальный Y среза (фрагменты ниже
+-- отбрасываются), y — всего рядов (для отладки)
+local function apply_break(self)
+    local cut = cut_for(self.broken, self.rows)
+    go.set("#mesh", "brick_break", vmath.vector4(cut, self.rows, 0.0, 0.0))
+end
+
+function init(self)
+    self.rows = self.rows or 8
+    self.broken = self.broken or 0
+    self.destroyed = self.destroyed or 0
+    -- стена могла быть задана уже разбитой в данных уровня
+    if self.broken >= self.rows then
+        self.destroyed = 1
+    end
+    if self.destroyed > 0 then
+        msg.post("#mesh", "disable")
+        msg.post("#collision_object", "disable")
+    else
+        apply_break(self)
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hit") then
+        if self.destroyed > 0 then
+            return
+        end
+        self.broken = self.broken + 1
+        if self.broken >= self.rows then
+            -- кладка снесена полностью: стена исчезает, мяч проходит насквозь
+            self.destroyed = 1
+            go.set("#block", "broken", self.broken)
+            go.set("#block", "destroyed", 1)
+            msg.post("#mesh", "disable")
+            msg.post("#collision_object", "disable")
+            print(string.format("BLOCK destroyed (%d rows)", self.rows))
+        else
+            go.set("#block", "broken", self.broken)
+            apply_break(self)
+            print(string.format("BLOCK: row broken from below (%d/%d)", self.broken, self.rows))
+        end
+    end
+end

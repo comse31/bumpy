@@ -1,0 +1,51 @@
+-- Плашка GAME OVER: показана, когда игра закончена — либо у мяча кончились
+-- жизни, либо снаряжения заведомо не хватает для прохождения уровня (п. 19
+-- плана, см. main/level/level_requirements.lua). Скрыта до сообщения "show"
+-- от ball.script; "hide" убирает её обратно.
+-- Текст (GAME OVER / причина / PRESS ANY KEY) вынесен в label-компоненты с
+-- общим шрифтом меню (main/ui/fonts/plate*.font) — так интерфейс единообразен,
+-- а надписи можно менять без правки текстуры.
+--
+-- Сообщение "show" может нести необязательное поле `reason`: если оно задано,
+-- под заголовком появляется строка с причиной (например
+-- "NOT ENOUGH GEAR: 2 keys, 1 hammer"). Без reason строка скрыта.
+local NODES = { "sprite", "title", "hint" }
+local DEFAULT_REASON = "NOT ENOUGH GEAR"
+
+local function set_reason(text)
+    -- строка причины живёт отдельно: она может быть показана только вместе с
+    -- плашкой, но её текст меняется от вызова к вызову
+    if text and text ~= "" then
+        go.set("#reason", "text", text)
+        msg.post("#reason", "enable")
+    else
+        msg.post("#reason", "disable")
+    end
+end
+
+local function set_visible(visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    for i = 1, #NODES do
+        msg.post("#" .. NODES[i], action)
+    end
+    if not visible then
+        msg.post("#reason", "disable")
+    end
+end
+
+function init(self)
+    go.set("#reason", "text", DEFAULT_REASON)
+    set_visible(false)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        set_visible(true)
+        -- строка причины показывается только когда она есть: обычный GAME OVER
+        -- (жизни кончились) не должен унаследовать текст прошлой причины
+        set_reason(message and message.reason or nil)
+    elseif message_id == hash("hide") then
+        set_visible(false)
+    end
+end

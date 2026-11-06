@@ -1,0 +1,27 @@
+-- Собираемые «фруктовые» объекты (goodies кодов >= 5, открывающие выход).
+-- Общая логика сбора совпадает с main/goodies/goodie.script (kind = 3), но
+-- внешний вид задаётся свойством anim: одна текстура-атлас fruit.atlas
+-- содержит несколько фруктов как отдельные анимации, а прототип выбирает
+-- нужную при спавне (см. level.script, goodie_factory).
+go.property("kind", 3)
+go.property("collected", 0)
+-- имя анимации спрайта (hash), по умолчанию яблоко
+go.property("anim", hash("apple"))
+
+function init(self)
+    self.is_collected = false
+    msg.post("#sprite", "play_animation", { id = self.anim })
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("collect") then
+        -- дедупликация: повторные сообщения игнорируются
+        if self.is_collected then return end
+        self.is_collected = true
+        go.set("#goodie", "collected", 1)
+        -- у спрайта нет свойства visible; скрываем его сообщением disable
+        msg.post("#sprite", "disable")
+        print(string.format("GOODIE %s collected (fruit %s)",
+            self.kind, tostring(self.anim)))
+    end
+end

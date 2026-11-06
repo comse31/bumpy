@@ -1,0 +1,4 @@
+material: "/main/walls/border/border.material"
+vertices: "/main/walls/border/border.buffer"
+textures: "/main/walls/border/border.png"
+primitive_type: PRIMITIVE_TRIANGLES
