@@ -279,6 +279,51 @@ class GeneratedLevelIn(BaseModel):
                 raise ValueError(f"payload: поле {field} должно быть целым")
         return value
 
+    @field_validator("payload")
+    @classmethod
+    def _no_platform_above_block(cls, value: str) -> str:
+        """Над кирпичной кладкой (код 10) не может быть платформ.
+
+        Правило оригинала: 144 кладки в main/levels.json, и прямо над кладкой
+        стоит только другая кладка (столбик кирпичей) — платформ нет ни в одном
+        уровне. Иначе шар, разбивающий кладку снизу молотком, упирался бы в
+        платформу сверху, и проём переставал бы быть «пробиваемым».
+
+        Проверка на сервере дублирует фильтр генератора
+        (tools/gen_level.py: blocks_above_violations), чтобы такой уровень не
+        попал в БД даже от стороннего клиента.
+        """
+        decoded = json.loads(value)
+        grid = decoded["grid_lo"]
+        for row in range(1, len(grid)):
+            for col in range(len(grid[row])):
+                if grid[row][col] != 10:
+                    continue
+                above = grid[row - 1][col]
+                # 1..9 — платформы, 10 — кладка (столбик кирпичей допустим)
+                if above in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+                    raise ValueError(
+                        "payload: над кирпичной кладкой не может быть платформ "
+                        f"(строка {row}, колонка {col}, код {above})"
+                    )
+        return value
+
+    @model_validator(mode="after")
+    def _requires_items(self) -> "GeneratedLevelIn":
+        """Уровень обязан требовать хотя бы один предмет.
+
+        Это осознанное требование к сложности: уровень, который проходится без
+        снаряжения, слишком простой. Проверка дублирует фильтр генератора
+        (tools/gen_level.py: MIN_REQUIRED_ITEMS), чтобы «пустой» уровень не
+        попал в БД даже от стороннего клиента.
+        """
+        if int(self.drops) + int(self.keys) + int(self.hammers) < 1:
+            raise ValueError(
+                "уровень должен требовать хотя бы один предмет "
+                "(drops + keys + hammers > 0)"
+            )
+        return self
+
 
 class GeneratedLevelOut(BaseModel):
     """Сгенерированный уровень в ответе API."""

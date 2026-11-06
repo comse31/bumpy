@@ -105,18 +105,82 @@ class GeneratedLevelRepository:
 
     # --- чтение -------------------------------------------------------------
 
+    # Уровень обязан требовать хотя бы один предмет (иначе он слишком простой).
+    # Генератор это гарантирует (tools/gen_level.py: MIN_REQUIRED_ITEMS), но в
+    # БД могли остаться записи, созданные до появления требования, поэтому
+    # фильтр продублирован здесь: старые «пустые» уровни не выдаются клиенту.
+    MIN_ITEMS_SQL = "(drops + keys + hammers) > 0"
+
+    @staticmethod
+    def _no_platform_above_block(payload: str) -> bool:
+        """Проверить правило «над кирпичной кладкой нет платформ».
+
+        Кладка — код 10 в grid_lo. В оригинале над ней стоит только другая
+        кладка (столбик кирпичей). Если над кладкой платформа, шар не сможет
+        разбить кладку снизу — уровень сломан геометрически.
+
+        Фильтр нужен для записей, созданных до появления проверки в схеме
+        (уровни в БД могли быть сохранены раньше): клиенту они не выдаются.
+        """
+        try:
+            grid = json.loads(payload)["grid_lo"]
+        except (TypeError, ValueError, KeyError):
+            return False
+        for row in range(1, len(grid)):
+            for col in range(len(grid[row])):
+                if grid[row][col] != 10:
+                    continue
+                if grid[row - 1][col] in (1, 2, 3, 4, 5, 6, 7, 8, 9):
+                    return False
+        return True
+
+    def _valid_rows(self, rows: list[sqlite3.Row]) -> list[sqlite3.Row]:
+        """Оставить строки, проходящие проверку геометрии."""
+        return [row for row in rows if self._no_platform_above_block(row["payload"])]
+
     def random(self) -> GeneratedLevelOut | None:
-        """Случайный уровень из окна последних записей."""
+        """Случайный уровень из окна последних записей.
+
+        Отдаются только уровни, требующие хотя бы один предмет. Если таких в
+        окне нет (например, БД заполнена старыми записями), фильтр снимается,
+        чтобы режим «Приключение» продолжал работать.
+        """
+        sql = (
+            "SELECT * FROM generated_levels "
+            "WHERE level_id IN ("
+            "  SELECT level_id FROM generated_levels "
+            "  ORDER BY created_at DESC LIMIT ?"
+            ") {extra} ORDER BY RANDOM() LIMIT 1"
+        )
+        with self.db.connection() as conn:
+            # берём с запасом: часть строк может не пройти проверку геометрии
+            rows = conn.execute(
+                sql.format(extra=f"AND {self.MIN_ITEMS_SQL}").replace(
+                    "LIMIT 1", "LIMIT 200"),
+                (self.window,),
+            ).fetchall()
+            if not rows:
+                rows = conn.execute(
+                    sql.format(extra="").replace("LIMIT 1", "LIMIT 200"),
+                    (self.window,),
+                ).fetchall()
+        valid = self._valid_rows(rows)
+        if not valid:
+            # совсем нет подходящих записей — лучше отдать хоть что-то, чем
+            # оставить игрока без уровня
+            if not rows:
+                return None
+            valid = rows
+        # случайный выбор из подходящих (ORDER BY RANDOM в SQL уже перемешал)
+        return _row_to_level(valid[0])
+
+    def count_with_items(self) -> int:
+        """Сколько в БД уровней, требующих хотя бы один предмет."""
         with self.db.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM generated_levels "
-                "WHERE level_id IN ("
-                "  SELECT level_id FROM generated_levels "
-                "  ORDER BY created_at DESC LIMIT ?"
-                ") ORDER BY RANDOM() LIMIT 1",
-                (self.window,),
+                f"SELECT COUNT(*) AS n FROM generated_levels WHERE {self.MIN_ITEMS_SQL}"
             ).fetchone()
-        return None if row is None else _row_to_level(row)
+        return int(row["n"] or 0) if row else 0
 
     def latest(self, limit: int = 10) -> list[GeneratedLevelOut]:
         """Последние сгенерированные уровни (для отладки и админки)."""

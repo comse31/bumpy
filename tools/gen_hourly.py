@@ -109,19 +109,32 @@ def post_level(api_url: str, api_key: str, payload: dict) -> tuple[int, dict | s
 
 
 def build_payload(seed: int, level_number: int, node_cap: int, attempts: int,
+                  min_items: int = gen_level.MIN_REQUIRED_ITEMS,
                   on_attempt=None) -> dict | None:
-    """Сгенерировать проходимый уровень и подготовить тело запроса POST."""
+    """Сгенерировать подходящий уровень и подготовить тело запроса POST.
+
+    Требования по снаряжению берутся из того же прохода решателя, что и
+    статус проходимости (gen_level.evaluate): дополнительный вызов solve()
+    здесь не нужен и только замедлял бы генерацию в разы.
+    """
     level = gen_level.generate_playable(
         seed, level_number, attempts=attempts, node_cap=node_cap,
-        on_attempt=on_attempt)
+        min_items=min_items, on_attempt=on_attempt)
     if level is None:
         return None
 
-    req = gen_level.requirements(level, node_cap=node_cap)
-    if req.get("status") != "solvable":
-        # требования считаются тем же решателем: если он уже не подтверждает
-        # проходимость, уровень не сохраняем
+    status, required = gen_level.evaluate(level, node_cap=node_cap)
+    if status != "solvable":
         return None
+    if sum(required) < min_items:
+        # Требование «хотя бы один предмет»: без него уровень слишком простой
+        return None
+
+    req = {
+        "drops": required[0],
+        "keys": required[1],
+        "hammers": required[2],
+    }
 
     # в payload убираем служебные поля генератора: main/level/level.script
     # читает только поля формата levels.json
@@ -143,7 +156,9 @@ def build_payload(seed: int, level_number: int, node_cap: int, attempts: int,
 
 def run_once(api_url: str, api_key: str, level_number: int, node_cap: int,
              attempts: int, dry_run: bool,
-             seed: int | None = None) -> tuple[bool, int | None]:
+             seed: int | None = None,
+             min_items: int = gen_level.MIN_REQUIRED_ITEMS
+             ) -> tuple[bool, int | None]:
     """Один цикл: сгенерировать и сохранить ровно один уровень.
 
     Возвращает (сохранён ли уровень, seed найденного уровня). Второй элемент
@@ -156,10 +171,11 @@ def run_once(api_url: str, api_key: str, level_number: int, node_cap: int,
           f"level={level_number}")
 
     payload = build_payload(seed, level_number, node_cap, attempts,
+                            min_items=min_items,
                             on_attempt=lambda s, st:
                             print(f"  seed {s}: {st}") if st != "impossible" else None)
     if payload is None:
-        print("  проходимый уровень не найден — пропуск запуска", file=sys.stderr)
+        print("  подходящий уровень не найден — пропуск запуска", file=sys.stderr)
         return False, None
 
     found_seed = int(payload["seed"])
@@ -195,6 +211,11 @@ def main() -> None:
                     help="сколько seed'ов перебрать до отказа")
     ap.add_argument("--count", type=int, default=1,
                     help="сколько уровней сгенерировать за запуск")
+    ap.add_argument("--min-items", type=int,
+                    default=gen_level.MIN_REQUIRED_ITEMS,
+                    help=("сколько предметов уровень обязан требовать на старте "
+                          f"(по умолчанию {gen_level.MIN_REQUIRED_ITEMS}; "
+                          "0 — не требовать)"))
     ap.add_argument("--dry-run", action="store_true",
                     help="сгенерировать, но не сохранять в БД")
     ap.add_argument("--loop", type=int, default=0,
@@ -211,7 +232,7 @@ def main() -> None:
         for _ in range(max(1, args.count)):
             ok, found = run_once(api_url, args.api_key, args.level,
                                  args.node_cap, args.attempts, args.dry_run,
-                                 seed=seed)
+                                 seed=seed, min_items=args.min_items)
             if ok:
                 saved += 1
             if found is not None:

@@ -194,8 +194,29 @@ class LevelGenerator:
                     [LO_SHRINK, LO_SHRINK_WORN, LO_SHRINK_WORN2])
         for _ in range(counts["blocks"]):
             cell = take()
-            if cell:
-                lo[cell[0]][cell[1]] = LO_BLOCK
+            if not cell:
+                continue
+            br, bc = cell
+            # Кладку нельзя ставить ПОД платформой: «сразу над кладкой» не
+            # должно быть платформ (правило оригинала — см.
+            # blocks_above_violations). Иначе шар, разбивающий кладку снизу,
+            # упирался бы в платформу.
+            #
+            # Разрешён только столбик кладки, поэтому смотрим ВВЕРХ по колонке
+            # до первой непустой клетки: она обязана быть кладкой (или пусто
+            # до верха). Проверять только соседнюю строку мало — платформа
+            # может стоять через ряд, и после превращения промежуточных клеток
+            # в кладку нарушение всё равно возникло бы.
+            ok = True
+            for rr in range(br - 1, -1, -1):
+                code = lo[rr][bc]
+                if code == LO_EMPTY:
+                    continue
+                ok = code == LO_BLOCK
+                break
+            if not ok:
+                continue
+            lo[br][bc] = LO_BLOCK
 
     def _place_walls(self, hi, counts: dict[str, int]) -> None:
         """Вертикальные перегородки. Последний столбец в данных всегда пуст."""
@@ -215,10 +236,15 @@ class LevelGenerator:
             used += 1
 
     def _place_objects(self, lo, obj, counts: dict[str, int],
-                       start: tuple[int, int], exit_cell: tuple[int, int]) -> int:
-        """Расставить предметы. Возвращает число коллектиблов (timer)."""
+                       start: tuple[int, int], exit_cell: tuple[int, int],
+                       forbidden: set[tuple[int, int]] | None = None) -> int:
+        """Расставить предметы. Возвращает число коллектиблов (timer).
+
+        `forbidden` — клетки, куда предметы ставить НЕЛЬЗЯ (камера старта):
+        подобранный в ней расходник обнулил бы требование уровня.
+        """
         rng = self.rng
-        busy = {start, exit_cell}
+        busy = {start, exit_cell} | (forbidden or set())
 
         # свободные клетки: пустые или с платформой, но без опасных/особых
         candidates = []
@@ -232,17 +258,22 @@ class LevelGenerator:
         rng.shuffle(candidates)
         it = iter(candidates)
 
-        def put(code: int) -> bool:
+        def put(code: int, *, consumable: bool = False) -> bool:
             for cell in it:
-                if obj[cell[0]][cell[1]] == LO_EMPTY:
-                    obj[cell[0]][cell[1]] = code
-                    return True
+                if obj[cell[0]][cell[1]] != LO_EMPTY:
+                    continue
+                # расходники (капля/ключ/молоток) в камере старта запрещены:
+                # иначе шар подберёт их пролётом до замка
+                if consumable and (r_ := cell[0], cell[1]) in (forbidden or set()):
+                    continue
+                obj[cell[0]][cell[1]] = code
+                return True
             return False
 
         for code, key in ((OBJ_HAMMER, "hammers"), (OBJ_KEY, "keys"),
                           (OBJ_DROP, "drops"), (OBJ_HEART, "hearts")):
             for _ in range(counts[key]):
-                put(code)
+                put(code, consumable=True)
 
         collectibles = 0
         for i in range(counts["collectibles"]):
@@ -259,6 +290,88 @@ class LevelGenerator:
         if not options:
             options = [(ROWS - 1, 0)]
         return rng.choice(options)
+
+    def _lock_start(self, lo, hi, start: tuple[int, int]) -> set[tuple[int, int]]:
+        """Запереть шар на старте так, чтобы выход требовал предмет.
+
+        Тип замка выбирается по ГСЧ, поэтому уровни требуют разные предметы:
+
+          * "block"   — кладка прямо над стартом: ломается ТОЛЬКО молотком;
+          * "wall"    — разрушаемые перегородки по бокам ряда: ломаются ключом;
+          * "burning" — горящая платформа под шаром: без капли шар гибнет.
+
+        Возвращает множество клеток «камеры»: в них нельзя ставить предметы,
+        иначе шар подберёт нужный расходник, не выходя из камеры, и уровень
+        перестанет требовать снаряжение.
+        """
+        rng = self.rng
+        sr, sc = start
+        forbidden: set[tuple[int, int]] = set()
+
+        # ВАЖНО: `lo` — сетка в МЕТА-координатах (строка 0 — ВЕРХ экрана, как в
+        # levels.json), а для шара «вверх» — это meta_row - 1 (решатель делает
+        # screen_row = ROWS - 1 - meta_row). Поэтому «потолок» камеры — строка
+        # sr - 1, а не sr + 1.
+        sr_above = sr - 1
+        has_ceiling = sr_above >= 0
+        # Стены по бокам ставятся ВСЕГДА, иначе шар просто хопнет в соседнюю
+        # колонку и выйдет из камеры без затрат.
+        kind = rng.choice(("block", "burning")) if has_ceiling else "burning"
+
+        lo[sr][sc] = LO_BURNING if kind == "burning" else LO_DEFAULT
+
+        # Перегородки по бокам колонки старта на ВСЕХ рядах от старта до верха:
+        # в ряду старта стена блокирует только хоп, а при высоком прыжке шар
+        # поднимается и отводится в сторону на другом ряду.
+        #
+        # В ряду СТАРТА стена разрушаемая (это и есть «дверь», за которую
+        # платят ключом), а ВЫШЕ — неразрушаемая. Иначе шар мог бы ломать
+        # любую стену колонки, и у решателя появлялось много равнозначных
+        # ветвей: перебор разрастался с 0.05 с до 30+ с на кандидата.
+        # С неразрушаемыми стенами выше выход из камеры единственный.
+        # (hi[r][gc] — граница между колонками gc и gc+1; последний
+        # столбец gc = COLS-1 в данных не используется)
+        for r in range(0, sr + 1):
+            code = HI_WALL_WEAK if r == sr else HI_WALL_SOLID
+            if sc > 0:
+                hi[r][sc - 1] = code
+            if sc < COLS - 1:
+                hi[r][sc] = code
+
+        if kind == "block":
+            # Кладка над шаром: ломается только снизу молотком, и заодно
+            # закрывает выход вверх через высокий прыжок.
+            #
+            # Правило геометрии: НАД кладкой не может быть платформ
+            # (см. blocks_above_violations; в оригинале над кладкой стоит
+            # только другая кладка — столбик кирпичей). Поэтому платформы выше
+            # по этой колонке убираются: иначе шар, разбивающий кладку снизу,
+            # упирался бы в платформу сверху.
+            lo[sr_above][sc] = LO_BLOCK
+            forbidden.add((sr_above, sc))
+            for rr in range(sr_above - 1, -1, -1):
+                if lo[rr][sc] in PLATFORM_CODES:
+                    # платформа над кладкой недопустима — просто убираем её
+                    lo[rr][sc] = LO_EMPTY
+                    forbidden.add((rr, sc))
+                elif lo[rr][sc] == LO_BLOCK:
+                    # столбик кладки допустим, но выше него платформ быть не
+                    # должно — продолжаем проверку
+                    continue
+                else:
+                    # пусто или что-то ещё — выше препятствий для правила нет
+                    break
+
+        # «Камера» — полоса ряда старта ПЛЮС вся колонка старта выше него:
+        # шар поднимается высоким прыжком именно по своей колонке и подбирает
+        # предметы пролётом, поэтому расходник в любом ряду этой колонки
+        # обнулил бы требование уровня (проверено на seed 8002: ключ в (2,0)
+        # подбирался до того, как шар ломал стену).
+        for c in range(COLS):
+            forbidden.add((sr, c))
+        for r in range(ROWS):
+            forbidden.add((r, sc))
+        return forbidden
 
     def _pick_exit(self, lo, start: tuple[int, int]) -> tuple[int, int]:
         """Выход: клетка с платформой, максимально далеко от старта."""
@@ -283,8 +396,16 @@ class LevelGenerator:
         self._place_walls(hi, counts)
 
         start = self._pick_start(lo)
+        # Замок на старте: уровень обязан требовать хотя бы один предмет.
+        # Если сверху нет ряда (старт в верхнем ряду), берём старт на ряд ниже.
+        if start[0] + 1 >= ROWS:
+            start = (ROWS - 2, start[1])
+            lo[start[0]][start[1]] = LO_DEFAULT
+        forbidden = self._lock_start(lo, hi, start)
+
         exit_cell = self._pick_exit(lo, start)
-        timer = self._place_objects(lo, obj, counts, start, exit_cell)
+        timer = self._place_objects(lo, obj, counts, start, exit_cell,
+                                    forbidden=forbidden)
 
         # платформа в клетке выхода будет удалена при открытии выхода, но для
         # решателя она должна существовать: выход всегда на клетке с полом
@@ -308,6 +429,33 @@ class LevelGenerator:
         }
 
 
+# Код кирпичной кладки в слое lo (main/level/level.script: PLATFORM_BY_CODE).
+PLATFORM_CODES = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9})
+
+
+def blocks_above_violations(level: dict) -> list[tuple[int, int, int]]:
+    """Клетки, где НАД кладкой стоит платформа: [(row, col, код_выше)].
+
+    В оригинальных уровнях (main/levels.json, 144 кладки) прямо над кладкой
+    стоит только другая кладка — столбик кирпичей. Платформы над кладкой нет
+    ни в одном уровне: шар, разбивающий кладку снизу, упирался бы в платформу,
+    а геометрия проёма переставала бы быть «пробиваемой» снизу.
+
+    Поэтому генератор такие сочетания запрещает, а проверка продублирована
+    отдельной функцией — её используют и тесты, и `is_playable()`.
+    """
+    lo = level["grid_lo"]
+    bad = []
+    for row in range(ROWS):
+        for col in range(COLS):
+            if lo[row][col] != LO_BLOCK or row == 0:
+                continue
+            above = lo[row - 1][col]
+            if above in PLATFORM_CODES:
+                bad.append((row, col, above))
+    return bad
+
+
 def candidate(seed: int, index: int = 1) -> dict:
     """Один кандидат уровня по seed (без проверки проходимости)."""
     rng = random.Random(seed)
@@ -316,27 +464,69 @@ def candidate(seed: int, index: int = 1) -> dict:
     return level
 
 
-def is_playable(level: dict, node_cap: int = 400000) -> str:
-    """Статус решателя для кандидата: "solvable" / "impossible" / "limit"."""
-    return sv.is_solvable(sv.Level(level), node_cap=node_cap)
+# Минимальное число предметов, которое уровень обязан требовать на старте.
+# Требование «хотя бы один любой предмет» делает уровни интереснее: шар не
+# может пройти уровень «с нуля», игроку нужен хотя бы один молоток, ключ или
+# капля, добытые на самом уровне или взятые в карман.
+MIN_REQUIRED_ITEMS = 1
+
+
+def evaluate(level: dict, node_cap: int = 400000) -> tuple[str, tuple[int, int, int]]:
+    """Один вызов решателя: (статус, минимальный стартовый набор предметов).
+
+    `is_solvable()` отдельно от `solve()` вызывать не нужно: solve() уже
+    возвращает и статус, и required. Раньше генератор делал ДВА прохода
+    решателя на кандидата (is_solvable + solve), из-за чего проверка одного
+    уровня занимала десятки секунд; теперь — один проход.
+    """
+    res = sv.solve(sv.Level(level), node_cap=node_cap, legacy=True,
+                   allow_fallback=True)
+    status = res.get("status", "impossible")
+    required = tuple(int(v) for v in res.get("required", (0, 0, 0)))
+    return status, required
+
+
+def is_playable(level: dict, node_cap: int = 400000,
+                min_items: int = 0) -> str:
+    """Статус решателя для кандидата: "solvable" / "impossible" / "limit".
+
+    При `min_items > 0` уровень считается неподходящим, если суммарное
+    требование на старте (drops + keys + hammers) меньше `min_items`:
+    возвращается "impossible", чтобы вызывающий код взял следующий seed.
+    """
+    # Правило геометрии: прямо над кирпичной кладкой не может быть платформ
+    # (в оригинале над кладкой стоит только другая кладка). Проверяется до
+    # решателя: такой уровень дешевле сразу забраковать.
+    if blocks_above_violations(level):
+        return "impossible"
+
+    status, required = evaluate(level, node_cap=node_cap)
+    if status != "solvable":
+        return status
+    if min_items > 0 and sum(required) < min_items:
+        # проходим, но слишком просто: для генератора это брак
+        return "impossible"
+    return status
 
 
 def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
                       node_cap: int = 400000,
+                      min_items: int = MIN_REQUIRED_ITEMS,
                       on_attempt=None) -> dict | None:
-    """Первый проходимый уровень, начиная с seed.
+    """Первый подходящий уровень, начиная с seed.
 
     seed перебирается последовательно (seed, seed+1, ...): результат
-    воспроизводим и не зависит от состояния ГСЧ между вызовами. Проверяются
-    только "solvable": "impossible" — брак, "limit" — недоказанная
-    проходимость (такой уровень нельзя сохранять в БД).
+    воспроизводим и не зависит от состояния ГСЧ между вызовами. Принимается
+    только "solvable"; "impossible" (в т.ч. уровни без обязательных
+    предметов при min_items > 0) — брак, "limit" — недоказанная проходимость
+    (такой уровень нельзя сохранять в БД).
     """
     for offset in range(max(1, attempts)):
         cur = seed + offset
         level = candidate(cur, index)
         if len(level["raw_grid"]) != CELLS:
             continue
-        status = is_playable(level, node_cap=node_cap)
+        status = is_playable(level, node_cap=node_cap, min_items=min_items)
         if on_attempt:
             on_attempt(cur, status)
         if status == "solvable":
@@ -370,8 +560,11 @@ def main() -> None:
     ap.add_argument("--out", default=None, help="записать уровень в файл")
     ap.add_argument("--requirements", action="store_true",
                     help="добавить минимальный набор предметов (solve, медленно)")
+    ap.add_argument("--min-items", type=int, default=MIN_REQUIRED_ITEMS,
+                    help=("сколько предметов уровень обязан требовать на старте "
+                          f"(по умолчанию {MIN_REQUIRED_ITEMS}; 0 — не требовать)"))
     ap.add_argument("--bench", type=int, default=0,
-                    help="оценить долю проходимых кандидатов на N seed'ах")
+                    help="оценить долю подходящих кандидатов на N seed'ах")
     args = ap.parse_args()
 
     if args.bench:
@@ -381,7 +574,8 @@ def main() -> None:
         n = max(1, args.bench)
         for i in range(n):
             level = candidate(1000 + i, args.level)
-            status = is_playable(level, args.node_cap)
+            # считаем те же условия, что и у генератора: solvable + минимум предметов
+            status = is_playable(level, args.node_cap, min_items=args.min_items)
             stats[status] = stats.get(status, 0) + 1
             print(f"  seed {1000 + i}: {status}")
         elapsed = time.time() - start
@@ -395,9 +589,10 @@ def main() -> None:
     seed = args.seed if args.seed is not None else int(__import__("time").time())
     level = generate_playable(seed, args.level, attempts=args.attempts,
                               node_cap=args.node_cap,
+                              min_items=args.min_items,
                               on_attempt=lambda s, st: print(f"  seed {s}: {st}"))
     if level is None:
-        print(f"не удалось найти проходимый уровень на {args.attempts} попытках",
+        print(f"не удалось найти подходящий уровень на {args.attempts} попытках",
               file=sys.stderr)
         raise SystemExit(1)
 

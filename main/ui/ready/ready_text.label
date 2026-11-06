@@ -1,7 +1,9 @@
 text: 'READY FOR LEVEL 1?'
 font: '/main/ui/fonts/plate.font'
 material: '/builtins/fonts/label.material'
-size { x: 600 y: 80 z: 0 }
+# Высота 140: в «Приключении» плашка показывает две строки («RANDOM LEVEL»
+# и level_id) при кегле 48 и leading 1.0 — это ~96 px, 80 не хватало.
+size { x: 600 y: 140 z: 0 }
 color { x: 1 y: 0.94 z: 0.94 w: 1 }
 outline { x: 0.09 y: 0.10 z: 0.15 w: 1 }
 shadow { x: 0 y: 0 z: 0 w: 0 }
@@ -9,4 +11,6 @@ leading: 1.0
 tracking: 0.0
 pivot: PIVOT_CENTER
 blend_mode: BLEND_MODE_ALPHA
-line_break: false
+# true: в «Приключении» плашка показывает идентификатор уровня из БД
+# отдельной строкой («RANDOM LEVEL\n<level_id>»), см. ready.script.
+line_break: true

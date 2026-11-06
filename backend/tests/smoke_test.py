@@ -376,6 +376,31 @@ def check_generated_levels() -> None:
     check("статус solvable", level.get("status") == "solvable", str(level))
     check("требования сохранены", level.get("keys") == 1, str(level))
 
+    # уровень без единого требуемого предмета не принимается: он слишком простой
+    no_items = dict(body, seed=seed + 7, drops=0, keys=0, hammers=0)
+    status, error = request("POST", "/api/levels", no_items)
+    check("уровень без предметов отклонён", status == 422, f"{status} {error}")
+
+    # над кирпичной кладкой не может быть платформ (правило оригинала)
+    bad_geometry = json.loads(json.dumps(payload))
+    bad_geometry["grid_lo"][2][2] = 10          # кладка
+    bad_geometry["grid_lo"][1][2] = 1           # платформа прямо над ней
+    status, error = request(
+        "POST", "/api/levels",
+        dict(body, seed=seed + 11, payload=json.dumps(bad_geometry)),
+    )
+    check("платформа над кладкой отклонена", status == 422, f"{status} {error}")
+
+    # столбик кладки допустим (в оригинале так и бывает)
+    stacked = json.loads(json.dumps(payload))
+    stacked["grid_lo"][3][4] = 10
+    stacked["grid_lo"][2][4] = 10
+    status, stacked_level = request(
+        "POST", "/api/levels",
+        dict(body, seed=seed + 13, payload=json.dumps(stacked)),
+    )
+    check("столбик кладки допустим", status == 201, f"{status} {stacked_level}")
+
     # повторная вставка того же seed — не дубликат
     status, again = request("POST", "/api/levels", body)
     check("повторный seed не дублируется",

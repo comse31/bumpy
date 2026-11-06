@@ -170,4 +170,22 @@ function M.is_generated()
     return current ~= nil
 end
 
+-- Идентификатор записи в БД (level_id) или nil, если уровня нет.
+--
+-- Нужен плашке READY: в «Приключении» играет случайный уровень, у которого
+-- нет номера в модели levels.json, поэтому плашка показывает именно этот id —
+-- по нему видно, какой уровень из БД играется (тот же id отдаёт
+-- GET /api/levels/random). В классике возвращается nil и плашка показывает
+-- номер уровня.
+function M.get_level_id()
+    if current == nil then
+        return nil
+    end
+    local level_id = current.level_id
+    if type(level_id) ~= "string" or level_id == "" then
+        return nil
+    end
+    return level_id
+end
+
 return M

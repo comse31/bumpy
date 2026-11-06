@@ -33,6 +33,9 @@ local motion = require("main.ball.ball_motion")
 local landing = require("main.ball.ball_landing")
 -- дублирование сохранения в серверную БД: досылка отложенных снимков
 local remote_db = require("main.remote_db")
+-- случайный сгенерированный уровень из БД: его level_id показывается на
+-- плашке READY в режиме «Приключение»
+local random_level = require("main.random_level")
 
 local SIZE = cfg.SIZE
 local COLS = cfg.COLS
@@ -1101,7 +1104,14 @@ function on_message(self, message_id, message, sender)
         -- стартовое меню перекрывает игру: READY покажем после выбора режима
         -- (start_game пересоберёт уровень и пришлёт новый level_start)
         if not game_mode.is_menu_open() then
-            msg.post("/ready", "show", { level = state.index })
+            -- «Приключение» играет на случайном сгенерированном уровне из БД:
+            -- номера уровня в модели у него нет, поэтому плашке передаётся
+            -- идентификатор записи (main/random_level.lua), и она показывает
+            -- именно его. В классике остаётся номер уровня из levels.json.
+            msg.post("/ready", "show", {
+                level = state.index,
+                level_id = random_level.get_level_id(),
+            })
         end
         -- камера на плашке READY всегда показывает всё игровое поле целиком;
         -- после нажатия клавиши (см. on_input) она плавно перейдёт к масштабу
