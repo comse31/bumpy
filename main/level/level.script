@@ -37,10 +37,14 @@
 local state = require("main.level.level_state")
 -- сохранение прогресса между сессиями (HTML5: IndexedDB через sys.save)
 local save = require("main.save")
+-- дублирование игровых событий в серверную БД (backend, SQLite)
+local remote_db = require("main.remote_db")
 -- тестовый режим (bumpy.test_level = 1): тестовый набор уровней без сохранения
 local test_mode = require("main.test_mode")
 -- режим игры: в «Приключении» после прохождения уровня возвращаемся в меню
 local game_mode = require("main.game_mode")
+-- случайный сгенерированный уровень из БД (режим «Приключение»)
+local random_level = require("main.random_level")
 
 local COLS = 6
 local ROWS = 6
@@ -352,11 +356,28 @@ local function clear_level()
     state.exit_id = nil
 end
 
--- сгенерировать уровень self.level: создать объекты в очищенной сцене
-local function build_level(self)
+-- Данные уровня для self.level.
+--
+-- В «Приключении» строится случайный сгенерированный уровень из БД
+-- (main/random_level.lua): его payload повторяет формат levels.json, поэтому
+-- дальше он ничем не отличается от классического. Если уровень не загружен
+-- (нет сети/уровней в БД), используется обычный уровень из main/levels.json —
+-- игра остаётся работоспособной.
+local function level_data(self)
+    if game_mode.is_adventure() and random_level.has() then
+        local gen = random_level.current()
+        print(string.format("level.script: ADVENTURE generated level_id=%s seed=%s",
+            tostring(gen.level_id), tostring(gen.seed)))
+        return gen, 1
+    end
     local model = self.model
     local index = vmath.clamp(self.level, 1, model.level_count)
-    local lvl = model.levels[index]
+    return model.levels[index], index
+end
+
+-- сгенерировать уровень self.level: создать объекты в очищенной сцене
+local function build_level(self)
+    local lvl, index = level_data(self)
     if not lvl then
         print("level.script: level " .. tostring(self.level) .. " not found")
         return
@@ -499,6 +520,11 @@ function on_message(self, message_id, message, sender)
             load(self)
             return
         end
+        -- событие в историю БД: уровень пройден (номер и режим)
+        remote_db.event("level", {
+            level = self.level,
+            mode = game_mode.is_adventure() and "adventure" or "classic",
+        })
         -- «Приключение»: одна попытка на выбранном уровне. После прохождения
         -- следующий уровень НЕ загружается — игра возвращается в стартовое
         -- меню, где можно выбрать любой открытый уровень и сыграть снова

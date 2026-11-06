@@ -17,6 +17,14 @@ google/
 *.atlas
 *.sprite
 
+# Исключение для образа генератора (docker/gen/Dockerfile): ему нужны только
+# сам генератор, решатель и данные классических уровней. Остальные файлы
+# tools/ и main/ в контекст не попадают.
+!tools/gen_level.py
+!tools/gen_hourly.py
+!tools/solve_level.py
+!main/levels.json
+
 .internal/
 build/
 dist/*.json
@@ -24,6 +32,13 @@ dist/*.json
 # bob.jar скачивается внутри образа (docker/bob-builder.Dockerfile),
 # на хосте он не нужен — исключаем из контекста сборки.
 bob.jar
+
+# Backend (backend/Dockerfile копирует только app/, migrations/ и config.yml):
+# локальная база, кэш байткода и тесты в образ не попадают.
+backend/data/
+backend/tests/
+**/__pycache__/
+**/*.pyc
 
 .vscode/
 .git/

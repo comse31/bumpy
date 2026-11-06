@@ -1,6 +1,55 @@
 name: bumpy
 
+# Локальный запуск всего стека: игра (nginx) + backend (FastAPI + SQLite).
+#   docker compose -f docker/docker-compose.yml up -d --build
+# Игра — http://localhost:8080, API — http://localhost:8080/api/health,
+# прямой доступ к API — http://localhost:8000/api/health.
+#
+# Все настройки БД (путь к файлу, журнал, лимиты) — в backend/config.yml.
+# Данные лежат в именованном томе bumpy-db, поэтому переживают
+# `docker compose down` и пересборку контейнеров.
+
 services:
+  bumpy-backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: bumpy-backend:latest
+    container_name: bumpy-backend
+    # Том с файлом БД: /data/bumpy.db (database.path в backend/config.yml).
+    volumes:
+      - bumpy-db:/data
+    ports:
+      # Прямой доступ к API для отладки; в проде достаточно прокси nginx.
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bumpy-net
+
+  bumpy-gen:
+    build:
+      context: ..
+      dockerfile: docker/gen/Dockerfile
+    image: bumpy-gen:latest
+    container_name: bumpy-gen
+    restart: unless-stopped
+    # Генератор пишет уровень в backend каждые 3600 с (см. CMD образа).
+    # Внутри контейнера нет расписания: --loop держит паузу между запусками.
+    environment:
+      BUMPY_API_URL: http://bumpy-backend:8000
+      BUMPY_API_KEY: ""
+    depends_on:
+      bumpy-backend:
+        condition: service_healthy
+    networks:
+      - bumpy-net
+
   bumpy-web:
     build:
       context: ..
@@ -10,3 +59,18 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      bumpy-backend:
+        # nginx резолвит имя bumpy-backend при старте: если backend ещё не в
+        # сети, контейнер падал бы с «host not found in upstream».
+        condition: service_healthy
+    networks:
+      - bumpy-net
+
+networks:
+  bumpy-net:
+    name: bumpy-net
+
+volumes:
+  bumpy-db:
+    name: bumpy-db
