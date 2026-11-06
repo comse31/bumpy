@@ -60,9 +60,23 @@ class ApiSettings:
 
 
 @dataclass(frozen=True)
+class LevelsSettings:
+    """Сгенерированные уровни (таблица generated_levels)."""
+
+    # Сколько последних уровней участвует в случайной выдаче
+    # (GET /api/levels/random). Более старые остаются в БД для истории.
+    window: int = 500
+    # Сколько последних уровней отдаёт GET /api/levels/latest.
+    latest_limit: int = 10
+    # Сколько уровней хранить при очистке (0 — не чистить).
+    keep: int = 2000
+
+
+@dataclass(frozen=True)
 class Settings:
     database: DatabaseSettings
     api: ApiSettings
+    levels: LevelsSettings
     config_path: Path
 
 
@@ -111,6 +125,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
     base = path.parent
     db_raw = _section(raw, "database")
     api_raw = _section(raw, "api")
+    levels_raw = _section(raw, "levels")
 
     journal_mode = str(db_raw.get("journal_mode", "WAL")).upper()
     if journal_mode not in ("DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"):
@@ -151,7 +166,13 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         password_max_len=_int(api_raw, "password_max_len", 32),
     )
 
+    levels = LevelsSettings(
+        window=_int(levels_raw, "window", 500),
+        latest_limit=_int(levels_raw, "latest_limit", 10),
+        keep=_int(levels_raw, "keep", 2000, allow_zero=True),
+    )
+
     if api.password_min_len >= api.password_max_len:
         raise ConfigError("api.password_min_len должен быть меньше api.password_max_len")
 
-    return Settings(database=database, api=api, config_path=path)
+    return Settings(database=database, api=api, levels=levels, config_path=path)

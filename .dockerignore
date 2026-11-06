@@ -17,6 +17,14 @@ google/
 *.atlas
 *.sprite
 
+# Исключение для образа генератора (docker/gen/Dockerfile): ему нужны только
+# сам генератор, решатель и данные классических уровней. Остальные файлы
+# tools/ и main/ в контекст не попадают.
+!tools/gen_level.py
+!tools/gen_hourly.py
+!tools/solve_level.py
+!main/levels.json
+
 .internal/
 build/
 dist/*.json

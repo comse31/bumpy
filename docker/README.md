@@ -39,12 +39,41 @@ node tools/api_bundle_html5.js
 docker compose -f docker/docker-compose.yml up --build -d
 ```
 
+Поднимаются три сервиса:
+
+| Контейнер | Порт | Назначение |
+|---|---|---|
+| `bumpy-web` | 8080 → 80 | nginx с HTML5-бандлом, проксирует `/api` на backend |
+| `bumpy-backend` | 8000 | FastAPI + SQLite (том `bumpy-db`) |
+| `bumpy-gen` | — | часовой генератор уровней (`tools/gen_hourly.py --loop 3600`) |
+
 Открыть в браузере: <http://localhost:8080>
+
+Проверка:
+
+```bash
+docker compose -f docker/docker-compose.yml ps
+docker logs bumpy-gen            # генерация уровня (раз в час)
+curl -s http://localhost:8080/api/levels/stats
+curl -s http://localhost:8080/api/levels/random | head -c 300
+```
+
+Генератор пишет ровно один проходимый уровень за запуск: он строит кандидатов
+по seed и сохраняет только те, для которых решатель `tools/solve_level.py`
+подтвердил проходимость (`is_solvable → "solvable"`). Подробности —
+[`tools/GENERATED_LEVELS.md`](../tools/GENERATED_LEVELS.md:1).
 
 Остановить:
 
 ```bash
 docker compose -f docker/docker-compose.yml down
+```
+
+Данные (уровни и профили игроков) лежат в томе `bumpy-db` и переживают
+`down` и пересборку. Чтобы стереть их полностью:
+
+```bash
+docker compose -f docker/docker-compose.yml down -v
 ```
 
 ## Альтернатива: без docker-compose

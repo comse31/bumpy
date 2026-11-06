@@ -307,10 +307,127 @@ def first_login_scenario() -> None:
     status, free_name = request("GET", f"/api/auth/next-name?player_id={other_device}")
     check("авто-имя выдаётся снова", status == 200, str(free_name))
 
+    # 8. сгенерированные уровни: в БД попадают только проходимые
+    check_generated_levels()
+
     cleanup(name)
     request("DELETE", f"/api/players/{device}")
     request("DELETE", f"/api/players/{other_device}")
     request("DELETE", f"/api/players/{free_name.get('player_id') or 'none'}")
+
+
+def check_generated_levels() -> None:
+    """Сгенерированные уровни: сохраняются только проходимые, random отдаёт их.
+
+    Проверяется контракт генератора (tools/gen_hourly.py) с сервером:
+      * корректный уровень со status = "solvable" сохраняется (201);
+      * статусы кроме "solvable" сервер отвергает (422) — это гарантия того,
+        что непроверенный решателем уровень в БД не попадёт;
+      * payload не в формате levels.json отвергается (422);
+      * повторная вставка того же seed не создаёт дубликат;
+      * GET /api/levels/random отдаёт сохранённый уровень;
+      * GET /api/levels/stats считает записи.
+    """
+    payload = {
+        "level": 1,
+        "grid_lo": [
+            [1, 1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 1],
+        ],
+        "grid_hi": [
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+        ],
+        "objects": [
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 5, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0],
+        ],
+        "start_cell": 30,
+        "timer": 1,
+        "timer_cell": 5,
+        "theme": 1,
+    }
+    seed = 987654321
+    body = {
+        "seed": seed,
+        "level": 1,
+        "payload": json.dumps(payload),
+        "status": "solvable",
+        "drops": 0,
+        "keys": 1,
+        "hammers": 0,
+        "generator": "smoke_test",
+    }
+
+    status, level = request("POST", "/api/levels", body)
+    check("уровень сохранён", status == 201, f"{status} {level}")
+    check("статус solvable", level.get("status") == "solvable", str(level))
+    check("требования сохранены", level.get("keys") == 1, str(level))
+
+    # уровень без единого требуемого предмета не принимается: он слишком простой
+    no_items = dict(body, seed=seed + 7, drops=0, keys=0, hammers=0)
+    status, error = request("POST", "/api/levels", no_items)
+    check("уровень без предметов отклонён", status == 422, f"{status} {error}")
+
+    # над кирпичной кладкой не может быть платформ (правило оригинала)
+    bad_geometry = json.loads(json.dumps(payload))
+    bad_geometry["grid_lo"][2][2] = 10          # кладка
+    bad_geometry["grid_lo"][1][2] = 1           # платформа прямо над ней
+    status, error = request(
+        "POST", "/api/levels",
+        dict(body, seed=seed + 11, payload=json.dumps(bad_geometry)),
+    )
+    check("платформа над кладкой отклонена", status == 422, f"{status} {error}")
+
+    # столбик кладки допустим (в оригинале так и бывает)
+    stacked = json.loads(json.dumps(payload))
+    stacked["grid_lo"][3][4] = 10
+    stacked["grid_lo"][2][4] = 10
+    status, stacked_level = request(
+        "POST", "/api/levels",
+        dict(body, seed=seed + 13, payload=json.dumps(stacked)),
+    )
+    check("столбик кладки допустим", status == 201, f"{status} {stacked_level}")
+
+    # повторная вставка того же seed — не дубликат
+    status, again = request("POST", "/api/levels", body)
+    check("повторный seed не дублируется",
+          again.get("level_id") == level.get("level_id"), str(again))
+
+    # статусы кроме solvable запрещены
+    bad_status = dict(body, status="limit")
+    status, error = request("POST", "/api/levels", bad_status)
+    check("limit не сохраняется", status == 422, f"{status} {error}")
+
+    # payload не в формате levels.json запрещён
+    bad_payload = dict(body, seed=seed + 1, payload='{"grid_lo": []}')
+    status, error = request("POST", "/api/levels", bad_payload)
+    check("битый payload отклонён", status == 422, f"{status} {error}")
+
+    # случайная выдача
+    status, random_level = request("GET", "/api/levels/random")
+    check("random отдаёт уровень", status == 200, str(random_level))
+    check("payload — строка уровня", isinstance(random_level.get("payload"), str), str(random_level))
+
+    # статистика
+    status, stats = request("GET", "/api/levels/stats")
+    check("stats считает уровни", status == 200 and (stats.get("total") or 0) >= 1, str(stats))
+
+    # последние уровни
+    status, latest = request("GET", "/api/levels/latest?limit=5")
+    check("latest отдаёт список", status == 200 and isinstance(latest, list), str(latest))
 
 
 def cleanup(*names: str) -> None:

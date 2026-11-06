@@ -19,6 +19,18 @@ services:
     networks:
       - bumpy-net
 
+  bumpy-gen:
+    image: bumpy-gen:latest
+    container_name: bumpy-gen
+    restart: unless-stopped
+    environment:
+      BUMPY_API_URL: http://bumpy-backend:8000
+      BUMPY_API_KEY: ""
+    depends_on:
+      - bumpy-backend
+    networks:
+      - bumpy-net
+
   bumpy-web:
     image: bumpy-web:latest
     container_name: bumpy-web
