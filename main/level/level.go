@@ -9,12 +9,6 @@ embedded_components {
   ""
 }
 embedded_components {
-  id: "platform_default_turf"
-  type: "factory"
-  data: "prototype: \"/main/platforms/default_turf/platform.go\"\n"
-  ""
-}
-embedded_components {
   id: "platform_sloped_right"
   type: "factory"
   data: "prototype: \"/main/platforms/sloped/right.go\"\n"
@@ -36,12 +30,6 @@ embedded_components {
   id: "platform_sticky"
   type: "factory"
   data: "prototype: \"/main/platforms/sticky/platform.go\"\n"
-  ""
-}
-embedded_components {
-  id: "platform_sticky_slime"
-  type: "factory"
-  data: "prototype: \"/main/platforms/sticky_slime/platform.go\"\n"
   ""
 }
 embedded_components {

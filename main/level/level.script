@@ -199,17 +199,9 @@ local BLOCK_Y_OFFSET = CELL_H / 2.0 + PLATFORM_H / 2.0
 -- меша (20 * масштаб), чтобы перегородка заняла весь ряд
 local WALL_SCALE = vmath.vector3(1.0, CELL_H / 70.0, 1.0)
 
-    local function spawn_platform(row, col, code)
-        local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
-        -- theme 1: turf instead of iron default, violet slime instead of sticky
-        if state.theme == 1 then
-            if factory_id == "#platform_default" then
-                factory_id = "#platform_default_turf"
-            elseif factory_id == "#platform_sticky" then
-                factory_id = "#platform_sticky_slime"
-            end
-        end
-        local pos, scale
+local function spawn_platform(row, col, code)
+    local factory_id = PLATFORM_BY_CODE[code] or "#platform_default"
+    local pos, scale
     if factory_id == "#platform_block" then
         -- кладка шириной в ячейку; верх её на уровне верхней грани платформы ряда
         pos = vmath.vector3(cell_center_x(col), platform_y(row) + BLOCK_Y_OFFSET, 0.0)
@@ -218,12 +210,12 @@ local WALL_SCALE = vmath.vector3(1.0, CELL_H / 70.0, 1.0)
         pos = vmath.vector3(cell_center_x(col), platform_y(row), 0.0)
         scale = PLATFORM_SCALE
     end
-        -- коды с предварительным повреждением передают данные в скрипт платформы
-        local id = factory.create(factory_id, pos, nil, PLATFORM_DATA[code], scale)
-        state.platforms[row] = state.platforms[row] or {}
-        state.platforms[row][col] = id
-        return id
-    end
+    -- коды с предварительным повреждением передают данные в скрипт платформы
+    local id = factory.create(factory_id, pos, nil, PLATFORM_DATA[code], scale)
+    state.platforms[row] = state.platforms[row] or {}
+    state.platforms[row][col] = id
+    return id
+end
 
 local function spawn_goodie(row, col, code)
     local factory_id, kind, anim = goodie_factory(code)

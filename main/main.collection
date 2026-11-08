@@ -20,8 +20,8 @@ instances {
     z: -0.9
   }
   scale3 {
-    x: 0.9375
-    y: 0.9375
+    x: 1.21875
+    y: 1.21875
     z: 1.0
   }
 }
@@ -249,16 +249,6 @@ instances {
     x: 80.0
     y: 563.33
     z: 0.01
-  }
-}
-# --- white animation showcase (F2) ---
-instances {
-  id: "showcase"
-  prototype: "/main/showcase/showcase.go"
-  position {
-    x: 480.0
-    y: 360.0
-    z: 0.9
   }
 }
 instances {

@@ -1,4 +1,4 @@
 tile_set: "/main/background/bg_industrial.atlas"
 default_animation: "bg_industrial"
-material: "/builtins/materials/sprite.material"
+material: "/main/background/bg.material"
 blend_mode: BLEND_MODE_ALPHA

@@ -23,18 +23,11 @@ desktop.ini
 *.swo
 .idea/
 
-# Python
-__pycache__/
-*.pyc
-
 # Logs
 *.log
 /.editor_settings
 /.internal
 /build
 /bumpy_save
-# Временная папка для входящего арта
-/art_inbox/
-
-.archive/
 /github.txt
+"__pycache__/"  

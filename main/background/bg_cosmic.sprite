@@ -1,4 +1,4 @@
 tile_set: "/main/background/bg_cosmic.atlas"
 default_animation: "bg_cosmic"
-material: "/builtins/materials/sprite.material"
+material: "/main/background/bg.material"
 blend_mode: BLEND_MODE_ALPHA
