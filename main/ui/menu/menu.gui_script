@@ -1263,6 +1263,12 @@ function start_mode(self, chosen)
         -- номер уровня в модели не важен (level.script строит уровень из
         -- payload), поэтому в режиме всегда уровень 1
         mode.set_adventure_level(1)
+    else
+        -- классика: сгенерированный уровень из прошлой игры в «Приключении»
+        -- больше не нужен. Без очистки random_level.get_level_id() продолжал
+        -- бы возвращать level_id, и плашка READY показала бы «RANDOM LEVEL»
+        -- вместо «READY FOR LEVEL N?».
+        random_level.clear()
     end
     mode.set_menu_open(false)
     set_visible(self, false)

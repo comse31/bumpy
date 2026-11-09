@@ -1829,9 +1829,18 @@ function on_message(self, message_id, message, sender)
             -- номера уровня в модели у него нет, поэтому плашке передаётся
             -- идентификатор записи (main/random_level.lua), и она показывает
             -- именно его. В классике остаётся номер уровня из levels.json.
+            --
+            -- level_id запрашиваем ТОЛЬКО в «Приключении»: random_level.current()
+            -- переживает смену режима (модуль общий), и после игры в
+            -- «Приключении» плашка в классике показывала бы «RANDOM LEVEL»
+            -- вместо «READY FOR LEVEL N?».
+            local level_id = nil
+            if game_mode.is_adventure() then
+                level_id = random_level.get_level_id()
+            end
             msg.post("/ready", "show", {
                 level = state.index,
-                level_id = random_level.get_level_id(),
+                level_id = level_id,
             })
         end
         -- камера на плашке READY всегда показывает всё игровое поле целиком;
