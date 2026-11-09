@@ -13,7 +13,7 @@ local M = {}
 local COLS = C.COLS
 local RADIUS = C.RADIUS
 local BOUNCE_Y = C.BOUNCE_Y
-local THRESHOLD = C.THRESHOLD
+local INPUT_TAIL = C.INPUT_TAIL
 local CELL_CMD_TIMEOUT = C.CELL_CMD_TIMEOUT
 local TOUCH_CMD_TIMEOUT = C.TOUCH_CMD_TIMEOUT
 
@@ -262,7 +262,7 @@ function M.try_cell_command(self)
     end
     local since_touch = self.time - self.touch_time
     local from_rest = self.hero.allow_from_rest(self)
-    if not (self.sticky_rest or since_touch <= THRESHOLD or from_rest) then
+    if not (self.sticky_rest or since_touch <= INPUT_TAIL or from_rest) then
         return false
     end
     -- направление: для тапа по ячейке поля — в сторону этой ячейки,
@@ -285,7 +285,7 @@ function M.try_cell_command(self)
     -- высокого прыжка получал бы обычный соскок в сторону
     local can_high_jump = not self.high_jump_locked
         and (not self.sticky_rest
-            or (not self.sticky_action_used and since_touch <= THRESHOLD))
+            or (not self.sticky_action_used and since_touch <= INPUT_TAIL))
     -- ячейка (или боковая стенка) выше мяча: высокий прыжок, сторона задаётся
     -- тапом и применяется при пересечении уровня нажатия. Для тапа за границей
     -- поля мяч поднимается до этого уровня и там прыгает в сторону нажатия —

@@ -30,6 +30,7 @@ local SQUASH_AMOUNT = C.SQUASH_AMOUNT
 local WALL_THICKNESS = C.WALL_THICKNESS
 local BLOCK_HALF_W = C.BLOCK_HALF_W
 local MOVE_DURATION = C.MOVE_DURATION
+local DEFAULT_GRAVITY = C.GRAVITY
 
 -- X перегородки на границе: справа от col — (col+1)*CELL_W, слева — col*CELL_W
 local function wall_face_x(self, direction)
@@ -40,6 +41,83 @@ end
 -- её ячейки, поэтому его грань — центр той ячейки ∓ полуширина кладки
 local function block_face_x(self, direction)
     return grid.column_center(self.col + direction) - direction * BLOCK_HALF_W
+end
+
+function M.restore_gravity()
+    physics.set_gravity(vmath.vector3(0.0, -DEFAULT_GRAVITY, 0.0))
+end
+
+-- the DWELL/FLIGHT state machine lives in ball.script; these helpers only
+-- remember which launch to perform when the contact hold ends.
+function M.schedule_vertical(self)
+    if self.hero.contact_dwell and self.contact_phase == "dwell" then
+        self.dwell_pending = { kind = "vertical" }
+        return true
+    end
+    return false
+end
+
+-- perform the launch stored by a scheduled action. The clip was already started
+-- at the accepted contact (cursor = 0), so only physics / tweens are started here.
+function M.launch_pending(self)
+    local pending = self.dwell_pending
+    self.dwell_pending = nil
+    if not pending then
+        return
+    end
+    if pending.kind == "high_jump" then
+        local x0 = go.get_position().x
+        print(string.format("JUMP t=%.3f x0=%.1f x1_target=%.1f high=true",
+            self.time, x0, x0))
+        M.launch_high_jump(self)
+        return
+    end
+
+    -- original master-ball physics: default gravity + ballistic hop impulse
+    M.restore_gravity()
+    local vy = M.hop_velocity(self)
+    local t_land = M.landing_time(self, vy)
+    phys.set_vertical(vy)
+    self.jump_takeoff_time = self.time
+    self.t_land = t_land
+    self.air_peak_y = go.get_position().y
+    self.air_start_time = self.time
+    self.release_y = go.get_position().y
+
+    local x0 = go.get_position().x
+    local x1_target = x0
+    if pending.kind == "lateral" then
+        self.move_from = x0
+        self.move_to = grid.column_center(self.col)
+        self.move_duration = M.move_duration_for(t_land)
+        self.move_t = self.move_duration
+        self.action_time = self.time
+        self.next_touch_time = self.time + t_land
+        x1_target = self.move_to
+    elseif pending.kind == "bounce" then
+        if pending.hit_wall then
+            self.bounce_hit_pending = true
+            self.bounce_hit_dir = pending.direction
+        end
+        self.bounce_x_start = x0
+        self.bounce_x_wall = pending.face_x
+            - pending.direction * (RADIUS * (1.0 - SQUASH_AMOUNT) + (pending.inset or 0.0))
+        self.bounce_x_end = grid.column_center(self.col)
+        self.bounce_duration = t_land
+        self.bounce_t = t_land
+        self.bounce_squash_pending = true
+        self.bounce_hold_t = 0.0
+        self.bounce_hold_duration = 0.12 * ((self.hero.env and self.hero.env.tempo) or 1.0)
+        self.action_time = self.time
+        self.next_touch_time = self.time + t_land
+        x1_target = self.bounce_x_end
+    else
+        -- vertical rebound
+        self.action_time = self.time
+        self.next_touch_time = self.time + t_land
+    end
+    print(string.format("JUMP t=%.3f x0=%.1f x1_target=%.1f vy=%.1f t_land=%.3f",
+        self.time, x0, x1_target, vy, t_land))
 end
 
 -- отскок от препятствия (перегородка или кладка): мяч прыгает в сторону
@@ -61,6 +139,9 @@ function M.bounce_off_barrier(self, direction, face_x, inset)
     self.next_touch_time = self.time + self.bounce_duration
     -- сплющивание по X (горизонтальное) включается в момент касания грани
     self.bounce_squash_pending = true
+    self.bounce_hold_t = 0.0
+    local tempo = (self.hero.env and self.hero.env.tempo) or 1.0
+    self.bounce_hold_duration = 0.12 * tempo
     self.action_time = self.time
     -- специфика героя: мяч переворачивается, Slinky выгибается в сторону стены
     self.hero.on_action(self, direction, self.bounce_duration)
@@ -192,10 +273,21 @@ end
 -- Возвращает true, если смещение выполнено (мяч перешёл в соседнюю колонку)
 function M.hop_and_move(self, direction)
     local old_col = self.col
+    local in_dwell = self.hero.contact_dwell and self.contact_phase == "dwell"
     -- вертикальная перегородка на границе ячеек: прыжок сквозь неё невозможен —
     -- мяч прыгает в её сторону, отскакивает и возвращается на свою платформу
     if world.wall_blocking(self.row, old_col, direction) then
         dbg.log("WALL bounce dir=%d col=%d row=%d", direction, old_col, self.row)
+        if in_dwell then
+            self.dwell_pending = {
+                kind = "bounce",
+                direction = direction,
+                face_x = wall_face_x(self, direction),
+                inset = WALL_THICKNESS / 2.0,
+                hit_wall = true,
+            }
+            return false
+        end
         -- удар наносится в момент касания перегородки (середина дуги), а не в
         -- начале прыжка — флаг снимается в update при k <= 0.5
         self.bounce_hit_pending = true
@@ -207,6 +299,15 @@ function M.hop_and_move(self, direction)
     -- в её сторону, отскакивает от боковой грани и возвращается на свою платформу
     if world.has_block(self.row, old_col + direction) then
         dbg.log("BLOCK bounce dir=%d col=%d row=%d", direction, old_col, self.row)
+        if in_dwell then
+            self.dwell_pending = {
+                kind = "bounce",
+                direction = direction,
+                face_x = block_face_x(self, direction),
+                inset = 0.0,
+            }
+            return false
+        end
         M.bounce_off_block(self, direction)
         return false
     end
@@ -216,6 +317,10 @@ function M.hop_and_move(self, direction)
     self.sticky_rest = false
     self.col = self.col + direction
     dbg.log("HOP dir=%d col %d->%d", direction, old_col, self.col)
+    if in_dwell then
+        self.dwell_pending = { kind = "lateral", direction = direction }
+        return true
+    end
     -- масштаб длительности шага задаёт герой (Slinky перекатывается медленнее):
     -- вертикальный импульс растягивается во времени, поэтому X-смещение и
     -- приземление остаются синхронными
@@ -244,19 +349,33 @@ end
 -- поля; во время полёта можно запрыгнуть на соседнюю ячейку любого ряда.
 -- Используется и с обычной платформы, и с липкой (там высокий прыжок доступен
 -- и при параллельном перемещении)
-function M.start_high_jump(self)
+function M.launch_high_jump(self)
+    M.restore_gravity()
     world.bend_platform(self.row, self.col)
     phys.set_vertical(HIGH_JUMP_SPEED)
     self.rising = true
     self.high_jump = true
+    self.jump_takeoff_time = self.time
+    self.air_peak_y = go.get_position().y
+    self.air_start_time = self.time
+    self.release_y = go.get_position().y
     M.report_motion(self)
     -- мяч оторвался от липкой поверхности: покой снят
     self.sticky_rest = false
     self.action_time = self.time
-    self.hero.on_action(self, nil, nil)
     -- первый уровень для проверки пересечения — над текущим рядом
     self.hj_row = self.row + 1
     self.next_touch_time = self.time + M.high_jump_touch_time(self)
+end
+
+function M.start_high_jump(self)
+    -- v12 decides high jump at the end of DWELL in ball.script; ignore any
+    -- other path so a second jump cannot start mid-flight.
+    if self.hero.contact_dwell then
+        return
+    end
+    self.hero.on_action(self, nil, nil)
+    M.launch_high_jump(self)
 end
 
 -- Прервать высокий прыжок по команде «вниз» (клавиша Down или тап по ячейке
@@ -286,6 +405,7 @@ function M.cancel_high_jump(self)
     self.tap_jump = false
     self.pending_jump = false
     phys.stop()
+    M.restore_gravity()
     self.action_time = self.time
     dbg.log("HIGH JUMP cancelled at y=%.1f row=%d col=%d",
         go.get_position().y, self.row, self.col)

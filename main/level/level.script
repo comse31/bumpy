@@ -375,6 +375,7 @@ local function build_level(self)
         return
     end
     state.index = index
+    state.theme = lvl.theme or 1
     state.start_cell = lvl.start_cell
     state.exit_cell = lvl.timer_cell
     state.timer = lvl.timer

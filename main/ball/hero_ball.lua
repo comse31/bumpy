@@ -3,6 +3,8 @@
 -- общая механика (сетка, физика, столкновения, предметы, выход) — в ball.script.
 local M = {}
 
+M.name = "ball"
+
 -- применить сплющивание с учётом текущего self.squash (0..1)
 local function apply_squash(self)
     local amount = self.env.squash_amount

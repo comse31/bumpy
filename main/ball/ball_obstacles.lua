@@ -108,6 +108,10 @@ end
 -- кладкой и его центр достиг уровня ряда выше — он приземляется на верх кладки
 -- и «прилипает» (как на липкую платформу: высокий прыжок недоступен)
 function M.land_on_block_top(self)
+    -- v12 already controls landing geometrically / by the dwell state
+    if self.hero.contact_dwell and self.contact_phase == "dwell" then
+        return false
+    end
     -- только при свободном падении (без смещения/отскока/высокого прыжка)
     if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
         return false
@@ -148,7 +152,28 @@ function M.land_on_block_top(self)
     self.press_used = false
     self.block_top_time = self.time
     go.set_position(vmath.vector3(grid.column_center(self.col), land_y, pos.z))
-    self.hero.settle(self)
+    if self.hero.contact_dwell then
+        -- v12: same accepted-contact path, the jump is chosen after DWELL
+        self.contact_phase = "dwell"
+        self.dwell_until = self.time + C.CONTACT_DWELL
+        self.dwell_ground_y = land_y
+        self.dwell_row = crow
+        self.dwell_pending = nil
+        self.dwell_slope_dir = 0
+        phys.stop()
+        physics.set_gravity(vmath.vector3(0.0, -C.GRAVITY, 0.0))
+        local apex = self.air_peak_y or land_y
+        local drop = math.max(0.0, apex - land_y)
+        if drop > C.BIG_FALL_DROP and self.hero.begin_big_landing then
+            local dur = self.hero.begin_big_landing(self)
+            self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
+        else
+            self.hero.begin_contact(self)
+        end
+        self.air_peak_y = land_y
+    else
+        self.hero.settle(self)
+    end
     self.squash = 1.0
     self.squash_axis = "y"
     self.hero.apply_squash(self)
