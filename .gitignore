@@ -3,6 +3,9 @@
 /build/
 /dist/
 
+# Кэш решений генератора плана прохождения (tools/gen_walkthrough.py)
+tools/_solutions.json
+
 # Extracted / generated tools (e.g. unpacked Defold editor jar)
 tools/jar_extract/
 

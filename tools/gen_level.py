@@ -40,6 +40,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import level_interest as li  # noqa: E402
 import solve_level as sv  # noqa: E402
 
 COLS = 6
@@ -59,6 +60,11 @@ LO_BURNING = 8
 LO_BURNING_STICKY = 9
 LO_BLOCK = 10
 LO_SPIKE = 12
+
+# Платформы, на которых НЕЛЬЗЯ начинать уровень: шар погибает в первом же
+# касании (шипы) или без капли в кармане (горящая и горящая липкая). Старт на
+# обычной, липкой и любой сжимающейся платформе (2/3/4) разрешён.
+LETHAL_START_CODES = frozenset({LO_BURNING, LO_BURNING_STICKY, LO_SPIKE})
 
 # Коды объектов (см. main/level/level.script: goodie_factory).
 OBJ_HAMMER = 1
@@ -283,22 +289,36 @@ class LevelGenerator:
         return collectibles
 
     def _pick_start(self, lo) -> tuple[int, int]:
-        """Старт: клетка с платформой в нижней половине уровня."""
+        """Старт: безопасная платформа в нижней половине уровня.
+
+        Смертельные поверхности (горящая 8, горящая липкая 9, шипы 12) не
+        выбираются: игра не должна начинаться с потери жизни или смерти без
+        капли. Сжимающаяся платформа любого остатка (2/3/4) допустима — игрок
+        сам решает, как её использовать.
+        """
         rng = self.rng
         options = [(r, c) for r in range(ROWS // 2, ROWS) for c in range(COLS)
-                   if lo[r][c] not in (LO_EMPTY, LO_SPIKE, LO_BLOCK)]
+                   if lo[r][c] != LO_EMPTY
+                   and lo[r][c] != LO_BLOCK
+                   and lo[r][c] not in LETHAL_START_CODES]
         if not options:
-            options = [(ROWS - 1, 0)]
+            # запасной вариант: (ROWS-1, 0), безопасный код выставит generate()
+            return (ROWS - 1, 0)
         return rng.choice(options)
 
     def _lock_start(self, lo, hi, start: tuple[int, int]) -> set[tuple[int, int]]:
         """Запереть шар на старте так, чтобы выход требовал предмет.
 
-        Тип замка выбирается по ГСЧ, поэтому уровни требуют разные предметы:
+        Замок состоит из двух частей:
 
-          * "block"   — кладка прямо над стартом: ломается ТОЛЬКО молотком;
-          * "wall"    — разрушаемые перегородки по бокам ряда: ломаются ключом;
-          * "burning" — горящая платформа под шаром: без капли шар гибнет.
+          * "block" — кладка прямо над стартом: ломается ТОЛЬКО молотком
+            (ставится, если над стартом есть ряд);
+          * "wall"  — разрушаемая перегородка в ряду старта: ломается ключом,
+            плюс неразрушаемые перегородки выше по бокам колонки.
+
+        Замка «горящая платформа под шаром» больше нет: игра не должна
+        начинаться со смерти в огне (см. LETHAL_START_CODES), поэтому капля
+        на старте не востребована и стартовая платформа остаётся безопасной.
 
         Возвращает множество клеток «камеры»: в них нельзя ставить предметы,
         иначе шар подберёт нужный расходник, не выходя из камеры, и уровень
@@ -316,9 +336,19 @@ class LevelGenerator:
         has_ceiling = sr_above >= 0
         # Стены по бокам ставятся ВСЕГДА, иначе шар просто хопнет в соседнюю
         # колонку и выйдет из камеры без затрат.
-        kind = rng.choice(("block", "burning")) if has_ceiling else "burning"
+        #
+        # Замок строится ТОЛЬКО сверху (кладка — молоток) и по бокам
+        # (разрушаемая перегородка в ряду старта — ключ). Горящую платформу
+        # под шаром ставить нельзя: игра не должна начинаться со смерти в огне
+        # (см. LETHAL_START_CODES). Вариант "wall" — это прежний "burning" без
+        # огня под шаром.
+        kind = rng.choice(("block", "wall")) if has_ceiling else "wall"
 
-        lo[sr][sc] = LO_BURNING if kind == "burning" else LO_DEFAULT
+        # Тип стартовой платформы сохраняется, если она безопасна: обычная,
+        # липкая и любая сжимающаяся подходят. Смертельные и служебные
+        # (пусто/кладка) заменяются обычной платформой.
+        if lo[sr][sc] in LETHAL_START_CODES or lo[sr][sc] in (LO_EMPTY, LO_BLOCK):
+            lo[sr][sc] = LO_DEFAULT
 
         # Перегородки по бокам колонки старта на ВСЕХ рядах от старта до верха:
         # в ряду старта стена блокирует только хоп, а при высоком прыжке шар
@@ -401,6 +431,11 @@ class LevelGenerator:
         if start[0] + 1 >= ROWS:
             start = (ROWS - 2, start[1])
             lo[start[0]][start[1]] = LO_DEFAULT
+        # Стартовая клетка обязана быть безопасной поверхностью: шар не должен
+        # появляться в огне или на шипах даже при запасном варианте старта.
+        if lo[start[0]][start[1]] in LETHAL_START_CODES \
+                or lo[start[0]][start[1]] in (LO_EMPTY, LO_BLOCK):
+            lo[start[0]][start[1]] = LO_DEFAULT
         forbidden = self._lock_start(lo, hi, start)
 
         exit_cell = self._pick_exit(lo, start)
@@ -431,6 +466,20 @@ class LevelGenerator:
 
 # Код кирпичной кладки в слое lo (main/level/level.script: PLATFORM_BY_CODE).
 PLATFORM_CODES = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9})
+
+
+def lethal_start_violation(level: dict) -> int | None:
+    """Код платформы в стартовой клетке, если начинать на ней смертельно.
+
+    Возвращает код lo-слоя (8 — горящая, 9 — горящая липкая, 12 — шипы) или
+    None. Правило: главный герой не может на старте сразу погибнуть, поэтому
+    старт на огне и шипах запрещён. Сжимающаяся платформа любого остатка
+    разрешена — это осознанное решение игрока, а не мгновенная смерть.
+    """
+    cell = int(level["start_cell"])
+    row, col = divmod(cell, COLS)
+    code = int(level["grid_lo"][row][col])
+    return code if code in LETHAL_START_CODES else None
 
 
 def blocks_above_violations(level: dict) -> list[tuple[int, int, int]]:
@@ -471,6 +520,18 @@ def candidate(seed: int, index: int = 1) -> dict:
 MIN_REQUIRED_ITEMS = 1
 
 
+def solve_candidate(level: dict, node_cap: int = 400000) -> dict:
+    """Один вызов решателя на кандидата (без повторного solve).
+
+    Возвращает результат solve() целиком: статус, требуемые предметы и план
+    действий. План нужен для оценки «человеческой» интересности, поэтому
+    отдельный вызов решателя ради этой оценки делать нельзя — это удвоило бы
+    время генерации.
+    """
+    return sv.solve(sv.Level(level), node_cap=node_cap, legacy=True,
+                    allow_fallback=True)
+
+
 def evaluate(level: dict, node_cap: int = 400000) -> tuple[str, tuple[int, int, int]]:
     """Один вызов решателя: (статус, минимальный стартовый набор предметов).
 
@@ -479,59 +540,143 @@ def evaluate(level: dict, node_cap: int = 400000) -> tuple[str, tuple[int, int, 
     решателя на кандидата (is_solvable + solve), из-за чего проверка одного
     уровня занимала десятки секунд; теперь — один проход.
     """
-    res = sv.solve(sv.Level(level), node_cap=node_cap, legacy=True,
-                   allow_fallback=True)
+    res = solve_candidate(level, node_cap=node_cap)
     status = res.get("status", "impossible")
     required = tuple(int(v) for v in res.get("required", (0, 0, 0)))
     return status, required
 
 
+# Минимальная «человеческая» интересность, которую генератор считает
+# приемлемой. Ниже — уровни, где всё держится на однообразных хопах:
+# они проходимы, но играть в них скучно. Порог откалиброван по замеру
+# `--bench` на 25 seed'ах: у принятых генератором кандидатов интересность
+# 20..32 (средняя ~26), у классических уровней — до 50. Порог ниже среднего
+# сознательно: иначе генератор отбрасывал бы больше половины проходимых
+# уровней и заметно замедлялся, а «подтягивает» качество именно отбор
+# лучшего из пула (DEFAULT_INTEREST_POOL).
+MIN_INTEREST = 26.0
+# Сколько подходящих кандидатов оценить, прежде чем выбрать лучший.
+# Поиск интересного уровня идёт «пачкой»: первый приемлемый может оказаться
+# слишком пресным, поэтому генератор смотрит на несколько и берёт максимум.
+DEFAULT_INTEREST_POOL = 4
+
+
+def interest_of(level: dict, res: dict | None = None,
+                node_cap: int = 400000) -> dict:
+    """Оценка «человеческой» интересности уровня (tools/level_interest.py).
+
+    `res` — уже полученный результат решателя; если его нет, считается заново
+    (нужен план действий). Оценка не влияет на проходимость: она только
+    помогает выбрать из нескольких проходимых кандидатов менее скучный.
+    """
+    if res is None:
+        res = solve_candidate(level, node_cap=node_cap)
+    if res.get("status") != "solvable" or not res.get("actions"):
+        return {"interest": 0.0}
+    return li.analyze(sv.Level(level), res)
+
+
+def evaluate_candidate(level: dict, node_cap: int = 400000,
+                       min_items: int = 0, min_interest: float = 0.0
+                       ) -> tuple[str, dict | None, dict | None]:
+    """Статус + результат решателя + оценка интересности за ОДИН проход.
+
+    Возвращает (status, res, score):
+      * status — "solvable" / "impossible" / "limit";
+      * res    — результат solve() (он же нужен для требований и интересности);
+      * score  — оценка level_interest.analyze (только для "solvable").
+
+    Один проход важен по времени: `solve()` — самая дорогая операция генератора,
+    и раньше проверка + оценка делали её дважды на одного кандидата.
+    """
+    if blocks_above_violations(level):
+        return "impossible", None, None
+    if lethal_start_violation(level) is not None:
+        return "impossible", None, None
+
+    res = solve_candidate(level, node_cap=node_cap)
+    status = res.get("status", "impossible")
+    if status != "solvable":
+        return status, res, None
+    required = tuple(int(v) for v in res.get("required", (0, 0, 0)))
+    if min_items > 0 and sum(required) < min_items:
+        # проходим, но слишком просто: для генератора это брак
+        return "impossible", res, None
+    score = interest_of(level, res, node_cap=node_cap)
+    if min_interest > 0 and score.get("interest", 0.0) < min_interest:
+        # проходим, но скучен: генератор возьмёт следующий seed
+        return "impossible", res, score
+    return status, res, score
+
+
 def is_playable(level: dict, node_cap: int = 400000,
-                min_items: int = 0) -> str:
+                min_items: int = 0, min_interest: float = 0.0) -> str:
     """Статус решателя для кандидата: "solvable" / "impossible" / "limit".
 
     При `min_items > 0` уровень считается неподходящим, если суммарное
     требование на старте (drops + keys + hammers) меньше `min_items`:
     возвращается "impossible", чтобы вызывающий код взял следующий seed.
-    """
-    # Правило геометрии: прямо над кирпичной кладкой не может быть платформ
-    # (в оригинале над кладкой стоит только другая кладка). Проверяется до
-    # решателя: такой уровень дешевле сразу забраковать.
-    if blocks_above_violations(level):
-        return "impossible"
 
-    status, required = evaluate(level, node_cap=node_cap)
-    if status != "solvable":
-        return status
-    if min_items > 0 and sum(required) < min_items:
-        # проходим, но слишком просто: для генератора это брак
-        return "impossible"
+    При `min_interest > 0` дополнительно отбрасываются проходимые, но скучные
+    уровни: «человеческая» интересность ниже порога — брак, чтобы генератор
+    искал следующий seed.
+    """
+    status, _res, _score = evaluate_candidate(
+        level, node_cap=node_cap, min_items=min_items,
+        min_interest=min_interest)
     return status
 
 
 def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
                       node_cap: int = 400000,
                       min_items: int = MIN_REQUIRED_ITEMS,
+                      min_interest: float = MIN_INTEREST,
+                      interest_pool: int = DEFAULT_INTEREST_POOL,
                       on_attempt=None) -> dict | None:
-    """Первый подходящий уровень, начиная с seed.
+    """Лучший по интересности подходящий уровень, начиная с seed.
 
     seed перебирается последовательно (seed, seed+1, ...): результат
     воспроизводим и не зависит от состояния ГСЧ между вызовами. Принимается
-    только "solvable"; "impossible" (в т.ч. уровни без обязательных
-    предметов при min_items > 0) — брак, "limit" — недоказанная проходимость
-    (такой уровень нельзя сохранять в БД).
+    только "solvable"; "impossible" (в т.ч. уровни без обязательных предметов
+    при min_items > 0 и скучные при min_interest > 0) — брак, "limit" —
+    недоказанная проходимость (такой уровень нельзя сохранять в БД).
+
+    Из подходящих кандидатов берётся не первый, а самый интересный: первые
+    `interest_pool` прошедших проверку уровней оцениваются
+    (tools/level_interest.py), и в результат идёт лучший. Это делает
+    генерируемые уровни разнообразнее: без отбора игра часто получала просто
+    «ещё один набор хопов» с формально выполненными правилами.
     """
+    best = None
+    best_score = -1.0
+    pool_left = max(1, interest_pool)
     for offset in range(max(1, attempts)):
         cur = seed + offset
         level = candidate(cur, index)
         if len(level["raw_grid"]) != CELLS:
             continue
-        status = is_playable(level, node_cap=node_cap, min_items=min_items)
+        status, _res, score = evaluate_candidate(
+            level, node_cap=node_cap, min_items=min_items,
+            min_interest=min_interest)
         if on_attempt:
             on_attempt(cur, status)
-        if status == "solvable":
-            return level
-    return None
+        if status != "solvable" or not score:
+            continue
+        value = float(score.get("interest", 0.0))
+        if value > best_score:
+            best_score = value
+            best = level
+            best["interest"] = value
+            best["interest_parts"] = {
+                key: round(v, 3) for key, v in score.items()
+                if key not in ("interest", "kinds")
+            }
+        pool_left -= 1
+        if pool_left <= 0:
+            break
+    if best is not None and on_attempt:
+        on_attempt(best.get("seed"), f"selected interest={best_score:.1f}")
+    return best
 
 
 def requirements(level: dict, node_cap: int = 400000) -> dict:
@@ -563,6 +708,12 @@ def main() -> None:
     ap.add_argument("--min-items", type=int, default=MIN_REQUIRED_ITEMS,
                     help=("сколько предметов уровень обязан требовать на старте "
                           f"(по умолчанию {MIN_REQUIRED_ITEMS}; 0 — не требовать)"))
+    ap.add_argument("--min-interest", type=float, default=MIN_INTEREST,
+                    help=("минимальная «человеческая» интересность 0..100 "
+                          f"(по умолчанию {MIN_INTEREST}; 0 — не проверять)"))
+    ap.add_argument("--interest-pool", type=int, default=DEFAULT_INTEREST_POOL,
+                    help=("из скольких подходящих кандидатов выбрать самый "
+                          f"интересный (по умолчанию {DEFAULT_INTEREST_POOL})"))
     ap.add_argument("--bench", type=int, default=0,
                     help="оценить долю подходящих кандидатов на N seed'ах")
     args = ap.parse_args()
@@ -570,26 +721,40 @@ def main() -> None:
     if args.bench:
         import time
         stats = {"solvable": 0, "impossible": 0, "limit": 0}
+        interests = []
         start = time.time()
         n = max(1, args.bench)
         for i in range(n):
             level = candidate(1000 + i, args.level)
-            # считаем те же условия, что и у генератора: solvable + минимум предметов
-            status = is_playable(level, args.node_cap, min_items=args.min_items)
+            # считаем те же условия, что и у генератора: solvable + минимум
+            # предметов + порог интересности
+            status = is_playable(level, args.node_cap, min_items=args.min_items,
+                                 min_interest=args.min_interest)
             stats[status] = stats.get(status, 0) + 1
-            print(f"  seed {1000 + i}: {status}")
+            if status == "solvable":
+                score = interest_of(level, node_cap=args.node_cap)
+                interests.append(score.get("interest", 0.0))
+                print(f"  seed {1000 + i}: {status} "
+                      f"interest={score.get('interest', 0.0):.1f}")
+            else:
+                print(f"  seed {1000 + i}: {status}")
         elapsed = time.time() - start
         print()
         print(f"кандидатов: {n}, за {elapsed:.1f} с "
               f"({elapsed / n:.2f} с/шт)")
         for key, value in stats.items():
             print(f"  {key}: {value} ({100 * value / n:.0f}%)")
+        if interests:
+            print(f"  интересность: средняя {sum(interests) / len(interests):.1f}, "
+                  f"мин {min(interests):.1f}, макс {max(interests):.1f}")
         return
 
     seed = args.seed if args.seed is not None else int(__import__("time").time())
     level = generate_playable(seed, args.level, attempts=args.attempts,
                               node_cap=args.node_cap,
                               min_items=args.min_items,
+                              min_interest=args.min_interest,
+                              interest_pool=args.interest_pool,
                               on_attempt=lambda s, st: print(f"  seed {s}: {st}"))
     if level is None:
         print(f"не удалось найти подходящий уровень на {args.attempts} попытках",

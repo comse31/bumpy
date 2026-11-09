@@ -401,6 +401,29 @@ def check_generated_levels() -> None:
     )
     check("столбик кладки допустим", status == 201, f"{status} {stacked_level}")
 
+    # старт на смертельной поверхности (огонь/шипы) запрещён: игра не должна
+    # начинаться с потери жизни. start_cell = 30 -> grid_lo[5][0].
+    for lethal_code, label in ((8, "горящая"), (9, "горящая липкая"), (12, "шипы")):
+        lethal = json.loads(json.dumps(payload))
+        lethal["grid_lo"][5][0] = lethal_code
+        status, error = request(
+            "POST", "/api/levels",
+            dict(body, seed=seed + 100 + lethal_code, payload=json.dumps(lethal)),
+        )
+        check(f"старт на {label} платформе отклонён", status == 422,
+              f"{status} {error}")
+
+    # старт на сжимающейся платформе любой степени разрешён
+    for shrink_code in (2, 3, 4):
+        shrink = json.loads(json.dumps(payload))
+        shrink["grid_lo"][5][0] = shrink_code
+        status, shrink_level = request(
+            "POST", "/api/levels",
+            dict(body, seed=seed + 200 + shrink_code, payload=json.dumps(shrink)),
+        )
+        check(f"старт на сжимающейся платформе (код {shrink_code}) допустим",
+              status == 201, f"{status} {shrink_level}")
+
     # повторная вставка того же seed — не дубликат
     status, again = request("POST", "/api/levels", body)
     check("повторный seed не дублируется",

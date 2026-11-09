@@ -55,6 +55,20 @@ def load_solver(path):
     return mod
 
 
+def interest_score(level, res):
+    """«Человеческая» интересность (tools/level_interest.py), 0 при ошибке."""
+    try:
+        import level_interest as li
+    except ImportError:  # модуль ещё не подключён — не ломаем бенчмарк
+        return {}
+    if res.get("status") != "solvable" or not res.get("actions"):
+        return {}
+    try:
+        return li.analyze(level, res)
+    except Exception:  # оценка не должна валить бенчмарк
+        return {}
+
+
 def features(sv, level, res, node_cap, seconds):
     plat = level.plat
     spikes = sum(1 for r in range(6) for c in range(6) if plat[r][c] == sv.SPIKE)
@@ -160,6 +174,7 @@ const COLS = [
   {key:'level', label:'Уровень', num:true},
   {key:'status', label:'Статус'},
   {key:'difficulty', label:'Сложность', num:true},
+  {key:'interest', label:'Интересность', num:true},
   {key:'band', label:'Класс'},
   {key:'actions', label:'Действий', num:true},
   {key:'start_sum', label:'На старте', num:true},
@@ -189,6 +204,7 @@ function rowObj(r){
   const plan = (r.actions_list||[]);
   return {
     level:r.level, status:r.status, difficulty:r.difficulty, band:r.band,
+    interest: (r.interest||0),
     actions:plan.length, start_sum:r.required_sum, used_sum:r.used_sum,
     collected_pct:r.collected_pct,
     collectibles:r.collectibles, nodes:r.nodes, seconds:r.seconds,
@@ -202,12 +218,14 @@ function render(){
      `<th data-k="${c.key}">${esc(c.label)} <span class="arrow">${c.key===sortKey?(sortDir>0?'▲':'▼'):''}</span></th>`).join('') + '</tr>';
   document.getElementById('body').innerHTML = rows.map(r => {
     const maxD = 100, w = Math.max(2, Math.round(r.difficulty/maxD*60));
+    const wI = Math.max(2, Math.round(r.interest/maxD*60));
     const planHtml = r.plan.length ? `<details><summary>план (${r.plan.length})</summary><div class="plan">${r.plan.map((a,i)=>`${i+1}. ${esc(a)}`).join('<br>')}</div></details>` : '';
     const fb = (DATA.rows.find(x=>x.level===r.level)||{}).optimal===false ? '<span class="fb">fallback</span>' : '';
     return `<tr>
       <td class="num">${r.level}</td>
       <td><span class="badge" style="background:${statusColor(r.status)}">${esc(r.status)}</span>${fb}</td>
       <td class="num">${r.difficulty} <span class="bar" style="width:${w}px"></span></td>
+      <td class="num">${r.interest.toFixed(1)} <span class="bar" style="width:${wI}px;background:#8250df"></span></td>
       <td>${esc(r.band)}</td>
       <td class="num">${r.actions}</td>
       <td class="num">${esc(vec(DATA.rows.find(x=>x.level===r.level).required))} (${r.start_sum})</td>
@@ -228,15 +246,19 @@ function render(){
 }
 (function initKpi(){
   const s = DATA.summary;
-  const counts = s.counts || {};
-  const avgColl = DATA.rows.length
-    ? DATA.rows.reduce((a,r)=>a+r.collected_pct,0)/DATA.rows.length : 0;
-  document.getElementById('kpi').innerHTML =
-    Object.keys(counts).sort().map(k=>`<div>${k}: <b>${counts[k]}</b></div>`).join('')
-    + `<div>оптимально: <b>${s.optimal_count||0}</b></div>`
-    + `<div>фолбэк: <b>${s.fallback_count||0}</b></div>`
-    + `<div>ср. собрано: <b>${avgColl.toFixed(1)}%</b></div>`
-    + `<div>суммарно: <b>${(s.total_seconds||0).toFixed(1)}s</b></div>`;
+const counts = s.counts || {};
+const avgColl = DATA.rows.length
+  ? DATA.rows.reduce((a,r)=>a+r.collected_pct,0)/DATA.rows.length : 0;
+const withI = DATA.rows.filter(r=>r.interest>0);
+const avgI = withI.length ? withI.reduce((a,r)=>a+r.interest,0)/withI.length : 0;
+const maxI = withI.length ? Math.max(...withI.map(r=>r.interest)) : 0;
+document.getElementById('kpi').innerHTML =
+  Object.keys(counts).sort().map(k=>`<div>${k}: <b>${counts[k]}</b></div>`).join('')
+  + `<div>оптимально: <b>${s.optimal_count||0}</b></div>`
+  + `<div>фолбэк: <b>${s.fallback_count||0}</b></div>`
+  + `<div>ср. собрано: <b>${avgColl.toFixed(1)}%</b></div>`
+  + `<div>интересность: ср. <b>${avgI.toFixed(1)}</b>, макс <b>${maxI.toFixed(1)}</b></div>`
+  + `<div>суммарно: <b>${(s.total_seconds||0).toFixed(1)}s</b></div>`;
   const states = [...new Set(DATA.rows.map(r=>r.status))];
   document.getElementById('filters').innerHTML =
     `<button data-f="">все</button>` + states.map(st=>`<button data-f="${st}">${esc(st)}</button>`).join('');
@@ -258,6 +280,7 @@ def run_level(sv, data, node_cap, n):
     dt = time.time() - t0
     f = features(sv, level, res, node_cap, round(dt, 3))
     d = difficulty(f, node_cap)
+    it = interest_score(level, res)
     row = {
         "level": n, "status": res.get("status"),
         "difficulty": d, "band": band(d),
@@ -266,6 +289,13 @@ def run_level(sv, data, node_cap, n):
         "actions_list": res.get("actions", []),
         "reason": res.get("reason", ""), "nodes": res.get("nodes", 0),
         "optimal": res.get("optimal", True), "seconds": round(dt, 3),
+        # «человеческая» интересность: отдельная шкала, ближе к ощущению игрока
+        "interest": it.get("interest", 0.0),
+        "interest_parts": {k: round(v, 3) for k, v in it.items()
+                           if k in ("precision", "irreversible", "no_rest",
+                                    "forced_motion", "hazard_goal", "puzzle",
+                                    "trap_risk", "variety", "maze",
+                                    "oneshot_field")},
     }
     row.update(f)
     return row

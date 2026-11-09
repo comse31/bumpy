@@ -281,6 +281,32 @@ class GeneratedLevelIn(BaseModel):
 
     @field_validator("payload")
     @classmethod
+    def _safe_start(cls, value: str) -> str:
+        """Старт не может быть на горящей платформе или на шипах.
+
+        Правило игры: главный герой не должен погибать сразу на старте, поэтому
+        в стартовой клетке запрещены горящая платформа (код 8), горящая липкая
+        (код 9) и шипы (12). Сжимающаяся платформа любого остатка (2/3/4)
+        разрешена — это осознанное действие игрока, а не мгновенная смерть.
+
+        Проверка дублирует фильтр генератора (tools/gen_level.py:
+        lethal_start_violation), чтобы такой уровень не попал в БД даже от
+        стороннего клиента.
+        """
+        decoded = json.loads(value)
+        cell = int(decoded["start_cell"])
+        grid = decoded["grid_lo"]
+        row, col = divmod(cell, len(grid))
+        code = grid[row][col] if 0 <= row < len(grid) and 0 <= col < len(grid[row]) else 0
+        if code in (8, 9, 12):
+            raise ValueError(
+                "payload: нельзя начинать уровень на горящей платформе или шипах "
+                f"(стартовая клетка {cell}, код {code})"
+            )
+        return value
+
+    @field_validator("payload")
+    @classmethod
     def _no_platform_above_block(cls, value: str) -> str:
         """Над кирпичной кладкой (код 10) не может быть платформ.
 

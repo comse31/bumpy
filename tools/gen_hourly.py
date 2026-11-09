@@ -110,16 +110,23 @@ def post_level(api_url: str, api_key: str, payload: dict) -> tuple[int, dict | s
 
 def build_payload(seed: int, level_number: int, node_cap: int, attempts: int,
                   min_items: int = gen_level.MIN_REQUIRED_ITEMS,
+                  min_interest: float = gen_level.MIN_INTEREST,
+                  interest_pool: int = gen_level.DEFAULT_INTEREST_POOL,
                   on_attempt=None) -> dict | None:
     """Сгенерировать подходящий уровень и подготовить тело запроса POST.
 
     Требования по снаряжению берутся из того же прохода решателя, что и
     статус проходимости (gen_level.evaluate): дополнительный вызов solve()
     здесь не нужен и только замедлял бы генерацию в разы.
+
+    Отбор идёт по «человеческой» интересности (tools/level_interest.py):
+    генератор берёт лучший из `interest_pool` подходящих кандидатов, а уровни
+    ниже `min_interest` отбрасываются как скучные.
     """
     level = gen_level.generate_playable(
         seed, level_number, attempts=attempts, node_cap=node_cap,
-        min_items=min_items, on_attempt=on_attempt)
+        min_items=min_items, min_interest=min_interest,
+        interest_pool=interest_pool, on_attempt=on_attempt)
     if level is None:
         return None
 
@@ -137,10 +144,12 @@ def build_payload(seed: int, level_number: int, node_cap: int, attempts: int,
     }
 
     # в payload убираем служебные поля генератора: main/level/level.script
-    # читает только поля формата levels.json
+    # читает только поля формата levels.json. `interest` и `interest_parts` —
+    # диагностика генератора: они нужны только логу и отчётам, а не игре.
     body = {
         key: value for key, value in level.items()
-        if key not in ("seed", "generated", "requirements")
+        if key not in ("seed", "generated", "requirements",
+                       "interest", "interest_parts")
     }
     return {
         "seed": int(level["seed"]),
@@ -151,13 +160,18 @@ def build_payload(seed: int, level_number: int, node_cap: int, attempts: int,
         "keys": int(req.get("keys", 0)),
         "hammers": int(req.get("hammers", 0)),
         "generator": "tools/gen_hourly.py",
+        # «человеческая» интересность выбранного кандидата (0..100) — только
+        # для логов: сервер это поле не хранит
+        "interest": float(level.get("interest", 0.0)),
     }
 
 
 def run_once(api_url: str, api_key: str, level_number: int, node_cap: int,
              attempts: int, dry_run: bool,
              seed: int | None = None,
-             min_items: int = gen_level.MIN_REQUIRED_ITEMS
+             min_items: int = gen_level.MIN_REQUIRED_ITEMS,
+             min_interest: float = gen_level.MIN_INTEREST,
+             interest_pool: int = gen_level.DEFAULT_INTEREST_POOL,
              ) -> tuple[bool, int | None]:
     """Один цикл: сгенерировать и сохранить ровно один уровень.
 
@@ -171,7 +185,8 @@ def run_once(api_url: str, api_key: str, level_number: int, node_cap: int,
           f"level={level_number}")
 
     payload = build_payload(seed, level_number, node_cap, attempts,
-                            min_items=min_items,
+                            min_items=min_items, min_interest=min_interest,
+                            interest_pool=interest_pool,
                             on_attempt=lambda s, st:
                             print(f"  seed {s}: {st}") if st != "impossible" else None)
     if payload is None:
@@ -181,7 +196,7 @@ def run_once(api_url: str, api_key: str, level_number: int, node_cap: int,
     found_seed = int(payload["seed"])
     print(f"  найден: seed={found_seed} "
           f"требуется drops={payload['drops']} keys={payload['keys']} "
-          f"hammers={payload['hammers']}")
+          f"hammers={payload['hammers']} interest={payload['interest']:.1f}")
 
     if dry_run:
         print("  --dry-run: в БД не пишу")
@@ -216,6 +231,16 @@ def main() -> None:
                     help=("сколько предметов уровень обязан требовать на старте "
                           f"(по умолчанию {gen_level.MIN_REQUIRED_ITEMS}; "
                           "0 — не требовать)"))
+    ap.add_argument("--min-interest", type=float,
+                    default=gen_level.MIN_INTEREST,
+                    help=("минимальная «человеческая» интересность 0..100 "
+                          f"(по умолчанию {gen_level.MIN_INTEREST}; "
+                          "0 — не проверять)"))
+    ap.add_argument("--interest-pool", type=int,
+                    default=gen_level.DEFAULT_INTEREST_POOL,
+                    help=("из скольких подходящих кандидатов выбрать самый "
+                          f"интересный (по умолчанию "
+                          f"{gen_level.DEFAULT_INTEREST_POOL})"))
     ap.add_argument("--dry-run", action="store_true",
                     help="сгенерировать, но не сохранять в БД")
     ap.add_argument("--loop", type=int, default=0,
@@ -232,7 +257,9 @@ def main() -> None:
         for _ in range(max(1, args.count)):
             ok, found = run_once(api_url, args.api_key, args.level,
                                  args.node_cap, args.attempts, args.dry_run,
-                                 seed=seed, min_items=args.min_items)
+                                 seed=seed, min_items=args.min_items,
+                                 min_interest=args.min_interest,
+                                 interest_pool=args.interest_pool)
             if ok:
                 saved += 1
             if found is not None:

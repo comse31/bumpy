@@ -134,9 +134,35 @@ class GeneratedLevelRepository:
                     return False
         return True
 
+    @staticmethod
+    def _safe_start(payload: str) -> bool:
+        """Старт не на горящей платформе и не на шипах.
+
+        Коды lo: 8 — горящая, 9 — горящая липкая, 12 — шипы. Правило игры:
+        главный герой не должен погибать сразу на старте. Сжимающаяся
+        платформа любого остатка (2/3/4) разрешена.
+
+        Фильтр нужен для записей, созданных до появления проверки в схеме:
+        клиенту они не выдаются.
+        """
+        try:
+            decoded = json.loads(payload)
+            grid = decoded["grid_lo"]
+            cell = int(decoded["start_cell"])
+        except (TypeError, ValueError, KeyError, IndexError):
+            return False
+        row, col = divmod(cell, len(grid))
+        if not (0 <= row < len(grid) and 0 <= col < len(grid[row])):
+            return False
+        return grid[row][col] not in (8, 9, 12)
+
     def _valid_rows(self, rows: list[sqlite3.Row]) -> list[sqlite3.Row]:
-        """Оставить строки, проходящие проверку геометрии."""
-        return [row for row in rows if self._no_platform_above_block(row["payload"])]
+        """Оставить строки, проходящие проверки геометрии и старта."""
+        return [
+            row for row in rows
+            if self._no_platform_above_block(row["payload"])
+            and self._safe_start(row["payload"])
+        ]
 
     def random(self) -> GeneratedLevelOut | None:
         """Случайный уровень из окна последних записей.
@@ -164,10 +190,13 @@ class GeneratedLevelRepository:
                     sql.format(extra="").replace("LIMIT 1", "LIMIT 200"),
                     (self.window,),
                 ).fetchall()
-        valid = self._valid_rows(rows)
+        # Правило «нельзя начинать на огне/шипах» не отключается даже при
+        # нехватке записей: иначе старое нарушение снова попадёт клиенту.
+        rows = [row for row in rows if self._safe_start(row["payload"])]
+        valid = [row for row in rows if self._no_platform_above_block(row["payload"])]
         if not valid:
-            # совсем нет подходящих записей — лучше отдать хоть что-то, чем
-            # оставить игрока без уровня
+            # геометрию над кладкой можно ослабить — лучше отдать уровень, чем
+            # оставить игрока без него; но безопасность старта обязательна
             if not rows:
                 return None
             valid = rows
