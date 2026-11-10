@@ -24,6 +24,8 @@ local M = {}
 local COLS = C.COLS
 local BOUNCE_Y = C.BOUNCE_Y
 local INPUT_LEAD = C.INPUT_LEAD
+-- удержание направления на момент касания: клавиша/жест ещё зажаты
+local held_direction = input.held_direction
 
 -- действия слоя движения и ввода; подставляются в bind
 local motion = {}
@@ -58,6 +60,13 @@ function M.land_on_platform(self, row)
     if self.game_over then
         return
     end
+    -- приземление после полёта (а не стартовое «мяч уже стоит на платформе»):
+    -- только такое касание снимает неограниченное окно буфера нажатия. На
+    -- старте уровня мяч ставится прямо на платформу, и первый контакт приходит
+    -- сразу — если считать его «касанием», игрок, нажавший высокий прыжок в
+    -- первом полёте, терял команду (пробел приходит как text без release и не
+    -- удерживается как jump_held)
+    local was_airborne = self.next_touch_time ~= nil
     -- приземление точно в центр платформы; пока смещение идёт,
     -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
     local position = go.get_position()
@@ -143,6 +152,11 @@ function M.land_on_platform(self, row)
         self.rising_moved = false
         self.pending_dir = 0
         self.pending_jump = false
+        input.clear_dir_buffer(self)
+        input.clear_jump_buffer(self)
+        -- касание состоялось: ограничение окна буфера до первого касания
+        -- уровня здесь тоже снимается
+        self.touch_done = true
         local slope_dir = world.slope_direction(row, self.col)
         if slope_dir ~= 0 then
             -- наклон в сторону непреодолимой преграды — бесконечная ловушка
@@ -160,11 +174,37 @@ function M.land_on_platform(self, row)
         self.hero.apply_squash(self)
         return
     end
-    local direction = 0
-    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= INPUT_LEAD then
+    -- команда игрока на этом касании, в порядке приоритета (как в v12
+    -- dwell_direction):
+    --   1) удержание на момент касания — клавиша всё ещё зажата;
+    --   2) pending_dir — клавиша была нажата перед касанием (окно INPUT_LEAD);
+    --   3) буфер нажатия — клавишу уже отпустили, но нажали не позже окна
+    --      буфера (для самого первого касания уровня окно не ограничено).
+    -- Без шагов 1 и 3 самое первое нажатие сразу после старта уровня терялось:
+    -- расписания касаний ещё нет (next_touch_time = nil), поэтому удержание не
+    -- попадало в pending_dir, а короткий тап к приземлению уже был отпущен.
+    --
+    -- Буфер на СТАРТОВОМ касании не читается и не сбрасывается: на старте мяч
+    -- поставлен прямо на платформу, и первый контакт приходит сразу же. Если
+    -- прочитать буфер здесь, команда, нажатая игроком в первом полёте, была бы
+    -- израсходована на старте (а нажатие «пробел», снявшее плашку READY, дало
+    -- бы мгновенный высокий прыжок). Команда ждёт первого настоящего
+    -- приземления — см. was_airborne выше
+    local use_buffer = was_airborne
+    local direction = held_direction(self)
+    if direction == 0
+        and self.pending_dir ~= 0 and (self.time - self.pending_time) <= INPUT_LEAD then
         direction = self.pending_dir
     end
+    if direction == 0 and use_buffer then
+        direction = input.buffered_direction(self)
+    end
     self.pending_dir = 0
+    -- направление израсходовано; буфер прыжка ещё нужен ниже (проверка
+    -- высокого прыжка) и снимается после выбора действия
+    if use_buffer then
+        input.clear_dir_buffer(self)
+    end
     -- новый цикл отскока: разрешено одно нажатие
     self.press_used = false
     -- наклонная платформа: неуправляемый отскок в сторону наклона,
@@ -222,7 +262,8 @@ function M.land_on_platform(self, row)
             self.target_col = nil
             settle_or_stick(self)
         end
-    elseif (input.jump_active(self) or self.pending_jump)
+    elseif (input.jump_active(self) or self.pending_jump
+        or (use_buffer and input.buffered_jump(self)))
         and not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used) then
         -- высокий прыжок: постоянное движение вверх до платформы снизу или
@@ -237,6 +278,18 @@ function M.land_on_platform(self, row)
         input.clear_tap(self)
     else
         settle_or_stick(self)
+    end
+    -- буфер прыжка одноразовый: команда либо исполнена, либо не подошла —
+    -- повторно на этом же нажатии она не сработает. На стартовом касании он
+    -- сохраняется для первого настоящего приземления
+    if use_buffer then
+        input.clear_jump_buffer(self)
+    end
+    -- ограничение окна буфера включается только после касания, случившегося
+    -- в конце реального полёта: стартовое «мяч уже стоит на платформе» его не
+    -- включает, иначе команда, нажатая в первом полёте уровня, терялась бы
+    if was_airborne then
+        self.touch_done = true
     end
     self.pending_jump = false
     self.squash = 1.0

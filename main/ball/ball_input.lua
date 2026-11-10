@@ -14,6 +14,7 @@ local COLS = C.COLS
 local RADIUS = C.RADIUS
 local BOUNCE_Y = C.BOUNCE_Y
 local INPUT_TAIL = C.INPUT_TAIL
+local INPUT_BUFFER = C.INPUT_BUFFER
 local CELL_CMD_TIMEOUT = C.CELL_CMD_TIMEOUT
 local TOUCH_CMD_TIMEOUT = C.TOUCH_CMD_TIMEOUT
 
@@ -50,6 +51,53 @@ end
 -- «удержание» высокого прыжка с учётом тач-команд (свайп вверх/удержание или тап)
 function M.jump_active(self)
     return self.jump_held or self.touch_jump or self.tap_jump
+end
+
+-- окно буфера нажатия. До первого касания после старта уровня окно не
+-- ограничено: расписания касаний ещё нет (next_touch_time = nil), мяч только
+-- падает на первую платформу, и команда, нажатая сразу после старта, обязана
+-- дойти до неё. Дальше действует обычное окно
+function M.buffer_window(self)
+    if self.touch_done then
+        return INPUT_BUFFER
+    end
+    return math.huge
+end
+
+-- свежее нажатие направления: клавиша уже отпущена, но нажата не позже окна
+-- буфера. Возвращает 0, если буфера нет. Это то, что при переносе логики на
+-- hero_base было упущено: v12_dir_buffer / v12_jump_buffer_time продолжали
+-- записываться в on_input, но их больше никто не читал (в v12 читал
+-- resolve_dwell_action на конце DWELL)
+function M.buffered_direction(self)
+    if self.v12_dir_buffer and self.v12_dir_buffer_time
+        and (self.time - self.v12_dir_buffer_time) <= M.buffer_window(self) then
+        return self.v12_dir_buffer
+    end
+    return 0
+end
+
+-- свежее нажатие высокого прыжка (клавиша может быть уже отпущена).
+-- -math.huge означает «буфера нет»: проверяем его отдельно, иначе при
+-- неограниченном окне первого касания разность time - (-huge) == huge
+-- формально проходила бы сравнение
+function M.buffered_jump(self)
+    local at = self.v12_jump_buffer_time
+    if at == nil or at <= -math.huge then
+        return false
+    end
+    return (self.time - at) <= M.buffer_window(self)
+end
+
+-- снять буфер направления (команда израсходована)
+function M.clear_dir_buffer(self)
+    self.v12_dir_buffer = nil
+    self.v12_dir_buffer_time = -math.huge
+end
+
+-- снять буфер прыжка (команда израсходована)
+function M.clear_jump_buffer(self)
+    self.v12_jump_buffer_time = -math.huge
 end
 
 -- снять одноразовые тап-команды (после выполнения действия или по тайм-ауту);

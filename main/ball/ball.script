@@ -328,9 +328,14 @@ function init(self)
     self.big_landing_rest = false
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
+    -- буфер нажатия (см. ball_input.buffered_direction/buffered_jump):
+    -- команда, нажатая в полёте, доживает до ближайшего касания
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
+    -- ни одного касания ещё не было: буфер первого нажатия не ограничен по
+    -- времени, иначе команда сразу после старта сгорала бы в длинном падении
+    self.touch_done = false
     self.squash = 0.0
     self.squash_axis = "y"
     self.move_t = 0.0
@@ -661,7 +666,11 @@ local function update_held_jump(self)
     -- на липкой платформе, если действие за это касание уже израсходовано
     local can_high_jump = not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used)
-    if not jump_active(self) or self.press_used or self.high_jump or not can_high_jump
+    -- «хочу прыжок» = удержание клавиши/жеста ИЛИ свежее нажатие из буфера
+    -- (нажатие могло быть отпущено, а у пробела release-события нет вовсе —
+    -- именно так терялся высокий прыжок из первого полёта после старта)
+    local want_jump = jump_active(self) or input.buffered_jump(self)
+    if not want_jump or self.press_used or self.high_jump or not can_high_jump
         or self.move_t > 0.0 or self.bounce_t > 0.0 then
         return
     end
@@ -674,6 +683,7 @@ local function update_held_jump(self)
             self.sticky_rest = false
         end
         start_high_jump(self)
+        input.clear_jump_buffer(self)
         self.press_used = true
         self.squash = 1.0
         self.squash_axis = "y"
@@ -916,7 +926,28 @@ function on_input(self, action_id, action)
             self.jump_held = false
             self.pending_jump = false
             self.v12_jump_buffer_time = -math.huge
-            self.ignore_jump_until = self.time + 0.15
+            -- Нажатие, снимающее плашку READY, — это и первая команда уровня:
+            -- запоминаем её в буфере, иначе игрок, начавший уровень нажатием
+            -- «вправо» или «пробел», не получил бы действия до нового нажатия.
+            -- Раньше здесь стоял ignore_jump_until (0.15 с), и высокий прыжок
+            -- от нажатия «старт» гасился; теперь окна игнорирования нет, а
+            -- стартовое касание не расходует буфер (use_buffer в
+            -- ball_landing.land_on_platform): команда доживает до первого
+            -- настоящего приземления. Направление пишется и в *_held — чтобы
+            -- удержание работало обычным путём, если клавишу не отпустили
+            if action_id == hash("right") then
+                self.right_held = true
+                self.v12_dir_buffer = 1
+                self.v12_dir_buffer_time = self.time
+            elseif action_id == hash("left") then
+                self.left_held = true
+                self.v12_dir_buffer = -1
+                self.v12_dir_buffer_time = self.time
+            elseif action_id == hash("jump") then
+                -- высокий прыжок: буфер (а не jump_held) — у пробела нет
+                -- release-события, удержание залипло бы
+                self.v12_jump_buffer_time = self.time
+            end
             msg.post("/ready", "hide")
             -- старт уровня: камера плавно переходит от полного вида поля
             -- (как на плашке READY) к режиму игры — масштаб по длинному краю
@@ -1067,6 +1098,9 @@ local function reset_level_state(self)
     self.v12_dir_buffer = nil
     self.v12_dir_buffer_time = -math.huge
     self.v12_jump_buffer_time = -math.huge
+    -- новый уровень начинается с падения на первую платформу: касаний ещё не
+    -- было, поэтому буфер первого нажатия снова действует без ограничения
+    self.touch_done = false
     motion.restore_gravity()
     phys.stop()
     -- сбросить деформации визуала и вернуть визуал активного героя
