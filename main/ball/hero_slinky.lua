@@ -3,12 +3,20 @@
 -- кольцам волны — каждое кольцо не живёт своей физикой, а следует за общим
 -- законом со временным сдвигом.
 --
+-- Взаимодействие с миром у Slinky — КАК У МЯЧИКА (эталон hero_ball): липкие
+-- платформы, автоматический отскок при приземлении, приём команды только в окне
+-- касания и высота подскока наследуются из hero_base. Slinky переопределяет
+-- ТОЛЬКО визуал: длину пружины, раскладку колец, выгиб при ударе о стену и
+-- волну деформации.
+--
 -- Четыре независимых эффекта:
 --   1) перекат  — центр движется по дуге с плавным разгоном/торможением;
 --   2) волна    — кольца последовательно проходят траекторию и деформируются;
 --   3) удар     — сжатие распространяется снизу вверх после приземления;
 --   4) покой    — затухающее покачивание, нижняя опора почти неподвижна.
-local M = {}
+local base = require("main.ball.hero_base")
+
+local M = setmetatable({}, { __index = base })
 
 M.name = "slinky"
 
@@ -28,9 +36,6 @@ local SLINKY_LEN = 34.0        -- длина пружины в покое (ми�
 -- изменений — пружинка становится шире, но её высота не меняется
 local SLINKY_RING_W = 0.15
 local SLINKY_RING_H = 0.10
--- шаг вбок на 20% медленнее (множитель длительности переката)
-local SLINKY_STEP_SCALE = 1.2
-local SLINKY_STEP_LIFT = 10.0  -- подъём при шаге: Slinky почти не отрывается от опоры
 local SLINKY_BEND = 16.0       -- выгиб в дугу при отскоке от перегородки
 -- высота дуги переката (центр движется «по радиусу»): при ходе в одну ячейку
 -- (160 px) подъём 40 px даёт радиус дуги ~100 px — выраженный круглый перекат,
@@ -147,7 +152,7 @@ local function place_rings(self)
 end
 
 function M.setup(self, env)
-    self.env = env
+    base.setup(self, env)
     self.rings = {}
     for i = 1, #SLINKY_RINGS do
         self.rings[i] = go.get_id(SLINKY_RINGS[i])
@@ -160,7 +165,6 @@ function M.setup(self, env)
     self.slinky_bend_dir = 1.0
     self.wave_amp = 0.0
     self.impact_t = -math.huge
-    self.resting = false
     place_rings(self)
 end
 
@@ -178,8 +182,21 @@ function M.reset(self)
     self.slinky_bend = 0.0
     self.wave_amp = 0.0
     self.impact_t = -math.huge
-    self.resting = false
     place_rings(self)
+end
+
+-- приземление на платформу: визуальная реакция (сжатие снизу вверх и толчок
+-- покачивания). Сама физика приземления — общая с мячиком (base.settle).
+function M.on_land(self, drop)
+    self.impact_t = self.time
+    self.wave_amp = WAVE_KICK
+end
+
+-- автоматический отскок от обычной платформы: тот же удар пружины, что при
+-- приземлении (Slinky отскакивает как мячик, а пружина гасит толчок)
+function M.on_bounce(self)
+    self.impact_t = self.time
+    self.wave_amp = WAVE_KICK * 0.5
 end
 
 function M.update(self, dt)
@@ -210,51 +227,17 @@ function M.update(self, dt)
         self.slinky_bend = 0.0
     end
 
-    -- амплитуда покачивания: в покое затухает от толчка после приземления до
-    -- слабой; вне покоя гаснет полностью (волна только для состояния покоя)
-    local wave_target = self.resting and WAVE_MIN or 0.0
+    -- амплитуда покачивания: лежит на липкой платформе — слабое покачивание,
+    -- в полёте/на обычной платформе (герой отскакивает как мячик) — гаснет
+    local wave_target = self.sticky_rest and WAVE_MIN or 0.0
     self.wave_amp = self.wave_amp
         + (wave_target - self.wave_amp) * math.min(1.0, dt * WAVE_DECAY)
 
     place_rings(self)
 end
 
--- деформацию Slinky ведёт update (пружина и кольца), обычное сплющивание не нужно
-function M.apply_squash(self)
-end
-
-function M.hop_height(self)
-    return SLINKY_STEP_LIFT
-end
-
--- Slinky к липкой платформе не прилипает: она для него обычная (пружинка
--- отскакивает по своему закону, вести себя как мяч на липкой он не должен)
-M.sticks_on_platform = false
-
--- длительность бокового шага: Slinky перекатывается на 20% медленнее
-function M.step_scale(self)
-    return SLINKY_STEP_SCALE
-end
-
--- приземление без команды: Slinky не отскакивает, а встаёт и стоит (покачиваясь).
--- Здесь же запускаются удар (сжатие снизу вверх) и затухающее покачивание
-function M.settle(self)
-    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, 0.0, 0.0))
-    self.resting = true
-    self.impact_t = self.time
-    self.wave_amp = WAVE_KICK
-end
-
-function M.allow_from_rest(self)
-    return self.resting
-end
-
-function M.ignore_contacts(self)
-    return self.resting
-end
-
+-- началось действие (шаг/отскок/прыжок): запоминаем сторону для выгиба
 function M.on_action(self, direction, duration)
-    self.resting = false
     if direction then
         self.slinky_bend_dir = direction
     end

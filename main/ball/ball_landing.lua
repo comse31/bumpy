@@ -22,7 +22,6 @@ local state = require("main.level.level_state")
 local M = {}
 
 local COLS = C.COLS
-local CELL_H = C.CELL_H
 local BOUNCE_Y = C.BOUNCE_Y
 local INPUT_LEAD = C.INPUT_LEAD
 
@@ -127,14 +126,16 @@ function M.land_on_platform(self, row)
         self.sticky_rest = false
         self.sticky_cell = nil
     end
-    -- v12: the actual jump is chosen at the end of DWELL in ball.script; here
-    -- only the surface state is prepared.
-    if self.hero.contact_dwell then
-        self.press_used = false
-        self.dwell_slope_dir = world.slope_direction(row, self.col)
-        self.dwell_row = row
-        return
+    -- визуальная реакция героя на удар (клип, сжатие пружины, глубокая посадка).
+    -- Вызывается ДО выбора действия игрока, одинаково для всех героев: drop —
+    -- высота падения над поверхностью. Мячик по умолчанию ничего не делает
+    local drop = math.max(0.0, (self.air_peak_y or self.ground_y) - self.ground_y)
+    if self.sticky_rest then
+        -- на липкую платформу герой всегда встаёт на ноги (эталон — мячик)
+        self.hero.force_feet_landing(self)
     end
+    self.hero.on_land(self, drop)
+    self.air_peak_y = self.ground_y
     -- приземление после смены траектории высокого прыжка: дополнительное
     -- управляемое смещение в этом цикле запрещено, но наклонная платформа
     -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
@@ -256,10 +257,6 @@ function M.swept_land(self, dt)
     if self.game_over then
         return false
     end
-    -- v12 already controls landing geometrically / by the dwell state
-    if self.hero.contact_dwell and self.contact_phase == "dwell" then
-        return false
-    end
     -- только свободное падение: смещение/отскок/высокий прыжок ведут себя иначе
     if self.high_jump or self.move_t > 0.0 or self.bounce_t > 0.0 then
         return false
@@ -309,47 +306,11 @@ function M.swept_land(self, dt)
     self.last_contact_time = self.time
     self.contact_processed = true
     dbg.log("SWEPT LAND cell=(%d, %d) prev_y=%.1f y=%.1f", self.col, land_row, prev_y, pos.y)
-    -- снап на верхнюю грань и общая логика приземления
+    -- снап на верхнюю грань и общая логика приземления. Реакцию на удар (клип,
+    -- сжатие, глубокая посадка) герой получает через on_land уже внутри
+    -- land_on_platform — путь одинаков для всех героев
     go.set_position(vmath.vector3(pos.x, BOUNCE_Y[land_row], pos.z))
-    if self.hero.contact_dwell then
-        self.contact_phase = "dwell"
-        self.dwell_until = self.time + C.CONTACT_DWELL
-        self.dwell_ground_y = BOUNCE_Y[land_row]
-        self.dwell_row = land_row
-        self.dwell_pending = nil
-        self.dwell_slope_dir = world.slope_direction(land_row, self.col)
-        self.press_used = false
-        phys.stop()
-        physics.set_gravity(vmath.vector3(0.0, -C.GRAVITY, 0.0))
-        local apex = self.air_peak_y or BOUNCE_Y[land_row]
-        local drop = math.max(0.0, apex - BOUNCE_Y[land_row])
-        local long_air = self.air_start_time
-            and (self.time - self.air_start_time) > 1.2 * C.PERIOD
-        local over_gap = self.hero.is_over_gap and self.hero.is_over_gap(self)
-        local falling = self.hero.is_falling and self.hero.is_falling(self)
-        local falling_big = falling and drop > 0.25 * C.CELL_H
-        if not world.platform_flag(land_row, self.col, "sticky")
-            and self.hero.start_land_squash then
-            local strength = math.min(1.0, 0.25 + drop / (3.0 * C.HEIGHT))
-            self.hero.start_land_squash(self, strength)
-        end
-        if C.BUMPY_BALL_BOUNCE or world.platform_flag(land_row, self.col, "sticky") then
-            -- ball mode / slime: land immediately, no contact squash
-            if world.platform_flag(land_row, self.col, "sticky")
-                and self.hero.force_feet_landing then
-                self.hero.force_feet_landing(self)
-            end
-            self.dwell_until = self.time
-        elseif (drop > C.BIG_FALL_DROP or long_air or over_gap or falling_big)
-            and self.hero.begin_big_landing then
-            local dur = self.hero.begin_big_landing(self)
-            self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
-        else
-            self.hero.begin_contact(self, C.CONTACT_DWELL)
-            self.dwell_until = self.time + C.CONTACT_DWELL
-        end
-        self.air_peak_y = BOUNCE_Y[land_row]
-    end
+    phys.stop()
     M.land_on_platform(self, land_row)
     return true
 end
