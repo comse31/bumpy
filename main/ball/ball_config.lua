@@ -58,18 +58,7 @@ C.HEIGHT = 1.5 * C.SIZE
 C.GRAVITY = 8.0 * C.HEIGHT / (C.PERIOD * C.PERIOD)
 C.JUMP_SPEED = C.GRAVITY * C.PERIOD * 0.5
 
--- v12 Bumpy: contact hold and fixed airborne time. H is unchanged; the airborne
--- duration is fixed, so v0/g are derived from H and T_AIR.
-C.CONTACT_DWELL = 0.10
-C.T_AIR = C.PERIOD - C.CONTACT_DWELL
 C.H_DEFAULT = C.HEIGHT
-C.H_MIN = 0.6 * C.SIZE
-C.CLEARANCE_PAD = 8.0
--- input buffer for the DWELL-end decision (pressed up to this long before touch)
-C.V12_INPUT_BUFFER = 0.15
--- temporary: Bumpy bounces like the ball, without a DWELL stop on contact.
--- false restores the contact_* hold (0.10 s) and the old rhythm.
-C.BUMPY_BALL_BOUNCE = true
 -- высокий прыжок (Space/Up): начальный импульс как при прыжке на один этаж;
 -- первый уровень подъёма замедляется гравитацией, выше скорость становится
 -- постоянной (JUMP_SPEED) — мяч летит до платформы сверху или верхнего края
@@ -80,6 +69,14 @@ C.HIGH_JUMP_SPEED = math.sqrt(2.0 * C.GRAVITY * C.HIGH_JUMP_HEIGHT)
 -- окно в мс до и после момента касания земли, в котором нажатие клавиши считается
 C.INPUT_LEAD = 0.12
 C.INPUT_TAIL = 0.08
+-- буфер нажатия: команда, нажатая в полёте не позже этого времени до касания,
+-- исполняется на этом касании. Без него нажатие в середине полёта терялось бы:
+-- короткий тап к моменту приземления уже отпущен, а удержание принимается
+-- только в окне касания (INPUT_TAIL/INPUT_LEAD).
+-- До первого касания после старта уровня окно не ограничено: расписания
+-- касаний ещё нет (мяч только падает на первую платформу), и команда, нажатая
+-- сразу после старта, обязана дойти до этой платформы
+C.INPUT_BUFFER = 0.15
 
 -- тач-управление (тачскрин). Жесты работают как удержание клавиш:
 --   свайп вправо/влево с удержанием пальца — удержание «вправо»/«влево»
@@ -133,6 +130,11 @@ C.BIG_FALL_DROP = C.CELL_H * 0.5
 C.LANDING_CONTACT_TIME = 0.08
 C.BIG_FALL_HURT_DROP = C.CELL_H * 0.7
 
+-- длительность контакта для героев: анимация «касания»/планирование полёта
+C.CONTACT_DWELL = 0.10
+-- время в воздухе за один цикл отскока (для растягивания клипов героя)
+C.T_AIR = C.PERIOD - C.CONTACT_DWELL
+
 -- общие значения, которые нужны героям; передаются им в setup
 C.ENV = {
     jump_speed = C.JUMP_SPEED,
@@ -143,8 +145,6 @@ C.ENV = {
     contact_dwell = C.CONTACT_DWELL,
     t_air = C.T_AIR,
     h_default = C.H_DEFAULT,
-    h_min = C.H_MIN,
-    clearance_pad = C.CLEARANCE_PAD,
     cell_h = C.CELL_H,
     big_fall_drop = C.BIG_FALL_DROP,
     big_fall_hurt_drop = C.BIG_FALL_HURT_DROP,

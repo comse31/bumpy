@@ -22,9 +22,10 @@ local state = require("main.level.level_state")
 local M = {}
 
 local COLS = C.COLS
-local CELL_H = C.CELL_H
 local BOUNCE_Y = C.BOUNCE_Y
 local INPUT_LEAD = C.INPUT_LEAD
+-- удержание направления на момент касания: клавиша/жест ещё зажаты
+local held_direction = input.held_direction
 
 -- действия слоя движения и ввода; подставляются в bind
 local motion = {}
@@ -59,6 +60,13 @@ function M.land_on_platform(self, row)
     if self.game_over then
         return
     end
+    -- приземление после полёта (а не стартовое «мяч уже стоит на платформе»):
+    -- только такое касание снимает неограниченное окно буфера нажатия. На
+    -- старте уровня мяч ставится прямо на платформу, и первый контакт приходит
+    -- сразу — если считать его «касанием», игрок, нажавший высокий прыжок в
+    -- первом полёте, терял команду (пробел приходит как text без release и не
+    -- удерживается как jump_held)
+    local was_airborne = self.next_touch_time ~= nil
     -- приземление точно в центр платформы; пока смещение идёт,
     -- не снапим X — смещение само доведёт мяч до центра (без телепортации)
     local position = go.get_position()
@@ -127,14 +135,16 @@ function M.land_on_platform(self, row)
         self.sticky_rest = false
         self.sticky_cell = nil
     end
-    -- v12: the actual jump is chosen at the end of DWELL in ball.script; here
-    -- only the surface state is prepared.
-    if self.hero.contact_dwell then
-        self.press_used = false
-        self.dwell_slope_dir = world.slope_direction(row, self.col)
-        self.dwell_row = row
-        return
+    -- визуальная реакция героя на удар (клип, сжатие пружины, глубокая посадка).
+    -- Вызывается ДО выбора действия игрока, одинаково для всех героев: drop —
+    -- высота падения над поверхностью. Мячик по умолчанию ничего не делает
+    local drop = math.max(0.0, (self.air_peak_y or self.ground_y) - self.ground_y)
+    if self.sticky_rest then
+        -- на липкую платформу герой всегда встаёт на ноги (эталон — мячик)
+        self.hero.force_feet_landing(self)
     end
+    self.hero.on_land(self, drop)
+    self.air_peak_y = self.ground_y
     -- приземление после смены траектории высокого прыжка: дополнительное
     -- управляемое смещение в этом цикле запрещено, но наклонная платформа
     -- всё равно даёт неуправляемый отскок в сторону наклона (приоритет)
@@ -142,6 +152,11 @@ function M.land_on_platform(self, row)
         self.rising_moved = false
         self.pending_dir = 0
         self.pending_jump = false
+        input.clear_dir_buffer(self)
+        input.clear_jump_buffer(self)
+        -- касание состоялось: ограничение окна буфера до первого касания
+        -- уровня здесь тоже снимается
+        self.touch_done = true
         local slope_dir = world.slope_direction(row, self.col)
         if slope_dir ~= 0 then
             -- наклон в сторону непреодолимой преграды — бесконечная ловушка
@@ -159,11 +174,37 @@ function M.land_on_platform(self, row)
         self.hero.apply_squash(self)
         return
     end
-    local direction = 0
-    if self.pending_dir ~= 0 and (self.time - self.pending_time) <= INPUT_LEAD then
+    -- команда игрока на этом касании, в порядке приоритета (как в v12
+    -- dwell_direction):
+    --   1) удержание на момент касания — клавиша всё ещё зажата;
+    --   2) pending_dir — клавиша была нажата перед касанием (окно INPUT_LEAD);
+    --   3) буфер нажатия — клавишу уже отпустили, но нажали не позже окна
+    --      буфера (для самого первого касания уровня окно не ограничено).
+    -- Без шагов 1 и 3 самое первое нажатие сразу после старта уровня терялось:
+    -- расписания касаний ещё нет (next_touch_time = nil), поэтому удержание не
+    -- попадало в pending_dir, а короткий тап к приземлению уже был отпущен.
+    --
+    -- Буфер на СТАРТОВОМ касании не читается и не сбрасывается: на старте мяч
+    -- поставлен прямо на платформу, и первый контакт приходит сразу же. Если
+    -- прочитать буфер здесь, команда, нажатая игроком в первом полёте, была бы
+    -- израсходована на старте (а нажатие «пробел», снявшее плашку READY, дало
+    -- бы мгновенный высокий прыжок). Команда ждёт первого настоящего
+    -- приземления — см. was_airborne выше
+    local use_buffer = was_airborne
+    local direction = held_direction(self)
+    if direction == 0
+        and self.pending_dir ~= 0 and (self.time - self.pending_time) <= INPUT_LEAD then
         direction = self.pending_dir
     end
+    if direction == 0 and use_buffer then
+        direction = input.buffered_direction(self)
+    end
     self.pending_dir = 0
+    -- направление израсходовано; буфер прыжка ещё нужен ниже (проверка
+    -- высокого прыжка) и снимается после выбора действия
+    if use_buffer then
+        input.clear_dir_buffer(self)
+    end
     -- новый цикл отскока: разрешено одно нажатие
     self.press_used = false
     -- наклонная платформа: неуправляемый отскок в сторону наклона,
@@ -221,7 +262,8 @@ function M.land_on_platform(self, row)
             self.target_col = nil
             settle_or_stick(self)
         end
-    elseif (input.jump_active(self) or self.pending_jump)
+    elseif (input.jump_active(self) or self.pending_jump
+        or (use_buffer and input.buffered_jump(self)))
         and not self.high_jump_locked
         and not (self.sticky_rest and self.sticky_action_used) then
         -- высокий прыжок: постоянное движение вверх до платформы снизу или
@@ -236,6 +278,18 @@ function M.land_on_platform(self, row)
         input.clear_tap(self)
     else
         settle_or_stick(self)
+    end
+    -- буфер прыжка одноразовый: команда либо исполнена, либо не подошла —
+    -- повторно на этом же нажатии она не сработает. На стартовом касании он
+    -- сохраняется для первого настоящего приземления
+    if use_buffer then
+        input.clear_jump_buffer(self)
+    end
+    -- ограничение окна буфера включается только после касания, случившегося
+    -- в конце реального полёта: стартовое «мяч уже стоит на платформе» его не
+    -- включает, иначе команда, нажатая в первом полёте уровня, терялась бы
+    if was_airborne then
+        self.touch_done = true
     end
     self.pending_jump = false
     self.squash = 1.0
@@ -254,10 +308,6 @@ end
 function M.swept_land(self, dt)
     -- после смерти мяч не взаимодействует с уровнем (см. lose_life)
     if self.game_over then
-        return false
-    end
-    -- v12 already controls landing geometrically / by the dwell state
-    if self.hero.contact_dwell and self.contact_phase == "dwell" then
         return false
     end
     -- только свободное падение: смещение/отскок/высокий прыжок ведут себя иначе
@@ -309,47 +359,11 @@ function M.swept_land(self, dt)
     self.last_contact_time = self.time
     self.contact_processed = true
     dbg.log("SWEPT LAND cell=(%d, %d) prev_y=%.1f y=%.1f", self.col, land_row, prev_y, pos.y)
-    -- снап на верхнюю грань и общая логика приземления
+    -- снап на верхнюю грань и общая логика приземления. Реакцию на удар (клип,
+    -- сжатие, глубокая посадка) герой получает через on_land уже внутри
+    -- land_on_platform — путь одинаков для всех героев
     go.set_position(vmath.vector3(pos.x, BOUNCE_Y[land_row], pos.z))
-    if self.hero.contact_dwell then
-        self.contact_phase = "dwell"
-        self.dwell_until = self.time + C.CONTACT_DWELL
-        self.dwell_ground_y = BOUNCE_Y[land_row]
-        self.dwell_row = land_row
-        self.dwell_pending = nil
-        self.dwell_slope_dir = world.slope_direction(land_row, self.col)
-        self.press_used = false
-        phys.stop()
-        physics.set_gravity(vmath.vector3(0.0, -C.GRAVITY, 0.0))
-        local apex = self.air_peak_y or BOUNCE_Y[land_row]
-        local drop = math.max(0.0, apex - BOUNCE_Y[land_row])
-        local long_air = self.air_start_time
-            and (self.time - self.air_start_time) > 1.2 * C.PERIOD
-        local over_gap = self.hero.is_over_gap and self.hero.is_over_gap(self)
-        local falling = self.hero.is_falling and self.hero.is_falling(self)
-        local falling_big = falling and drop > 0.25 * C.CELL_H
-        if not world.platform_flag(land_row, self.col, "sticky")
-            and self.hero.start_land_squash then
-            local strength = math.min(1.0, 0.25 + drop / (3.0 * C.HEIGHT))
-            self.hero.start_land_squash(self, strength)
-        end
-        if C.BUMPY_BALL_BOUNCE or world.platform_flag(land_row, self.col, "sticky") then
-            -- ball mode / slime: land immediately, no contact squash
-            if world.platform_flag(land_row, self.col, "sticky")
-                and self.hero.force_feet_landing then
-                self.hero.force_feet_landing(self)
-            end
-            self.dwell_until = self.time
-        elseif (drop > C.BIG_FALL_DROP or long_air or over_gap or falling_big)
-            and self.hero.begin_big_landing then
-            local dur = self.hero.begin_big_landing(self)
-            self.dwell_until = math.max(self.dwell_until, self.time + (dur or 0.0))
-        else
-            self.hero.begin_contact(self, C.CONTACT_DWELL)
-            self.dwell_until = self.time + C.CONTACT_DWELL
-        end
-        self.air_peak_y = BOUNCE_Y[land_row]
-    end
+    phys.stop()
     M.land_on_platform(self, land_row)
     return true
 end

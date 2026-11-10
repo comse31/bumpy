@@ -1,7 +1,14 @@
--- Герой «мячик»: сплющивание при ударе, переворот на 180° в сторону прыжка
--- и автоматический отскок при приземлении. Здесь только специфика мячика;
--- общая механика (сетка, физика, столкновения, предметы, выход) — в ball.script.
-local M = {}
+-- Герой «мячик» — ЭТАЛОН взаимодействия с миром. Сплющивание при ударе,
+-- переворот на 180° в сторону прыжка и автоматический отскок при приземлении.
+--
+-- Вся физика взаимодействия с миром (липкие платформы, автоотскок, приём ввода,
+-- высота подскока, длительность шага) живёт в hero_base, поэтому мячик ничего
+-- из этого не переопределяет: он задаёт только визуал и то, что его визуал
+-- уникален. Остальные герои наследуют тот же контракт и не могут разойтись
+-- с мячиком в поведении.
+local base = require("main.ball.hero_base")
+
+local M = setmetatable({}, { __index = base })
 
 M.name = "ball"
 
@@ -14,7 +21,7 @@ local function apply_squash(self)
 end
 
 function M.setup(self, env)
-    self.env = env
+    base.setup(self, env)
     self.ball_visual = go.get_id("ball_visual")
     go.set_parent(self.ball_visual, go.get_id(), true)
 end
@@ -51,37 +58,6 @@ end
 
 function M.apply_squash(self)
     apply_squash(self)
-end
-
-function M.hop_height(self)
-    return self.env.hop_height
-end
-
--- мячик «прилипает» к липкой (закрашенной) платформе: не пружинит, лежит на
--- ней и ждёт команды игрока: влево/вправо — соскок на соседнюю ячейку
--- (см. hop_and_move в ball.script), высокий прыжок — только при первом касании
-M.sticks_on_platform = true
-
--- длительность бокового шага мячика: без изменений
-function M.step_scale(self)
-    return 1.0
-end
-
--- приземление без команды игрока: мяч автоматически отскакивает
-function M.settle(self)
-    go.set("#collision_object", "linear_velocity", vmath.vector3(0.0, self.env.jump_speed, 0.0))
-    self.next_touch_time = self.time + self.env.period
-end
-
-function M.allow_from_rest(self)
-    return false
-end
-
--- мяч лежит на липкой поверхности: повторные контакты Box2D (шар не отрывается
--- от платформы) игнорируем — иначе каждые CONTACT_DEDUP секунд мяч «приземлялся»
--- бы заново и заново запускал соскок при удержании клавиши
-function M.ignore_contacts(self)
-    return self.sticky_rest == true
 end
 
 -- началось действие (шаг/отскок/прыжок): direction/duration заданы для

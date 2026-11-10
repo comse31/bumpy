@@ -1,13 +1,18 @@
 -- Bumpy v12 gameplay hero: 2D frames, one beat = contact_* + flight_*.
+--
+-- Взаимодействие с миром у Bumpy — КАК У МЯЧИКА (эталон hero_ball): Bumpy
+-- наследует hero_base, поэтому липкие платформы, автоматический отскок при
+-- приземлении, приём команды только в окне касания и высота подскока у него
+-- те же, что у мячика. Bumpy переопределяет ТОЛЬКО визуал: клипы полёта,
+-- контакта и посадки.
+local base = require("main.ball.hero_base")
 local CLIPS = require("main.bumpy_v12.bumpy_v12_clips")
 local PHI = require("main.bumpy_v12.bumpy_v12_phi")
 local state = require("main.level.level_state")
 
-local M = {}
+local M = setmetatable({}, { __index = base })
+
 M.name = "bumpy_v12"
-M.sticks_on_platform = true
--- ball.script runs the DWELL/FLIGHT contact state machine only for this hero.
-M.contact_dwell = true
 
 local VISUAL = "/bumpy_v12_visual"
 local SHADOW = "/bumpy_v12_shadow_visual"
@@ -462,7 +467,7 @@ local function flight_clip_for(self, start_on_head, direction)
 end
 
 function M.setup(self, env)
-    self.env = env
+    base.setup(self, env)
     self.v12_visual = go.get_id(VISUAL)
     self.v12_sprite_k = HERO_SPRITE_SCALE / go.get_scale(self.v12_visual).x
     self.v12_shadow = go.get_id(SHADOW)
@@ -678,8 +683,25 @@ function M.is_surprised_fall(self)
         or self.v12_kind == "fall_surprise_in"
 end
 
-function M.settle(self)
-    M.begin_contact(self)
+-- визуальная реакция на удар о платформу: сжатие по силе падения. Физику
+-- (автоматический отскок) даёт общий base.settle — как у мячика.
+-- На липкой платформе глубокая посадка не нужна: Bumpy на ней стоит
+function M.on_land(self, drop)
+    if not self.sticky_rest then
+        local strength = math.min(1.0, 0.25 + (drop or 0.0) / (3.0 * self.env.hop_height))
+        M.start_land_squash(self, strength)
+    end
+end
+
+-- Bumpy отскакивает как мячик: сразу уходит в клип полёта (режим мячика, без
+-- контактной паузы), поэтому кадр приземления не проигрывается
+function M.on_bounce(self)
+    M.begin_flight(self, 0)
+end
+
+-- встал на липкую платформу и ждёт команды игрока: поза покоя
+function M.on_rest(self)
+    M.begin_rest(self)
 end
 
 local function start_fall(self)
@@ -901,24 +923,7 @@ function M.on_ceiling(self)
     return false
 end
 
-function M.hop_height(self)
-    return self.env.hop_height
-end
-
-function M.step_scale(self)
-    return 1.0
-end
-
-function M.squash_time_scale(self)
-    return 1.0
-end
-
-function M.allow_from_rest(self)
-    return false
-end
-
-function M.ignore_contacts(self)
-    return self.sticky_rest == true
-end
+-- hop_height, step_scale, allow_from_rest, ignore_contacts и settle наследуются
+-- из hero_base: Bumpy взаимодействует с миром ровно как мячик (эталон)
 
 return M
