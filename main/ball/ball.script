@@ -919,35 +919,29 @@ function on_input(self, action_id, action)
         end
     end
     -- плашка "READY FOR LEVEL N?": любое нажатие клавиши убирает её и
-    -- запускает игру — мяч снова подчиняется физике
+    -- запускает игру — мяч снова подчиняется физике.
+    -- Нажатие, снимающее плашку, НЕ является командой герою: оно только
+    -- запускает уровень. Поэтому состояние ввода полностью сбрасывается, а
+    -- направление/прыжок в буферы не пишутся — иначе одно нажатие сработало бы
+    -- дважды (по удержанию в update_held_move и по буферу при приземлении).
+    -- Следующее нажатие любой клавиши действия уже играет обычным порядком
     if self.ready_wait then
         if action.pressed then
             self.ready_wait = false
             self.jump_held = false
             self.pending_jump = false
-            self.v12_jump_buffer_time = -math.huge
-            -- Нажатие, снимающее плашку READY, — это и первая команда уровня:
-            -- запоминаем её в буфере, иначе игрок, начавший уровень нажатием
-            -- «вправо» или «пробел», не получил бы действия до нового нажатия.
-            -- Раньше здесь стоял ignore_jump_until (0.15 с), и высокий прыжок
-            -- от нажатия «старт» гасился; теперь окна игнорирования нет, а
-            -- стартовое касание не расходует буфер (use_buffer в
-            -- ball_landing.land_on_platform): команда доживает до первого
-            -- настоящего приземления. Направление пишется и в *_held — чтобы
-            -- удержание работало обычным путём, если клавишу не отпустили
-            if action_id == hash("right") then
-                self.right_held = true
-                self.v12_dir_buffer = 1
-                self.v12_dir_buffer_time = self.time
-            elseif action_id == hash("left") then
-                self.left_held = true
-                self.v12_dir_buffer = -1
-                self.v12_dir_buffer_time = self.time
-            elseif action_id == hash("jump") then
-                -- высокий прыжок: буфер (а не jump_held) — у пробела нет
-                -- release-события, удержание залипло бы
-                self.v12_jump_buffer_time = self.time
-            end
+            self.pending_dir = 0
+            self.right_held = false
+            self.left_held = false
+            input.clear_dir_buffer(self)
+            input.clear_jump_buffer(self)
+            input.clear_tap(self)
+            -- окно «сразу после касания» (INPUT_TAIL) не должно пропустить
+            -- команду с прошлого касания: старт уровня — новое касание
+            self.touch_time = -math.huge
+            -- Нажатие READY нигде не запоминается, поэтому действия оно не даёт
+            -- вовсе, а окно игнорирования прыжка не нужно: следующее нажатие
+            -- любой клавиши сразу приводит к действию
             msg.post("/ready", "hide")
             -- старт уровня: камера плавно переходит от полного вида поля
             -- (как на плашке READY) к режиму игры — масштаб по длинному краю
