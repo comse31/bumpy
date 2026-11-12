@@ -269,6 +269,29 @@ instances {
   id: "pocket"
   prototype: "/main/pocket/pocket.go"
 }
+# Подписи «x N» рядом с группой предметов: показываются, когда предметов
+# данного вида больше трёх (см. main/pocket/pocket.script)
+instances {
+  id: "pc_d"
+  prototype: "/main/pocket/pocket_count.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pc_k"
+  prototype: "/main/pocket/pocket_count.go"
+  position {
+    y: 680.0
+  }
+}
+instances {
+  id: "pc_h"
+  prototype: "/main/pocket/pocket_count.go"
+  position {
+    y: 680.0
+  }
+}
 instances {
   id: "pi_d1"
   prototype: "/main/pocket/pocket_drop.go"
