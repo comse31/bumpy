@@ -25,13 +25,19 @@
 -- The sprite pool is small and static: instance ids live in main/main.collection,
 -- the captions are static instances of main/pocket/pocket_count.go.
 
-local MARGIN_X  = 40   -- margin at both ends of the strip
+-- Геометрия полосы общая с GUI-слоем сенсорного управления: круглая кнопка
+-- «назад» стоит слева от первой группы, и предметы начинаются ПОСЛЕ неё
+-- (см. main/pocket/pocket_layout.lua).
+local layout    = require("main.pocket.pocket_layout")
+
+local MARGIN_X  = layout.MARGIN_X -- margin at both ends of the strip
+local ITEMS_X   = layout.ITEMS_X  -- X первой группы предметов (после кнопки «назад»)
 -- Смещение центров соседних предметов внутри группы: 16 px, то есть ровно
 -- половина ширины картинки (32). Никакого дополнительного шага/зазора нет,
 -- предметы наезжают друг на друга веером.
 local SPACING   = 8
 local GROUP_GAP = 20    -- extra gap between groups (drops | keys | hammers)
-local POCKET_Y  = 680  -- vertical center of the strip (field top is y=640)
+local POCKET_Y  = layout.STRIP_Y -- vertical center of the strip (field top is y=640)
 local SCREEN_W  = 960  -- display width (game.project), for right alignment
 local LIVES     = 3    -- default number of lives shown
 
@@ -158,8 +164,10 @@ local function group_extent(self, kind)
 end
 
 -- Локальный X первого предмета группы с учётом групп слева: drops | keys | hammers.
+-- Предметы начинаются после круглой кнопки «назад» (ITEMS_X), а не от края
+-- экрана: кнопка занимает левую часть полосы (main/pocket/pocket_layout.lua).
 local function group_base(self, kind)
-    local base = MARGIN_X
+    local base = ITEMS_X
     for k = 0, kind - 1 do
         base = base + group_extent(self, k)
     end

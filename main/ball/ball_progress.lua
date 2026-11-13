@@ -211,6 +211,41 @@ function M.require_gear(self)
     return false
 end
 
+-- Вернуться в стартовое меню по круглой кнопке «назад» из HUD-кармана
+-- (main/controls/controls.gui_script -> сообщение "back_to_menu").
+--
+-- Это не проигрыш и не GAME OVER: игра просто ставится на паузу, а меню
+-- открывается поверх неё. Сохранение не обнуляется — в классическом режиме
+-- пункт «Classic» продолжит игру с того же уровня, с теми же жизнями и
+-- карманом (см. M.start_game -> resume).
+function M.back_to_menu(self)
+    if game_mode.is_menu_open() then
+        return
+    end
+    -- заморозить мяч: под меню игра стоит на паузе, физика не должна
+    -- продолжать двигать его за пределы поля
+    phys.stop()
+    phys.disable()
+    self.hero.deactivate(self)
+    -- сохранить текущий прогресс (жизни и карман): при закрытии браузера
+    -- игрок вернётся ровно в это состояние. В «Приключении» persist ничего
+    -- не пишет — режим не участвует в сохранении
+    M.persist(self)
+    -- плашки, которые могли быть на экране, не должны остаться под меню
+    msg.post("/ready", "hide")
+    msg.post("/game_over", "hide")
+    msg.post("/no_gear", "hide")
+    -- ловушка (если была): снять отсчёт и плашку
+    if self.trap_active then
+        trap.reset(self)
+    end
+    self.gear_blocked = false
+    game_mode.set_menu_open(true)
+    msg.post("/menu", "open")
+    dbg.always("BACK TO MENU: level %d, pocket=(%d, %d, %d)",
+        state.index, self.pocket, self.key_pocket, self.hammer_pocket)
+end
+
 -- Вернуться в главное меню после плашки «NOT ENOUGH THINGS». Вызывается из
 -- on_input по любому нажатию, пока self.gear_blocked. Плашка скрывается,
 -- прогресс классической игры обнуляется (уровень заведомо непроходим с

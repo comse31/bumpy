@@ -1250,6 +1250,13 @@ function on_message(self, message_id, message, sender)
         self.hero.deactivate(self)
         return
     end
+    -- круглая кнопка «назад» в HUD-кармане (main/controls/controls.gui_script):
+    -- вернуть игрока в стартовое меню, поставив игру на паузу.
+    -- Сохранение не обнуляется — «Classic» продолжит игру с того же места
+    if message_id == hash("back_to_menu") then
+        progress.back_to_menu(self)
+        return
+    end
     -- запуск игры из стартового меню (main/ui/menu/menu.gui_script): режим уже
     -- выставлен, уровень 1 пересобирается, его level_start покажет READY
     if message_id == hash("start_game") then
