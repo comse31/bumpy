@@ -1,6 +1,10 @@
 # Defold build output and caches
 /.internal/
 /build/
+/dist/
+
+# Кэш решений генератора плана прохождения (tools/gen_walkthrough.py)
+tools/_solutions.json
 
 # Extracted / generated tools (e.g. unpacked Defold editor jar)
 tools/jar_extract/
@@ -27,3 +31,6 @@ desktop.ini
 /.editor_settings
 /.internal
 /build
+/bumpy_save
+/github.txt
+"__pycache__/"  

@@ -1,0 +1,88 @@
+-- Фоновый слой: 4 готовых AI-фона, выбор по теме уровня.
+--
+-- Параллакс: фон лежит «за игровым полем», поэтому при перемещении героя между
+-- колонками он смещается в противоположную сторону — возникает ощущение
+-- изменения угла зрения.
+--
+-- Параллакс только горизонтальный: обычные прыжки на месте (вверх-вниз) и
+-- высокие прыжки по вертикали не меняют X героя, поэтому экран не дёргается.
+-- Запас хода даёт фон, увеличенный на 30% (см. main.collection): по X это ~339
+-- мировых единиц, сдвиг берём с запасом внутри этого диапазона.
+local state = require("main.level.level_state")
+
+local IDS = { "#bg1", "#bg2", "#bg3", "#bg4" }
+local BY_THEME = {
+    [1] = "#bg1",
+    [2] = "#bg2",
+    [3] = "#bg3",
+    [4] = "#bg4",
+}
+
+-- максимальный сдвиг фона по X в мировых единицах
+local MAX_SHIFT_X = 60.0
+-- сглаживание: доля пути до цели за секунду (1 = мгновенно, меньше = плавнее)
+local SMOOTH = 6.0
+-- мёртвая зона по X: микро-колебания героя не трогают фон
+local DEAD_ZONE_X = 4.0
+-- границы игрового поля: 960x720, центр поля — в (480, 360)
+local FIELD_HALF_W = 480.0
+local CENTER_X = 480.0
+local HERO_ID = "ball"
+
+local function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+
+-- целевое смещение фона по X: фон идёт навстречу герою
+local function target_offset_x()
+    local hero = go.get_position(HERO_ID)
+    if not hero then
+        return 0.0
+    end
+    local nx = clamp((hero.x - CENTER_X) / FIELD_HALF_W, -1.0, 1.0)
+    return -nx * MAX_SHIFT_X
+end
+
+local function show_theme(theme)
+    local active = BY_THEME[theme]
+    for _, id in ipairs(IDS) do
+        if id == active then
+            msg.post(id, "enable")
+        else
+            msg.post(id, "disable")
+        end
+    end
+end
+
+function init(self)
+    for _, id in ipairs(IDS) do
+        msg.post(id, "disable")
+    end
+    local pos = go.get_position()
+    self.base_x = pos.x
+    self.base_y = pos.y
+    self.base_z = pos.z
+    self.offset_x = 0.0
+    self.theme = nil
+end
+
+function update(self, dt)
+    local theme = state.theme or 1
+    if theme ~= self.theme then
+        self.theme = theme
+        show_theme(theme)
+    end
+
+    local tx = target_offset_x()
+    -- мёртвая зона: не дёргаем фон на мелких колебаниях позиции
+    if math.abs(tx - self.offset_x) < DEAD_ZONE_X then
+        tx = self.offset_x
+    end
+    local k = math.min(1.0, dt * SMOOTH)
+    self.offset_x = self.offset_x + (tx - self.offset_x) * k
+    go.set_position(vmath.vector3(self.base_x + self.offset_x,
+                                  self.base_y,
+                                  self.base_z))
+end

@@ -1,0 +1,316 @@
+-- Pocket manager: HUD strip above the game field (y = 640..720).
+-- The strip is purely presentational: it takes part in neither game-cell
+-- math nor ball jump-height calculations.
+--
+-- Protocol (from /ball):
+--   "add"       {kind = 0|1|2, x = number, y = number} -- goodie collected at (x, y)
+--   "remove"    {kind = 0|1|2}                         -- goodie consumed
+--   "set_lives" {count = number}                       -- lives changed (default LIVES)
+--   "add_life"  {x, y, count}                          -- bonus life picked up at (x, y)
+--   "set_items" {drops, keys, hammers}                 -- rebuild the strip from counts
+-- kind: 0 = drop, 1 = key, 2 = hammer (same numbering as goodies).
+--
+-- Items fly to the left part of the strip and are grouped by type:
+-- drops first (leftmost), keys right after them, hammers last. The layout is
+-- very dense: each next item is placed half a sprite width to the right, so
+-- the sprites overlap by 50% and fan out one over another.
+-- Life hearts sit at the right end of the same strip, one per remaining life.
+--
+-- Each group draws at most MAX_VISIBLE sprites. When the pocket holds more
+-- items of that kind, the three visible sprites are followed by an "x N"
+-- caption (instances /pc_d, /pc_k, /pc_h) showing the exact number of items of
+-- that kind. With MAX_VISIBLE items or fewer the caption is hidden and every
+-- item gets its own sprite.
+--
+-- The sprite pool is small and static: instance ids live in main/main.collection,
+-- the captions are static instances of main/pocket/pocket_count.go.
+
+-- Геометрия полосы общая с GUI-слоем сенсорного управления: круглая кнопка
+-- «назад» стоит слева от первой группы, и предметы начинаются ПОСЛЕ неё
+-- (см. main/pocket/pocket_layout.lua).
+local layout    = require("main.pocket.pocket_layout")
+
+local MARGIN_X  = layout.MARGIN_X -- margin at both ends of the strip
+local ITEMS_X   = layout.ITEMS_X  -- X первой группы предметов (после кнопки «назад»)
+-- Смещение центров соседних предметов внутри группы: 16 px, то есть ровно
+-- половина ширины картинки (32). Никакого дополнительного шага/зазора нет,
+-- предметы наезжают друг на друга веером.
+local SPACING   = 8
+local GROUP_GAP = 20    -- extra gap between groups (drops | keys | hammers)
+local POCKET_Y  = layout.STRIP_Y -- vertical center of the strip (field top is y=640)
+local SCREEN_W  = 960  -- display width (game.project), for right alignment
+local LIVES     = 3    -- default number of lives shown
+
+-- Сколько спрайтов показывать в одной группе; остальное — подписью «x N».
+local MAX_VISIBLE = 3
+local COUNT_DX    = 26  -- отступ подписи от центра правого видимого предмета
+-- Место под подпись «x N» до следующей группы. С запасом на двузначные
+-- числа («x 12»): карман переживает переходы между уровнями и может копиться.
+local COUNT_W     = 80
+
+-- Static pool ids must match the instance ids in main/main.collection.
+local DROP_POOL   = { "pi_d1", "pi_d2", "pi_d3", "pi_d4", "pi_d5", "pi_d6" }
+local KEY_POOL    = { "pi_k1", "pi_k2", "pi_k3", "pi_k4", "pi_k5", "pi_k6" }
+local HAMMER_POOL = { "pi_h1", "pi_h2", "pi_h3", "pi_h4", "pi_h5", "pi_h6" }
+-- Life hearts: three starting lives plus room for bonus lives picked up in the
+-- level (goodies of kind 4); beyond that the pool grows dynamically.
+local LIFE_POOL = { "pi_l1", "pi_l2", "pi_l3", "pi_l4", "pi_l5", "pi_l6", "pi_l7", "pi_l8", "pi_l9" }
+
+-- factory components on /pocket for dynamic pool growth (see pocket.go)
+local FACTORY_BY_KIND = { [0] = "#pi_drop", [1] = "#pi_key", [2] = "#pi_hammer" }
+local POOLS = { [0] = DROP_POOL, [1] = KEY_POOL, [2] = HAMMER_POOL }
+-- «x N» counters: static instances in main/main.collection (pocket_count.go)
+local COUNTERS = { [0] = "/pc_d", [1] = "/pc_k", [2] = "/pc_h" }
+local LIFE_FACTORY = "#pi_life"
+
+-- Only three goodie kinds reach this manager (0 = drop, 1 = key, 2 = hammer).
+local function normalize_kind(kind)
+    if kind == 1 or kind == 2 then
+        return kind
+    end
+    return 0
+end
+
+-- X coordinate of the i-th life heart (1-based, left to right); the group
+-- is pinned to the right edge of the strip.
+local function life_x(i)
+    return SCREEN_W - MARGIN_X - (i - 1) * SPACING
+end
+
+-- Allocate one item id: a free static slot first, then a new factory instance
+-- (unbounded growth). The created instance starts hidden at the strip level;
+-- its sprite is enabled by the "fly"/"show" message that follows.
+local function allocate(self, pool, factory_id)
+    for _, id in ipairs(pool) do
+        if not self.occupied[id] then
+            self.occupied[id] = true
+            return id
+        end
+    end
+    local id = factory.create(factory_id, vmath.vector3(0, POCKET_Y, 0))
+    if id then
+        self.occupied[id] = true
+        self.dynamic[id] = true
+    end
+    return id
+end
+
+-- Free one item id: hide it and delete the instance if it was created
+-- dynamically (static pool instances stay in the collection).
+local function free(self, id)
+    self.occupied[id] = nil
+    msg.post(id, "hide")
+    if self.dynamic[id] then
+        self.dynamic[id] = nil
+        go.delete(id)
+    end
+end
+
+-- Show/hide the right-aligned life hearts for the given count. Called from
+-- init with the default and later whenever a life is gained or lost.
+local function set_lives(self, count)
+    count = math.max(0, count or 0)
+    while #self.life_ids < count do
+        local id = allocate(self, LIFE_POOL, LIFE_FACTORY)
+        if not id then break end
+        self.life_ids[#self.life_ids + 1] = id
+        local i = #self.life_ids
+        msg.post(id, "show", { to = vmath.vector3(life_x(i), POCKET_Y, 0) })
+    end
+    while #self.life_ids > count do
+        local id = self.life_ids[#self.life_ids]
+        table.remove(self.life_ids)
+        free(self, id)
+    end
+end
+
+-- A bonus life (heart goodie, kind 4) was picked up at (x, y): show the newly
+-- gained heart in the next free slot, flying it in from the pickup point.
+-- Already-visible hearts stay in place; only the new rightmost one animates.
+local function add_life(self, x, y, count)
+    local i = math.max(1, count or 0)
+    while #self.life_ids < i do
+        local id = allocate(self, LIFE_POOL, LIFE_FACTORY)
+        if not id then return end
+        self.life_ids[#self.life_ids + 1] = id
+        -- intermediate slots (count jumped by more than one) appear instantly;
+        -- only the new rightmost heart animates
+        if #self.life_ids < i then
+            msg.post(id, "show", { to = vmath.vector3(life_x(#self.life_ids), POCKET_Y, 0) })
+        end
+    end
+    local id = self.life_ids[i]
+    local to = vmath.vector3(life_x(i), POCKET_Y, 0)
+    msg.post(id, "fly", { from = vmath.vector3(x or to.x, y or to.y, 0), to = to })
+end
+
+-- Сколько спрайтов реально рисуется для группы: не больше MAX_VISIBLE.
+local function visible(self, kind)
+    return math.min(MAX_VISIBLE, self.totals[kind] or 0)
+end
+
+-- Место, которое занимает группа целиком: видимые спрайты (+ подпись «x N»,
+-- если предметов больше MAX_VISIBLE) плюс зазор до следующей группы.
+local function group_extent(self, kind)
+    local vis = visible(self, kind)
+    if vis == 0 then
+        return 0
+    end
+    local width = vis * SPACING
+    if (self.totals[kind] or 0) > MAX_VISIBLE then
+        width = width + COUNT_W
+    end
+    return width + GROUP_GAP
+end
+
+-- Локальный X первого предмета группы с учётом групп слева: drops | keys | hammers.
+-- Предметы начинаются после круглой кнопки «назад» (ITEMS_X), а не от края
+-- экрана: кнопка занимает левую часть полосы (main/pocket/pocket_layout.lua).
+local function group_base(self, kind)
+    local base = ITEMS_X
+    for k = 0, kind - 1 do
+        base = base + group_extent(self, k)
+    end
+    return base
+end
+
+-- X i-го видимого предмета группы (1-based): соседние предметы наезжают
+-- друг на друга с шагом SPACING.
+local function item_x(self, kind, i)
+    return group_base(self, kind) + (i - 1) * SPACING
+end
+
+-- Мгновенная (без анимации) расстановка всех предметов по местам. skip_id —
+-- предмет, который ещё летит и переставлять который нельзя.
+local function snap_all(self, skip_id)
+    for kind = 0, 2 do
+        for i, id in ipairs(self.lists[kind]) do
+            if id ~= skip_id then
+                msg.post(id, "snap", { to = vmath.vector3(item_x(self, kind, i), POCKET_Y, 0) })
+            end
+        end
+    end
+end
+
+-- Подпись «x N» справа от группы: показывается только когда предметов
+-- больше MAX_VISIBLE, иначе скрывается. N — общее количество предметов
+-- этого вида в кармане.
+local function update_counter(self, kind)
+    local total = self.totals[kind] or 0
+    if total <= MAX_VISIBLE then
+        msg.post(COUNTERS[kind], "hide")
+        return
+    end
+    local x = item_x(self, kind, visible(self, kind)) + COUNT_DX
+    msg.post(COUNTERS[kind], "set", { count = total, x = x, y = POCKET_Y })
+end
+
+-- Пересчитать все подписи: при изменении числа предметов в одной группе
+-- сдвигаются группы справа, а их подписи должны сдвинуться вместе с ними.
+local function update_counters(self)
+    for k = 0, 2 do
+        update_counter(self, k)
+    end
+end
+
+local function add(self, kind, x, y)
+    kind = normalize_kind(kind)
+    self.totals[kind] = (self.totals[kind] or 0) + 1
+    local list = self.lists[kind]
+    local flying = nil
+    if #list < visible(self, kind) then
+        -- предметов стало не больше MAX_VISIBLE — новый спрайт влетает
+        -- из точки сбора
+        local id = allocate(self, POOLS[kind], FACTORY_BY_KIND[kind])
+        if id then
+            list[#list + 1] = id
+            flying = id
+            local to = vmath.vector3(item_x(self, kind, #list), POCKET_Y, 0)
+            msg.post(id, "fly", { from = vmath.vector3(x or 0, y or 0, 0), to = to })
+        end
+    end
+    -- группы справа сдвинулись: уже стоящие предметы переставляем мгновенно,
+    -- только что добавленный не трогаем — он ещё летит
+    snap_all(self, flying)
+    update_counters(self)
+end
+
+local function remove(self, kind)
+    kind = normalize_kind(kind)
+    -- защита от «минуса» при рассинхроне: убирать нечего — молча выходим
+    if (self.totals[kind] or 0) <= 0 then
+        return
+    end
+    self.totals[kind] = self.totals[kind] - 1
+    local list = self.lists[kind]
+    local target = visible(self, kind)
+    while #list > target do
+        local id = list[#list]
+        table.remove(list)
+        free(self, id)
+    end
+    snap_all(self) -- remaining items compact instantly, no animation
+    update_counters(self)
+end
+
+-- Instant rebuild of the strip from explicit counts. Used when the ball rolls
+-- the pocket back after losing a life: items collected on the failed attempt
+-- disappear, the rest are placed without animation.
+local function set_items(self, drops, keys, hammers)
+    for kind = 0, 2 do
+        for _, id in ipairs(self.lists[kind]) do
+            free(self, id)
+        end
+        self.lists[kind] = {}
+    end
+    self.totals[0] = math.max(0, drops or 0)
+    self.totals[1] = math.max(0, keys or 0)
+    self.totals[2] = math.max(0, hammers or 0)
+    for kind = 0, 2 do
+        for i = 1, visible(self, kind) do
+            local id = allocate(self, POOLS[kind], FACTORY_BY_KIND[kind])
+            if not id then break end
+            self.lists[kind][i] = id
+            msg.post(id, "show", { to = vmath.vector3(item_x(self, kind, i), POCKET_Y, 0) })
+        end
+    end
+    update_counters(self)
+end
+
+function init(self)
+    self.lists    = { [0] = {}, [1] = {}, [2] = {} } -- visible item ids per kind
+    self.totals   = { [0] = 0, [1] = 0, [2] = 0 }    -- real item counts per kind
+    self.life_ids = {} -- ordered list of shown life heart ids
+    self.occupied = {} -- id -> true for every allocated item (static or dynamic)
+    self.dynamic  = {} -- id -> true for factory-created instances
+    for _, id in ipairs(DROP_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(KEY_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(HAMMER_POOL) do
+        msg.post(id, "hide")
+    end
+    for _, id in ipairs(LIFE_POOL) do
+        msg.post(id, "hide")
+    end
+    for kind = 0, 2 do
+        msg.post(COUNTERS[kind], "hide")
+    end
+    set_lives(self, LIVES) -- show the default life hearts on the right
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("add") then
+        add(self, message.kind or 0, message.x or 0, message.y or 0)
+    elseif message_id == hash("remove") then
+        remove(self, message.kind or 0)
+    elseif message_id == hash("set_lives") then
+        set_lives(self, math.max(0, message.count or LIVES))
+    elseif message_id == hash("add_life") then
+        add_life(self, message.x, message.y, message.count)
+    elseif message_id == hash("set_items") then
+        set_items(self, message.drops or 0, message.keys or 0, message.hammers or 0)
+    end
+end

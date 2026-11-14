@@ -1,49 +1,699 @@
 # План реализации (от текущего состояния)
 
 ## Текущее состояние
-- Экран 960×640, сетка 6×6: 21 платформа `platform.go` лесенкой (уровень N — колонки N..6), каждая 140×20 px с зазором 20 px между соседними; общей земли нет — падение вниз за экран = конец игры.
-- [`main/ball.script`](main/ball.script): шар (диаметр 32) отскакивает в ритме 80 BPM на полную амплитуду (HEIGHT=64).
-- Реагирование на **состояние клавиш** left/right в окне `THRESHOLD_MS = 150` до/после касания: подскок на `HOP_HEIGHT` (= HEIGHT/6) со смещением на `STEP = CELL_W = 160` по дуге; шар привязан к колонке `self.col` (0..5), у краёв экрана смещение блокируется.
-- **Высокий прыжок** (Space/Up): в 2 раза выше обычного (`HIGH_JUMP_SPEED = sqrt(2)·JUMP_SPEED`); во время подъёма нажатие left/right меняет траекторию — шар смещается на соседнюю ячейку и переходит в падение.
-- Одно нажатие на цикл прыжка (`press_used`), защита от повторных `contact_point_response` в кадре (`contact_processed`).
+- Экран 960×640 (поле) + полоса HUD 640..720: сетка 6×6, ячейка 160×106.7.
+- «Приключение» играет на случайном сгенерированном уровне из БД
+  ([`tools/gen_level.py`](tools/gen_level.py:1) + `generated_levels`,
+  см. этап 20): в БД попадают только уровни, проходимость которых доказана
+  решателем.
+- Уровень **не прописан статически** в [`main.collection`](main/main.collection:1): его
+  генерирует [`main/level/level.script`](main/level/level.script:1) из метаданных
+  [`main/levels.json`](main/levels.json:1) (100 уровней оригинала, извлекаются
+  [`tools/extract_levels.py`](tools/extract_levels.py:1) из `BUMPY.TAP`).
+- [`main/ball/ball.script`](main/ball/ball.script:1): шар 32 px, ритм прыжка, высокий прыжок,
+  привязка к колонке, столкновения с платформами/перегородками/кладкой.
+- Платформы/стены/предметы/выход создаются фабриками через реестр
+  [`main/level/level_state.lua`](main/level/level_state.lua:1).
+- HUD-карман [`main/pocket/pocket.script`](main/pocket/pocket.script:1): капли, ключи, молотки, жизни.
 
 ## Этап 1. Сетка 6×6 и привязка шара — ВЫПОЛНЕНО
-1. Ввести константы сетки: `CELL_W = 960 / 6 = 160`, `CELL_H = 640 / 6 ≈ 106.7`; центр ячейки `(col, row)`.
-2. Привести `STEP` к `CELL_W` (сейчас 128 ≠ 160), чтобы смещение точно занимало соседнюю ячейку; шар привязывать по X к центрам ячеек.
-3. В `ball.script` вести индекс текущей колонки `self.col`; при смещении `col ±= 1` с ограничением 0..5 (стены экрана).
 
-## Этап 2. Высокий прыжок — ВЫПОЛНЕНО (п. 4–5)
-4. Подключить действие `jump`: нажатие в окне threshold → вертикальный импульс выше обычной амплитуды, состояние `self.rising = true`.
-5. Во время подъёма:
-   - команда left/right → шар делает подскок-запрыгивание на соседнюю ячейку и переходит в падение;
-   - столкновение с препятствием (потолок/перегородка) → остановка вертикальной скорости, переход в падение.
-6. Запрет высокого прыжка на липких платформах (см. этап 3).
+## Этап 2. Высокий прыжок — ВЫПОЛНЕНО
 
-## Этап 3. Платформы и их типы
-7. Прототип `platform.go` со свойством типа: `normal | sloped | shrinkable | sticky | spike | burning`; отдельные collision-группы для шипов/горящих (triggers, не блокируют движение).
-8. **Наклонные**: при контакте задавать шару горизонтальную скорость в сторону наклона (неуправляемый отскок).
-9. **Уменьшающиеся**: счётчик прыжков; после каждого — уменьшение масштаба, при 0 — уничтожение.
-10. **Липкие (закрашенные)**: после первого прыжка флаг `sticky_locked` → высокий прыжок недоступен.
-11. **Шипы**: контакт → потеря жизни, рестарт уровня.
-12. **Горящие**: контакт → если капель > 0: расход капли, платформа гаснет (становится normal); иначе потеря жизни.
+## Этап 3. Платформы и их типы — ВЫПОЛНЕНО
+- Прототипы по типам: `default`, `sloped/left`, `sloped/right`, `shrinkable`, `sticky`,
+  `spike`, `burning`, `burning_sticky` (вместо единого `platform.go` со свойством типа).
+- Наклонные — [`sloped.script`](main/platforms/sloped/sloped.script:1) + `slope_direction` в ball.
+- Уменьшающиеся — [`shrinkable.script`](main/platforms/shrinkable/shrinkable.script:1).
+- Липкие — [`sticky.script`](main/platforms/sticky/sticky.script:1) + `sticky_rest` в ball.
+- Шипы — [`spike.script`](main/platforms/spike/spike.script:1) + `is_spike`/`lose_life("spikes")`.
+- Горящие — [`burning.script`](main/platforms/burning/burning.script:1) + `is_burning`/`extinguish_burning`.
+- Опасность (шипы/огонь) проверяется скриптово при приземлении, а не через trigger-коллизии.
 
-## Этап 4. Перегородки и кирпичи
-13. Прототип `wall.go`: `indestructible` (фиолетовые) — шар отскакивает; `destructible` (серые) — прочность N, каждый удар расходует ключ, при 0 разрушается.
-14. Кирпичные препятствия: разбиваются шаром снизу серией ударов при наличии молотков (расход на серию).
+## Этап 4. Перегородки и кирпичи — ВЫПОЛНЕНО
+- `indestructible` / `destructible` — [`main/walls/`](main/walls/destructible/destructible.script:1),
+  удар расходует ключ (`hit_destructible_wall` в ball).
+- Кирпичная кладка (block, код `lo = 10`) — [`main/walls/block/block.script`](main/walls/block/block.script:1).
 
-## Этап 5. Снаряжение и инвентарь
-15. Прототипы предметов-триггеров: `drop` (капля), `key`, `hammer`, `life`.
-16. Общий объект состояния (`state.script`, shared_state уже включён в [`game.project`](game.project)): счётчики капель/ключей/молотков/жизней; HUD-отображение.
-17. Снапшот инвентаря при старте уровня: при потере жизни — восстановление снапшота; при прохождении уровня — сохранение текущего на следующий уровень.
+## Этап 5. Снаряжение и инвентарь — ВЫПОЛНЕНО
+- Прототипы предметов: [`drop`](main/goodies/drop/drop.go:1), [`key`](main/goodies/key/key.go:1),
+  [`hammer`](main/goodies/hammer/hammer.go:1), [`heart`](main/goodies/heart/heart.go:1) (жизнь).
+- Общее состояние: `shared_state = 1` в [`game.project`](game.project:5); счётчики — в ball,
+  реестр уровня — в [`level_state.lua`](main/level/level_state.lua:1), HUD — в
+  [`pocket.script`](main/pocket/pocket.script:1) (отдельного `state.script` нет).
+- Снапшот инвентаря на старте уровня и откат при потере жизни —
+  `start_pocket`/`start_keys`/`start_hammers` в ball, `set_items` в pocket.
 
-## Этап 6. Жизни и игровой цикл
-18. Стартовые 3 жизни; условия смерти: шипы, горящая платформа без капли, падение за нижний край экрана → рестарт уровня.
-19. Экран game over при 0 жизней; условие проигрыша при нехватке снаряжения (невозможность пройти уровень).
-20. Условие победы в уровне (выход/целевая ячейка) → переход к следующему уровню.
+## Этап 6. Жизни и игровой цикл — ЧАСТИЧНО
+- ВЫПОЛНЕНО: 3 стартовые жизни; смерть от шипов, горящей платформы без капли,
+  падения за нижний край (`lose_life`); GAME OVER при 0 жизней
+  ([`main/ui/game_over/game_over.script`](main/ui/game_over/game_over.script:1)); победа в уровне —
+  сбор `timer` объектов открывает выход, касание выхода → следующий уровень.
+- **СДЕЛАНО (п. 19): условие проигрыша при нехватке снаряжения** (невозможность
+  пройти уровень вне зависимости от числа жизней — `tz.txt` [3][5][7][8]).
+  Реализация:
+  - `tools/solve_level.py` — решатель уровней (lexicographic Dijkstra) и
+    `tools/gen_level_requirements.py` — оффлайн-генератор минимальных наборов:
+    для каждого уровня считается, сколько капель/ключей/молотков нужно иметь
+    УЖЕ НА СТАРТЕ (остальное можно подобрать по пути).
+  - [`main/level_requirements.json`](main/level_requirements.json:1) — данные
+    по всем 100 уровням (100 solvable, у 87 минимальность набора доказана).
+  - [`main/level/level_requirements.lua`](main/level/level_requirements.lua:1) —
+    чтение требований, `check()` (чего не хватает) и `describe()` (текст плашки).
+  - [`main/ball/ball_progress.lua`](main/ball/ball_progress.lua:1) —
+    `require_gear()` вызывается на старте уровня из `reset_level_state`:
+    не хватает снаряжения → GAME OVER сразу, вне зависимости от числа
+    оставшихся жизней; в классике сохранение обнуляется.
+  - Плашка GAME OVER показывает строку `NOT ENOUGH GEAR: 2 keys, 1 hammer`
+    (новый label [`game_over_reason.label`](main/ui/game_over/game_over_reason.label:1),
+    сообщение `show` принимает необязательное поле `reason`).
+  - «Приключение» выдаёт не фиксированные 5 предметов, а ровно минимально
+    требуемый набор уровня.
 
-## Этап 7. Уровни
-21. Формат данных уровня (коллекция на уровень или data-файл: сетка платформ/перегородок/предметов с типами).
-22. Загрузка/выгрузка уровней, генерация экземпляров из данных.
+## Этап 7. Уровни — ВЫПОЛНЕНО
+- Формат данных — [`main/levels.json`](main/levels.json:1) (генерируется скриптом).
+- Загрузка/генерация экземпляров — [`level.script`](main/level/level.script:1)
+  (`build_level`, очистка и пересборка между уровнями).
+
+## Этап 20. Процедурная генерация уровней в БД — ВЫПОЛНЕНО
+- **Генератор** [`tools/gen_level.py`](tools/gen_level.py:1): по seed строит уровень
+  в формате `levels.json` (слой lo/hi, объекты, старт, выход, `timer`), затем
+  проверяет проходимость решателем
+  [`tools/solve_level.py`](tools/solve_level.py:937) (`is_solvable`).
+  Принимается только `"solvable"`; `"impossible"` — брак, `"limit"` (недоказанная
+  проходимость) — тоже брак. Уровень полностью воспроизводим по seed;
+  `--bench N` показывает долю подходящих кандидатов (~25%).
+- **Сложность**: уровень обязан требовать хотя бы один предмет
+  (`MIN_REQUIRED_ITEMS = 1`). `_lock_start()` запирает шар в «камере» на старте:
+  кладка над шаром (нужен молоток) или разрушаемая перегородка в ряду старта
+  (нужен ключ), а выше по бокам колонки — неразрушаемые перегородки,
+  закрывающие выход высоким прыжком. Расходники в ряд и колонку старта не
+  ставятся, иначе шар подобрал бы их пролётом и требование обнулилось бы.
+  Замок «горящая платформа под шаром» убран (см. ниже).
+  Замер на 70 seed'ах: 70/70 проходимых, у всех `drops + keys + hammers >= 1`.
+- **Безопасный старт**: игра не должна начинаться с платформы с огнём (коды
+  8/9) или с шипов (12) — главный герой не должен погибать в первом касании.
+  Старт на сжимающейся платформе любого остатка (2/3/4) разрешён — это
+  осознанное решение игрока. Правило реализовано в
+  [`_pick_start()`](tools/gen_level.py:1) (не выбирает смертельные клетки),
+  в `lethal_start_violation()` + `is_playable()` (кандидат сразу бракуется),
+  в [`GeneratedLevelIn._safe_start`](backend/app/schemas.py:1) (422) и в
+  [`GeneratedLevelRepository._safe_start`](backend/app/levels_repository.py:1)
+  (такие записи не выдаются через `random`; фильтр не ослабляется при нехватке
+  записей, в отличие от правила «над кладкой»). Проверено на 160 кандидатах:
+  0 смертельных стартов; типы стартовых платформ — обычная 133, сжимающиеся 15,
+  липкая 6, наклонные 6.
+- **Геометрия кладки**: прямо над кирпичной кладкой не может быть платформ
+  (в оригинале над кладкой стоит только другая кладка — столбик кирпичей),
+  иначе шар не разобьёт кладку снизу. Правило проверяет
+  `blocks_above_violations()` в [`tools/gen_level.py`](tools/gen_level.py:1),
+  серверная схема [`GeneratedLevelIn`](backend/app/schemas.py:1) (422) и
+  [`GeneratedLevelRepository`](backend/app/levels_repository.py:1) (не выдаёт
+  такие записи). Проверено на 300 кандидатах: 217 кладок, 0 нарушений.
+- **Часовой запуск** [`tools/gen_hourly.py`](tools/gen_hourly.py:1): генерирует
+  ровно один уровень за запуск и сохраняет его через `POST /api/levels`.
+  Расписания:
+  - **docker-контейнер** `bumpy-gen`
+    ([`docker/gen/Dockerfile`](docker/gen/Dockerfile:1)) — `--loop 3600` внутри
+    образа, сервис в [`docker/docker-compose.yml`](docker/docker-compose.yml:1),
+    разворачивается вместе с игрой и backend в
+    [`deploy-master.yml`](.github/workflows/deploy-master.yml:1);
+  - systemd: [`tools/bumpy-gen.timer`](tools/bumpy-gen.timer:1) +
+    [`tools/gen_hourly.service`](tools/gen_hourly.service:1);
+  - cron-строка (см. [`tools/GENERATED_LEVELS.md`](tools/GENERATED_LEVELS.md:1));
+  - workflow [`generate-level.yml`](.github/workflows/generate-level.yml:1)
+    (`cron: "5 * * * *"`, `runs-on: [self-hosted]`).
+- **БД**: таблица `generated_levels`
+  ([`003_generated_levels.sql`](backend/migrations/003_generated_levels.sql:1)):
+  `level_id`, `seed` (уникален), `payload` (JSON уровня), `status`,
+  требования `drops`/`keys`/`hammers`, `created_at`. Правило «только проходимые»
+  продублировано в генераторе, в схеме
+  [`GeneratedLevelIn`](backend/app/schemas.py:1) (422 на `status != solvable`) и в
+  [`GeneratedLevelRepository.add()`](backend/app/levels_repository.py:1).
+- **API**: `GET /api/levels/random` (клиент), `GET /api/levels/latest`,
+  `GET /api/levels/stats`, `POST /api/levels`. Настройки — секция `levels`
+  в [`backend/config.yml`](backend/config.yml:1) (`window`, `latest_limit`, `keep`).
+- **Клиент**: [`main/random_level.lua`](main/random_level.lua:1) грузит уровень
+  (`GET /api/levels/random`); [`level.script`](main/level/level.script:1) строит его
+  тем же `build_level` — формат payload совпадает с `levels.json`.
+- **Плашка READY** в «Приключении» показывает идентификатор записи из БД
+  (`level_id`, например `g1793956154010_6393b723fa270ee1`): у сгенерированного
+  уровня нет номера в модели, поэтому [`ball.script`](main/ball/ball.script:1)
+  передаёт его вместе с `show`, а [`ready.script`](main/ui/ready/ready.script:1)
+  выводит двумя строками («RANDOM LEVEL» + id) и подбирает масштаб под ширину
+  плашки. В классике плашка по-прежнему показывает номер уровня.
+- **Меню**: пункт «Adventure» больше не открывает подменю выбора уровня — он
+  скачивает случайный сгенерированный уровень и сразу запускает его
+  («Adventure - random level», при загрузке «loading...», при ошибке — причина).
+  Снаряжение выдаётся ровно в минимально требуемом объёме, который пришёл
+  с уровнем ([`ball_progress.lua`](main/ball/ball_progress.lua:1)).
+- Подробности и команды проверки — [`tools/GENERATED_LEVELS.md`](tools/GENERATED_LEVELS.md:1).
+
+## Этап 8. Плашка READY перед уровнем — ВЫПОЛНЕНО
+- Перед началом каждого уровня показывается плашка «READY FOR LEVEL N?» (N —
+  номер уровня). Ждёт нажатия любой клавиши; пока она на экране, мяч заморожен
+  (коллизия выключена, `update` не выполняется) и игра не начинается.
+- UI: [`main/ui/ready/ready.go`](main/ui/ready/ready.go:1) (спрайт-подложка + label +
+  скрипт), [`ready.script`](main/ui/ready/ready.script:1) (сообщения `show`/`hide`,
+  подстановка номера уровня), фон [`main/ui/ready/ready.png`](main/ui/ready/ready.png:1)
+  (генерируется [`tools/gen_ready_sign.py`](tools/gen_ready_sign.py:1) в стиле
+  GAME OVER), шрифт [`ready.font`](main/ui/ready/ready.font:1).
+- Экземпляр `ready` добавлен в [`main.collection`](main/main.collection:1)
+  (z=0.95, поверх остальных объектов).
+- [`ball.script`](main/ball/ball.script:1): флаг `ready_wait`; по `level_start`
+  мяч замораживается и постится `show`; по первому нажатию клавиши плашка
+  скрывается, коллизия включается и уровень стартует.
+
+## Этап 10. Сохранение прогресса между сессиями (HTML5) — ВЫПОЛНЕНО
+- При закрытии вкладки/браузера с игрой состояние сохраняется: пока не
+  потрачены все жизни, переоткрытие возвращает игрока на текущий уровень с тем
+  же числом жизней и содержимым кармана (капли/ключи/молотки).
+- Хранилище — [`main/save.lua`](main/save.lua:1) поверх `sys.save`/`sys.load`.
+  Записываются: номер уровня, жизни, карман. Версия формата защищает от
+  несовместимых сохранений; `lives = 0` означает «жизни кончились → новая игра».
+- **Ключ к работе на HTML5** (без этого игра начиналась с 1-го уровня):
+  - [`game.project`](game.project:32) `[html5] use_indexeddb = 1` — монтирует
+    постоянный каталог приложения (`/data`) на IndexedDB (IDBFS с
+    `autoPersist`); вне него файловая система Emscripten живёт в памяти MEMFS
+    и теряется при перезагрузке вкладки;
+  - путь к файлу сохранения берётся через `sys.get_save_file("bumpy", "bumpy_save")`
+    в [`main/save.lua`](main/save.lua:1) — только он указывает внутрь
+    смонтированного на IndexedDB каталога. «Голое» имя файла (как было раньше)
+    на HTML5 попадало в корень MEMFS вне точки монтирования, поэтому сохранение
+    не переживало перезагрузку. Отдельной функции синхронизации в API нет
+    (`sys.sync_fs` не существует): движок сбрасывает IDBFS в IndexedDB
+    автоматически при закрытии файла, т.е. сразу после `sys.save`.
+- [`level.script`](main/level/level.script:1): в `init` читает сохранение и, если
+  `lives > 0`, стартует с сохранённого уровня вместо `go.property("level")`.
+- [`ball.script`](main/ball/ball.script:1): в `init` восстанавливает жизни и
+  карман из сохранения; в `level_start` пишет снимок начала уровня
+  (`start_*` — то же состояние, к которому карман откатывается при смерти);
+  в `lose_life` обновляет жизни до перезапуска; при GAME OVER обнуляет
+  сохранение (`lives = 0`), при рестарте — пишет начало новой игры.
+
+## Этап 9. Спрайты-фрукты для собираемых goodies — ВЫПОЛНЕНО
+- Для собираемых объектов (коды >= 5, ранее — единый спрайт-ромб
+  `collectible`) сгенерированы 12 отдельных спрайтов-фруктов 32×32 RGBA:
+  гриб, клубника, яблоко, груша, вишня, банан, апельсин, виноград, слива,
+  лимон, морковь, арбуз. Генератор —
+  [`tools/gen_fruit_sprites.py`](tools/gen_fruit_sprites.py:1).
+- Один атлас [`main/goodies/fruit/fruit.atlas`](main/goodies/fruit/fruit.atlas:1)
+  (12 images + 12 animations, id = имя фрукта) и спрайт
+  [`fruit.sprite`](main/goodies/fruit/fruit.sprite:1). Изображения переименованы
+  с префиксом `fr_`, чтобы неявные id images не конфликтовали с id анимаций.
+- Прототип [`main/goodies/fruit/fruit.go`](main/goodies/fruit/fruit.go:1):
+  спрайт + [`fruit.script`](main/goodies/fruit/fruit.script:1) (kind = 3,
+  выбор анимации по свойству `anim`).
+- [`level.script`](main/level/level.script:1): `goodie_factory` для кодов >= 5
+  возвращает `#goodie_fruit` и имя фрукта (`fruit_for_code` — коды
+  распределяются по кругу); `spawn_goodie` передаёт `anim = hash(имя)`.
+  Factory `goodie_fruit` добавлен в [`level.go`](main/level/level.go:1).
+
+## Этап 11. Версия билда рядом с «Made with Defold» — ВЫПОЛНЕНО
+- В нижнем правом углу HTML5-сборки Defold рисует бейдж «Made with Defold».
+  Рядом с ним теперь показывается версия игры и номер сборки: **«Made with
+  Defold — v1.0.0 (build 123)»**. Та же строка подставляется в `<title>`
+  вкладки (шаблон рендерит `{{project.title}} {{project.version}}`).
+- **Версия игры** (semver) — источник истины в
+  [`game.project`](game.project:30) (`[project] version`). Меняется вручную
+  при релизе: `1.0.0` → `1.1.0` и т. п.
+- **Номер сборки** — число коммитов в истории
+  (`git rev-list --count HEAD`), растёт автоматически на каждом деплое.
+  Для этого [`deploy-master.yml`](.github/workflows/deploy-master.yml:73)
+  делает checkout с `fetch-depth: 0` (иначе счётчик всегда был бы 1).
+- Подстановка — шаг «Подстановка версии игры в index.html» в
+  [`deploy-master.yml`](.github/workflows/deploy-master.yml:184): после сборки
+  бандла шаг читает `version` из `game.project`, считает номер сборки и
+  заменяет в `dist/web/bumpy/index.html` бейдж и `<title>` на версионированные.
+  Правка безопасна: `dmloader.js` сверяет sha1/size только wasm и архива, а не
+  самого `index.html`.
+
+## Этап 12. Альтернативное управление тапом по ячейкам — ВЫПОЛНЕНО
+- Вариант управления выбирается настройкой `bumpy.controls_mode` в
+  [`game.project`](game.project:34): `"buttons"` (прежние экранные кнопки),
+  `"cells"` (тап по игровым ячейкам), `"auto"` (cells на тач-устройствах,
+  buttons на остальных).
+- [`controls.gui_script`](main/controls/controls.gui_script:1): режим `cells` —
+  тап в координатах окна переводится в игровую ячейку через видимую область
+  мира из [`camera_state.lua`](main/render/camera_state.lua:1) (см. этап 13);
+  нажатая ячейка подсвечивается тонкой рамкой (узел `cell_highlight`), тап за
+  боковой границей поля (не дальше одной ячейки) подсвечивает только стенку
+  (узел `wall_highlight`). Команда уходит в мяч сообщением `cell_tap`.
+- [`controls.gui`](main/controls/controls.gui:1): узлы подсветки; текстуры
+  `white.png` и `cell_frame.png` генерируются
+  [`tools/gen_controls_ui.py`](tools/gen_controls_ui.py:1).
+- [`ball.script`](main/ball/ball.script:1): обработка `cell_tap` —
+  намерение (`cell_cmd`) выполняется, когда мяч готов к действию:
+  ячейка выше мяча → высокий прыжок с запрыгиванием в сторону нажатия
+  (`cell_jump` применяется на уровне нажатой ячейки при подъёме), тот же ряд
+  или ниже → обычный подскок в сторону нажатия. Тап за границей поля даёт
+  только боковой прыжок.
+- [`input/game.input_binding`](input/game.input_binding:1): к действию `touch`
+  добавлен `MOUSE_BUTTON_1`, чтобы режим можно было проверять и на настольной
+  сборке.
+- **Смена траектории в высоком прыжке (запрыгивание).** Пока мяч летит вверх,
+  тап по ячейке меняет траекторию: на уровне этой ячейки мяч уходит на одну
+  колонку в сторону нажатия (`cell_jump`) и падает. Раньше работал только тап
+  за боковой границей поля — у тапа по ячейке `dir = 0`, а ветка полёта в
+  `try_cell_command` требовала `dir ~= 0`.
+  - Команда действует, только пока мяч не долетел до нажатой ячейки: нижняя
+    часть мяча (`y - RADIUS`) не пересекла уровень отскока этого ряда
+    (`BOUNCE_Y[row]`) и `cmd.row >= hj_row`. Тап по уже пройденной ячейке
+    игнорируется, но ранее назначенный соскок сохраняется.
+  - В полёте тап отправляется сразу при нажатии (`motion_state` от `/ball` →
+    `high_flying` в [`controls.gui_script`](main/controls/controls.gui_script:1)):
+    мяч проходит ячейку меньше чем за 0.2 с, отпускание пальца опаздывало.
+    Вне полёта команда по-прежнему уходит по отпусканию, чтобы свайп-
+    панорамирование не превращался в команду; начатый свайп отменяет ещё не
+    исполненную команду сообщением `cell_cancel` (по `id` касания).
+  - В полёте команда исполняется тем же кадром (`try_cell_command` прямо из
+    `on_message`), цель допрыгивания по ряду (`target_col`) не ставится.
+- **Прерывание высокого прыжка «вниз».** Игрок может оборвать подъём: мяч
+  перестаёт подниматься и падает из той ячейки, в которой оказался в момент
+  нажатия. Реализация — одна точка отмены для обоих управлений.
+  - Клавиатура: `KEY_DOWN` в [`game.input_binding`](input/game.input_binding:1)
+    связан с новым действием `down` (раньше `KEY_DOWN` попадал в `any_key`).
+    В [`ball.script`](main/ball/ball.script:1) `on_input` вызывает
+    `cancel_high_jump` по `pressed` и выходит — прочие обработчики кадра
+    получают событие как обычно.
+  - Тач (режим `cells`): тап по ячейке, которая ниже летящего мяча —
+    нижняя часть мяча (`y - RADIUS`) уже выше уровня отскока нажатого ряда
+    (`BOUNCE_Y[cmd.row]`) — тоже прерывает прыжок. Тап по стенке за границей
+    поля прыжок не прерывает: ячейки там нет.
+  - [`ball_motion.cancel_high_jump`](main/ball/ball_motion.lua:1) сбрасывает
+    `high_jump`/`rising`/`hj_row`, назначенный `cell_jump` и оценку времени
+    полёта `next_touch_time`, гасит скорость (`phys.stop()`), сдвигает
+    `action_time` (защита от ложного контакта в том же кадре) и сообщает
+    `/controls` актуальное `motion_state`. Дальше работает обычная гравитация,
+    а приземление ловит swept-тест.
+  - Отмена расходует удержание прыжка: `jump_held`/`touch_jump`/`tap_jump` и
+    `pending_jump` сбрасываются, иначе зажатая клавиша (или экранная кнопка)
+    запустила бы новый высокий прыжок сразу при приземлении. Флаги поднимаются
+    только по свежему нажатию.
+
+## Этап 18. Поле имени в HTML5 на мобильном: клавиатура и каретка — ВЫПОЛНЕНО
+- Симптом: в HTML5-сборке на телефоне тап по полю `Name:` не открывал системную
+  клавиатуру, курсора в поле не было, а тапы по кнопкам меню вообще не
+  срабатывали.
+- **Клики/тапы не доходили до Druid.** В сборке движка для `wasm-web`
+  (`bumpy_wasm.js`) не экспортируется `_glfwSetMouseButtonCallback`:
+  `GLFW.mouseButtonFunc` остаётся `null`, `onMouseButtonChanged` сразу
+  выходит, и `mousedown`/`mouseup` не превращаются во входные действия.
+  Druid слушает действие `touch`, поэтому на десктопном браузере не работали
+  ни кнопки, ни поле ввода (на телефоне `touchstart` приходил, но остальное
+  ломалось по другим причинам — см. ниже).
+  - [`menu.gui_script`](main/ui/menu/menu.gui_script:1), `JS_SETUP`: на canvas
+    вешается `mousedown`/`mousemove`/`mouseup`, которые синтезируют
+    `TouchEvent` (`new Touch`, `new TouchEvent`) и отправляют их в canvas.
+    Делается только если у устройства нет настоящего тача
+    (`'ontouchstart' in window`) — на мобильном ничего не дублируется.
+- **Поле имени не выбиралось по тапу.** Druid-компонент `input` при создании
+  переводит свою кнопку в HTML5-режим (`set_web_user_interaction(true)`):
+  в этом режиме клик обрабатывается через `document`-listener, который
+  движок навешивает уже ПОСЛЕ того, как касание обработано, — событие
+  терялось. Отключено в [`menu.gui_script`](main/ui/menu/menu.gui_script:1):
+  `self.input.button:set_web_user_interaction(false)`, поле выбирается
+  обычной touch-кнопкой на отпускании.
+- **Клавиатура не поднималась, ввод и удаление не работали.**
+  `gui.show_keyboard` на HTML5 включает `contentEditable` на canvas — это
+  ненадёжно для ввода (IME, Backspace), а мобильные браузеры открывают
+  клавиатуру только при фокусе реального поля СИНХРОННО внутри жеста.
+  - `JS_SETUP` создаёт **прозрачное `<textarea>`** и позиционирует его ровно
+    над полем имени по `__bumpyNameRect` (доли canvas из `layout()`, Y
+    инвертируется: GUI — снизу вверх, DOM — сверху вниз). У поля
+    `pointer-events: none`, поэтому тап по-прежнему доходит до canvas и Druid
+    выбирает поле; при этом `touchstart`/`mousedown` в capture-фазе вызывают
+    `__bumpyNameFocus()` и в том же жесте фокусируют `<textarea>` — системная
+    клавиатура поднимается и на мобильном, и в fullscreen.
+  - Ввод, Backspace, IME и выделение — нативные. `update()` опрашивает
+    `__bumpyNameTakeText()` и переносит значение в `druid.input` (`set_text`,
+    каретка в конец), после чего возвращает отфильтрованную строку обратно в
+    DOM, чтобы DOM и GUI не расходились.
+  - Enter/Esc в `<textarea>` поднимают флаги `__bumpyNameEnter`/`__bumpyNameEsc`;
+    текст на момент Enter запоминается в `__bumpyNameCommit`. GLFW слушает
+    `keydown` в capture-фазе на `window`, поэтому Enter доходит до Druid
+    раньше нас, и тот снимает выбор со старым текстом — поэтому имя
+    сохраняется напрямую из зафиксированного значения (`profile.set_name`),
+    а поле затем показывает сохранённое имя.
+  - `canvas.focus()` подменён: пока поле активно, фокус возвращается в
+    `<textarea>`, иначе движок забирает клавиатуру себе.
+  - При снятии выбора (`on_input_unselect`), закрытии меню и переходе на экран
+    Adventure поле скрывается и теряет фокус
+    (`__bumpyNameHide`/`__bumpyNameBlur`) — клавиатура закрывается.
+- **Каретки не было.** Druid-компонент `input` не рисует курсор (в его `.gui`
+  такого узла нет). Добавлен узел `name_caret`
+  ([`menu.gui`](main/ui/menu/menu.gui:1)) — вертикальная полоса 3×40 поверх
+  поля, `z = 0.2`. В [`menu.gui_script`](main/ui/menu/menu.gui_script:1)
+  `update_caret()` в каждом кадре ставит её на место курсора по реальной
+  ширине префикса текста (`druid.text:get_text_size`), прячет вне режима
+  правки и мигает с периодом 0.5 с. Позиция зажимается внутри границ поля.
+- Проверено в браузере на `dist/web`: тап по `Name:` включает правку, каретка
+  появляется сразу после текста и мигает, ввод с клавиатуры меняет имя,
+  подсказка становится «Enter - save, Esc - cancel»; кнопки Classic/Adventure,
+  Prev/Next/Play/Back кликаются, игра запускается.
+
+## Этап 17. Адаптивная раскладка меню — ВЫПОЛНЕНО
+- Меню больше не «уезжает» в HTML5: в браузере соотношение сторон окна
+  произвольное (`scale_mode = stretch`), а узлы `.gui` были расставлены
+  абсолютными координатами под 960×720 — при другом окне кнопки и подписи
+  оказывались вне плашки (и `Name:` пропадала за полем ввода).
+- [`menu.gui`](main/ui/menu/menu.gui:1): все элементы главного экрана и
+  подменю вынесены в дочерний контейнер `screen` (`parent: "screen"`,
+  координаты относительно его центра). Фон `backdrop` растягивается на всё
+  окно. У контейнера `alpha: 0` и `inherit_alpha: false`; у детей
+  `inherit_alpha: false` — иначе контейнер гасил бы содержимое (или рисовался
+  белым прямоугольником).
+- [`menu.gui_script`](main/ui/menu/menu.gui_script:1): функция `layout()`
+  берёт фактический размер окна (`gui.get_width()` / `gui.get_height()`),
+  центрирует контейнер меню и масштабирует его равномерно по меньшей
+  стороне (`MIN_SCALE = 0.55`), фон растягивает на всё окно. Вызывается при
+  каждом изменении видимости/экрана и на любое входящее сообщение (ресайз,
+  поворот, `layout_changed`).
+- `Name:` вынесен в отдельный узел `name_label` (`PIVOT_W`, `z = 0.2`) и
+  сдвинут влево от поля ввода — подпись не перекрывается `name_box`.
+- Проверено запуском движка при 800×600, 900×600, 960×720 и 1280×720:
+  главный экран и подменю целиком внутри плашки, `Name:` видна, кнопки
+  кликаются, ошибок в консоли нет.
+
+## Этап 16. Единый шрифт интерфейса — ВЫПОЛНЕНО
+- Все внутриигровые плашки переведены на тот же шрифт, что и меню, — текст
+  больше не «запечён» в PNG, а рисуется label-компонентами:
+  [`main/ui/fonts/plate.font`](main/ui/fonts/plate.font:1) (`size 48`),
+  [`plate_big.font`](main/ui/fonts/plate_big.font:1) (`size 64`, заголовок
+  GAME OVER) и [`plate_small.font`](main/ui/fonts/plate_small.font:1)
+  (`size 32`, подсказка «PRESS ANY KEY»). Все три — MarkerFeltThin,
+  `TYPE_BITMAP` (как [`menu.font`](main/ui/menu/menu.font:1)).
+- **READY FOR LEVEL N?** — [`ready_text.label`](main/ui/ready/ready_text.label:1);
+  [`ready.png`](main/ui/ready/ready.png:1) теперь содержит только рамку и
+  подложку; [`ready.script`](main/ui/ready/ready.script:1) по-прежнему
+  подставляет номер уровня через `go.set("#label", "text", ...)`.
+  Старый [`ready.font`](main/ui/ready/ready.font:1) удалён.
+- **GAME OVER** — два label-компонента в
+  [`game_over.go`](main/ui/game_over/game_over.go:1):
+  [`game_over_title.label`](main/ui/game_over/game_over_title.label:1) и
+  [`game_over_hint.label`](main/ui/game_over/game_over_hint.label:1)
+  (были запечены в [`game_over.png`](main/ui/game_over/game_over.png:1)).
+  [`game_over.script`](main/ui/game_over/game_over.script:1) включает/выключает
+  спрайт и обе надписи одним списком `NODES`.
+- **EXIT** — [`exit_text.label`](main/exit/exit_text.label:1) вместо надписи в
+  [`exit.png`](main/exit/exit.png:1); [`exit.script`](main/exit/exit.script:1)
+  управляет спрайтом и надписью одинаково (в т.ч. при старте с `open = 1`).
+- **YOU ARE TRAPPED / счётчик** — [`trap_title.label`](main/ui/trap/trap_title.label:1)
+  и [`trap_count.label`](main/ui/trap/trap_count.label:1) переведены на
+  `plate.font` + `label.material`; старый [`trap.font`](main/ui/trap/trap.font:1)
+  (`vera_mo_bd`, distance field) удалён.
+- Из PNG удалён текст (пиксели заменены цветом подложки): рамки, тени и
+  скругления сохранены, файлы заметно уменьшились
+  (`game_over.png` 18 КБ → 1 КБ, `exit.png` 3 КБ → 1 КБ).
+- Проверка: `POST /command/compile` без ошибок; превью `game_over.go`,
+  `ready.go`, `exit.go`, `trap.go` через `GET /preview/{path}` и запуск движка
+  (плашка READY на уровне 7) — все надписи в общем шрифте.
+
+## Этап 15. Меню на Druid — ВЫПОЛНЕНО
+- UI стартового меню переведён на **[Druid](https://github.com/Insality/druid)** —
+  декларативные компоненты поверх узлов `.gui` вместо ручного разбора
+  `gui.pick_node` в `on_input`.
+- Зависимости ([`game.project`](game.project:1), секция `[project]`):
+  `dependencies#0 = .../defold-event/archive/refs/tags/21.zip` (Druid требует
+  `event.event`/`event.events`) и
+  `dependencies#1 = .../druid/archive/refs/tags/1.4.2.zip`. Библиотеки
+  подтягиваются `Project ▸ Fetch Libraries` (или `POST /command/fetch-libraries`
+  в Defold editor API).
+- Секция `[druid]` перенастраивает имена действий Druid на существующие
+  триггеры [`input/game.input_binding`](input/game.input_binding:1):
+  `input_text = text`, `input_touch = touch`,
+  `input_key_enter = name_enter`, `input_key_esc = name_cancel`,
+  `input_key_backspace = name_backspace`, `input_key_delete = name_delete`,
+  `input_key_left = left`, `input_key_right = right`. Дополнительно добавлены
+  триггеры `MARKED_TEXT` → `marked_text` (IME/мобильные клавиатуры) и
+  `KEY_DEL` → `name_delete`. Мышиный `click` удалён: Druid одинаково
+  обрабатывает `touch` (в т.ч. `MOUSE_BUTTON_1`) на десктопе и мобильных.
+- [`main/ui/menu/menu.gui_script`](main/ui/menu/menu.gui_script:1) переписан:
+  `druid.new(self)`, компоненты `new_button`, `new_text`, `new_input`,
+  `new_blocker` (фон перекрывает поле — тапы не уходят мячу). Жизненный цикл:
+  `update`/`on_message`/`final` прокидываются в Druid (`layout_changed`
+  пересчитывает автоподгонку текста).
+- Поведение меню сохранено полностью: Classic game / Adventure, подменю
+  выбора уровня (`Prev`/`Next`, `Play level N`, `Back`), строка `Name: ...`,
+  F2/тап по имени, Enter — сохранить, Esc — отмена, Backspace/Delete — правка,
+  цифры 1/2 на главном экране. Имя пишется в профиль в `on_input_unselect`
+  компонента ввода; отмена идёт через `input:reset_changes()` в обход
+  обработчика сохранения (флаг `cancelling`).
+- Пока меню скрыто, ввод компонентов Druid выключается (`set_input_enabled`),
+  включая блокер фона: иначе невидимое меню перехватывало бы тапы мяча и
+  сенсорное управление.
+- [`main/ui/menu/menu.gui`](main/ui/menu/menu.gui:1) получил отдельную подпись
+  `name_label` («Name:»), чтобы центр поля ввода не сдвигался; кнопки
+  `adv_prev`/`adv_next` расширены под текстовые подписи — в шрифте
+  MarkerFeltThin нет глифов `<`/`>` (рисовались пустыми квадратами).
+- Проверка: `POST /command/compile` — без ошибок; запуск движка, клики
+  (Classic/Adventure/Prev/Next/Play/Back), F2 + ввод имени, снятие плашки
+  READY по Space — все сценарии работают, ошибок в консоли нет.
+
+## Этап 14. Стартовое меню, имя игрока и два режима — ВЫПОЛНЕНО
+- Меню появляется после загрузки игры, после GAME OVER и после прохождения
+  уровня в «Приключении»; состоит из двух пунктов и строки с именем:
+  1. **Classic game** — основная игра с жизнями (при 0 жизней GAME OVER
+     и возврат в меню);
+  2. **Adventure** — подменю выбора уровня: доступны любые открытые уровни
+     `1..max_level`, где `max_level` — рекорд классического режима
+     ([`save.progress()`](main/save.lua:1)). На выбранном уровне выдаётся
+     фиксированный набор: 3 жизни и по 5 капель/ключей/молотков; после
+     прохождения уровня игра возвращается в стартовое меню, а исчерпание
+     3 жизней тоже возвращает в меню (без GAME OVER). Прогресс классики
+     «Приключение» не читает и не пишет.
+  - Выбор уровня в подменю: кнопки `<`/`>` (стрелки клавиатуры Left/Right),
+    Enter — играть, Esc/Back — назад к главному экрану; уровень для запуска
+    хранится в [`game_mode.set_adventure_level`](main/game_mode.lua:1).
+  - Возврат в меню после уровня — [`level.script`](main/level/level.script:1)
+    (`level_complete`), после исчерпания жизней —
+    [`ball_progress.lua`](main/ball/ball_progress.lua:1) (`lose_life`);
+    мяч при этом замораживается сообщением `freeze` в
+    [`ball.script`](main/ball/ball.script:1).
+  - **`main/ui` разложен по папкам** — по одной папке на экран/плашку:
+    `menu/`, `ready/`, `game_over/`, `trap/`, общий `fonts/`. Все пути внутри
+    ресурсов и в [`main.collection`](main/main.collection:1) обновлены.
+  - GUI меню: [`main/ui/menu/menu.gui`](main/ui/menu/menu.gui:1),
+    [`menu.go`](main/ui/menu/menu.go:1),
+    [`menu.gui_script`](main/ui/menu/menu.gui_script:1). Фон и кнопки — белый
+    пиксель [`main/ui/menu/menu.atlas`](main/ui/menu/menu.atlas:1)
+    (переиспользуется `controls/white.png`).
+  - **Шрифт — [`Banty Bold.ttf`](main/ui/fonts/Banty Bold.ttf:1)** (рукописный,
+    только латиница), поэтому весь текст интерфейса на английском:
+    [`menu.font`](main/ui/menu/menu.font:1) (`size 40`, обычный текст) и
+    [`menu_big.font`](main/ui/menu/menu_big.font:1) (`size 64`, заголовок и
+    приветствие). Формат — `TYPE_BITMAP`: distance field на тонких штрихах
+    рукописного шрифта даёт «залипшие» глифы.
+- **Надписи задаются из скрипта** (`gui.set_text`), а не статикой в `.gui`:
+  статический `text:` в сцене компилируется как Latin-1, и текст проще менять
+  в одном месте.
+- **Уровни в подписи пункта «Classic game»**: `Classic game   lvl N (max M)` —
+  текущий уровень и максимально достигнутый. Данные берутся из
+  [`save.progress()`](main/save.lua:1); рекорд (`max_level`) хранится в
+  сохранении и только растёт — GAME OVER и новая игра его не уменьшают.
+  У пункта «Adventure» показывается верхняя граница открытых уровней
+  (`Adventure  (max M)`), а в подменю — `Level N  (max M)`.
+  Вся подпись центрируется в кнопке.
+- Приветствие **«hello PlayerN»**: N — автоинкремент визитов.
+  [`main/player_profile.lua`](main/player_profile.lua:1) хранит профиль в
+  отдельном файле `bumpy_profile` (`sys.save`/`sys.load` через
+  `sys.get_save_file`, см. этап 10), чтобы сброс прогресса и GAME OVER не
+  стирали имя. Пока игрок не менял имя, оно собирается как `"Player" .. N`;
+  после правки сохраняется как есть, а счётчик визитов продолжает расти.
+- **Правка имени**: F2 (или тап по строке имени) включает режим ввода;
+  символы приходят text-триггером, Backspace стирает последний символ,
+  Enter сохраняет, Esc отменяет; длина ограничена 16 символами.
+- Режим и флаг «меню открыто» — общий модуль
+  [`main/game_mode.lua`](main/game_mode.lua:1). Пока меню открыто,
+  [`ball.script`](main/ball/ball.script:1) не обновляет и не обрабатывает ввод,
+  [`controls.gui_script`](main/controls/controls.gui_script:1) не реагирует на
+  касания (возвращает `false`, пропуская событие к меню), а сенсорные удержания
+  сбрасываются сообщением `reset`.
+- [`main/ball/ball_progress.lua`](main/ball/ball_progress.lua:1):
+  `start_game` в режиме «Приключение» берёт уровень из
+  `game_mode.get_adventure_level()` и выдаёт 3 жизни + по 5 предметов;
+  `persist`/`resume` в этом режиме отключены (попытка не пишется в
+  сохранение); `lose_life` уменьшает жизни и при их исчерпании в
+  «Приключении» просто открывает меню (`/menu` `open`) без GAME OVER,
+  в классике — `save.clear()` + плашка GAME OVER + меню.
+- [`input/game.input_binding`](input/game.input_binding:1): text-триггер
+  `text` (имя игрока, а вне режима правки — выбор пункта цифрами 1/2, потому
+  что text-триггер перехватывает печатные клавиши раньше key-триггеров),
+  `edit_name` (F2), `name_enter`, `name_backspace`, `name_cancel`;
+  `MOUSE_BUTTON_LEFT` → отдельное действие `click` (в Defold touch- и
+  mouse-триггеры не могут делить одно имя действия; из-за этого меню
+  работало по клавиатуре, но не по клику).
+- `ball.script` трактует text-событие как нажатие: на плашке READY любая
+  печатная клавиша снимает плашку, в игре пробел (`" "`) превращается в
+  действие `jump`.
+- Меню не отпускает фокус ввода (`release_input_focus`): невидимое меню
+  возвращает `false`, и события идут дальше к мячу — иначе после выбора
+  режима ввод до `/ball` уже не доходил и плашка READY не снималась.
+
+## Этап 13. Камера: масштаб по длинному краю и плавный фокус — ВЫПОЛНЕНО
+- Поле больше не вписывается целиком в окно: на мобильных (тач-устройствах)
+  оно масштабируется так, чтобы заполнить экран по длинному краю — одна из
+  сторон поля видна полностью, вторая обрезается. На плашке «READY FOR LEVEL»
+  по-прежнему виден весь уровень целиком, а после старта масштаб плавно
+  меняется к игровому.
+- Камера — [`camera.script`](main/render/camera.script:1): каждый кадр
+  считает масштаб и видимый прямоугольник мира, плавно (экспоненциальное
+  сглаживание, ≈0.4 с) подводит масштаб к цели и следует за мячом с «мёртвой
+  зоной» (24% видимого размера) и небольшой задержкой. Центр ограничен полем,
+  поэтому за его краем не показывается пустота.
+- Собственный рендер-скрипт [`game.render_script`](main/render/game.render_script:1)
+  (форк `builtins/render/default.render_script`) принимает границы видимой
+  области числами через сообщение `set_camera_rect` и строит по ним
+  ортопроекцию. Матрицу (`matrix4`) в сообщении передать нельзя — отсюда
+  именно прямоугольник. Подключён через
+  [`game.render`](main/render/game.render:1) и `bootstrap.render` в
+  [`game.project`](game.project:3). GUI рисуется отдельной stretch-проекцией,
+  поэтому интерфейс не «раздувается» вместе с полем.
+- Общее состояние — [`camera_state.lua`](main/render/camera_state.lua:1):
+  видимый прямоугольник мира и трансформ полосы HUD. По нему
+  [`controls.gui_script`](main/controls/controls.gui_script:1) переводит тапы
+  в мировые координаты (раньше считался fixed-fit от размера окна), а
+  [`pocket_item.script`](main/pocket/pocket_item.script:1) каждый кадр
+  переводит локальные координаты полосы в мировые — карман остаётся
+  закреплённым за экраном и не уезжает вместе с полем.
+- Плашки READY / GAME OVER / TRAPPED камера держит по центру видимой части
+  поля и сохраняет их экранный размер (`scale = fit_zoom / zoom`).
+- Переключение режима — сообщения `ready` / `play` из
+  [`ball.script`](main/ball/ball.script:1) (по `level_start` и по первому
+  нажатию на плашке READY).
+- Настройка `bumpy.camera_mode` в [`game.project`](game.project:37):
+  `"auto"` (по умолчанию), `"cover"` (всегда приближать и следить за мячом,
+  отладочный), `"fit"` (всегда вся сцена целиком, отладочный).
+  В режиме `"auto"` приближение и слежение за мячом включаются **только в
+  полноэкранном режиме на устройстве**: полноэкранный браузер на
+  тач-смартфоне/планшете (Fullscreen API, standalone-PWA, iOS
+  `navigator.standalone`) либо нативная мобильная сборка. В оконном браузере
+  и на десктопе всегда показывается всё игровое поле (fit). Полноэкранный
+  режим перепроверяется раз в `COVER_REFRESH_SEC = 0.25` с, поэтому вход в
+  fullscreen включает приближение, а выход — сразу возвращает обзор всего
+  поля, без перезагрузки страницы.
+- Прежний [`projection.script`](main/render/projection.script:1) (fixed-fit
+  через `use_fixed_fit_projection`) удалён вместе с `projection.go`.
+- **Проверка в HTML5/Docker.** Бандл собирается через Defold Editor HTTP API
+  (`/bob`: `build` с `archive=true`, затем `bundle` с
+  `architectures=wasm-web` и `bundle-output=dist/web`), образ —
+  `docker build -f docker/Dockerfile -t bumpy-web .`, запуск —
+  `docker run -d --name bumpy-web -p 8080:80 bumpy-web:latest`,
+  игра открывается на <http://localhost:8080>. Проверено: на плашке READY
+  виден весь уровень, в режиме `cover` поле заполняет экран по длинному краю,
+  HUD-полоса растянута на всю ширину и прижата к верху.
+  Примечание: `docker compose build` на этой машине падает на баге BuildKit
+  (`changes out of order`), поэтому образ собирается с `DOCKER_BUILDKIT=0`.
+
+## Этап 21. План прохождения уровней classic — ВЫПОЛНЕНО
+- Появился генератор [`tools/gen_walkthrough.py`](tools/gen_walkthrough.py:1):
+  для каждого уровня из [`main/levels.json`](main/levels.json:1) он берёт план
+  у решателя [`tools/solve_level.py`](tools/solve_level.py:1) и оформляет его
+  в человекочитаемый документ [`tools/LEVELS_WALKTHROUGH.md`](tools/LEVELS_WALKTHROUGH.md:1).
+- В документе на каждый уровень: карта 6×6 (платформа + предмет в каждой
+  ячейке), список перегородок по рядам, минимальный набор снаряжения на
+  старте, сколько капель/ключей/молотков реально тратится по плану и
+  пошаговый список действий в игровых терминах (хоп, высокий прыжок с
+  отводом, пробивание перегородки, удар по кладке снизу, отскок с
+  сжимающейся платформы).
+- Прогон по всем 100 уровням: **100 из 100 проходимы**; минимальность набора
+  доказана для 87 уровней, у 13 (6, 14, 16, 17, 19, 26, 30, 34, 39, 51, 69,
+  87, 88) план найден fallback-поиском и в документе отмечено
+  «минимальность не доказана».
+- **Топ-10 самых сложных уровней** считается в самом документе той же формулой,
+  что и в [`tools/bench_solve.py`](tools/bench_solve.py:85) (`difficulty`, 0..100:
+  снаряжение, шипы/огонь, перегородки/кладка, наклоны/сжимающиеся платформы,
+  усилие поиска, длина маршрута, фрукты). Текущий топ: **80** (67.0, эксперт),
+  **19** (59.9, эксперт), **69** (59.6, эксперт), **39** (48.7), **17** (47.5),
+  **47** (47.5), **85** (44.3), **97** (42.9), **60** (39.4), **30** (38.9).
+- Кэш решений `tools/_solutions.json` (в `.gitignore`, создаётся при первом
+  прогоне) позволяет перегенерировать только Markdown, не повторяя поиск;
+  флаг `--no-cache` отключает кэш, `--only 1,2,48` — выборочный прогон.
+- Команды:
+  - `py tools/gen_walkthrough.py` — полная перегенерация документа;
+  - `py tools/gen_walkthrough.py --only 1,48` — только выбранные уровни;
+  - `py tools/solve_level.py --level N` — план одного уровня в консоль.
+
+## Этап 22. «Человеческая» интересность уровней — ВЫПОЛНЕНО
+- Проблема: формула сложности [`tools/bench_solve.py`](tools/bench_solve.py:85)
+  взвешивает статические плотности (шипы, перегородки, фрукты). Игрок же
+  оценивает уровень по механике: прицельные прыжки, необратимое обрушение
+  пола, серии без отдыха. Из-за этого уровни 36, 61, 92 (ощущаются тяжёлыми)
+  получали по статической формуле 18–25 баллов, а «много предметов на карте» —
+  выше.
+- Новый модуль [`tools/level_interest.py`](tools/level_interest.py:1) — балл
+  0..100 по десяти компонентам: `precision` (высокие прыжки с перестроением),
+  `irreversible` (пол исчезает под шаром), `no_rest` (длина серии без безопасной
+  опоры), `forced_motion` (наклон/липкая двигают шар сами), `hazard_goal`
+  (фрукты на шипах/над шипами), `puzzle` (кладка против снаряжения),
+  `trap_risk` (наклон в край/неразрушаемую стену), `variety`, `maze`
+  (поле заложено кирпичом), `oneshot_field` (поле из одноразовых плит).
+  Веса подобраны так, чтобы рейтинг совпадал с ощущением игрока.
+- **Генератор** [`gen_level.py`](tools/gen_level.py:1):
+  `evaluate_candidate()` считает статус и интересность за ОДИН проход
+  решателя (второй `solve()` удваивал время); `MIN_INTEREST = 26.0` отбрасывает
+  скучные, но проходимые уровни; `generate_playable()` берёт лучшего из
+  `DEFAULT_INTEREST_POOL = 4` подходящих кандидатов вместо первого.
+  Замер: `pool=1` → 20.5, `pool=2/4` → 31.5 (рост в 1.5 раза), `pool=8`
+  не улучшает, поэтому 4 — оптимум. Проходимость доказывается тем же
+  решателем, отбор не может выбрать непроходимый уровень.
+- **Часовой генератор** [`gen_hourly.py`](tools/gen_hourly.py:1): флаги
+  `--min-interest` / `--interest-pool`, в лог пишется `interest=NN.N`;
+  `interest` не попадает в payload уровня (это диагностика, а не данные игры).
+- **Отчёты**: [`bench_solve.py`](tools/bench_solve.py:1) показывает
+  «Интересность» отдельной колонкой и хранит `interest`/`interest_parts` в
+  JSON; [`gen_walkthrough.py`](tools/gen_walkthrough.py:1) выводит в
+  [`LEVELS_WALKTHROUGH.md`](tools/LEVELS_WALKTHROUGH.md:1) два рейтинга —
+  топ-10 по интересности и топ-10 по статической сложности.
+- Проверка: `py -m py_compile` всех изменённых скриптов; полный прогон
+  `gen_walkthrough.py` по 100 уровням; `gen_level.py --bench 25` (уровни
+  проходимы, интересность считается); `build_payload(5000)` в
+  `gen_hourly.py` выбирает seed 5009 с `interest=32.5`.
+- Документация: раздел «Человеческая интересность уровня» в
+  [`tools/GENERATED_LEVELS.md`](tools/GENERATED_LEVELS.md:1) с таблицей весов
+  и командами проверки.
+
+## Этап 23. Компактный HUD-карман: 3 спрайта + «x N» — ВЫПОЛНЕНО
+- В каждой группе предметов ([`pocket.script`](main/pocket/pocket.script:1))
+  рисуется не больше трёх спрайтов (`MAX_VISIBLE = 3`). Если предметов
+  данного вида больше, справа от тройки появляется подпись **«x N»**, где N —
+  общее количество предметов этого вида в кармане (а не число на экране).
+- Менеджер хранит два счётчика на вид: `totals[kind]` — реальное количество в
+  кармане (от него считаются требования уровней и расход предметов) и
+  `lists[kind]` — только показанные спрайты. При `totals > 3` лишние спрайты
+  не создаются; при `totals <= 3` подпись скрывается и каждый предмет снова
+  получает свой спрайт.
+- Подпись — отдельный объект [`pocket_count.go`](main/pocket/pocket_count.go:1)
+  (label [`pocket_count.label`](main/pocket/pocket_count.label:1) + скрипт
+  [`pocket_count.script`](main/pocket/pocket_count.script:1)). Инстансы
+  `pc_d` / `pc_k` / `pc_h` объявлены в
+  [`main.collection`](main/main.collection:267) рядом с полосой кармана.
+  Подпись, как и предметы, хранит локальные координаты полосы (0..960,
+  640..720) и каждый кадр переводит их в мир через
+  [`camera_state.lua`](main/render/camera_state.lua:1) — в режиме cover она
+  остаётся приклеенной к полосе.
+- Раскладка групп: место группы = `visible * SPACING` (+`COUNT_W` под подпись,
+  если предметов больше трёх) + `GROUP_GAP`; группы справа пересчитываются
+  при каждом изменении, поэтому капли/ключи/молотки не наезжают на подписи.
+- Проверка: мок-тест [`tools/pocket_test.lua`](tools/pocket_test.lua:1) на
+  Lua 5.1 (24 проверки: 5 капель → 3 спрайта + «x 5», 4 ключа → «x 4»,
+  2 молотка → без подписи, списание до 3 → подпись скрывается, `set_items`
+  с 7 каплями, пустой карман, жизни); плюс визуальная проверка в HTML5-сборке
+  в Docker (`docker run ... zenika/alpine-chrome:with-puppeteer`) — на плашке
+  READY видны три капли с «x 5» и три ключа с «x 4».
+
+## Что осталось
+1. ~~**П. 19: проверка нехватки снаряжения → проигрыш.**~~ **ВЫПОЛНЕНО**
+   (см. этап 6 выше). Требования считаются оффлайн решателем
+   (`tools/gen_level_requirements.py`), проверка делается на старте уровня
+   (`ball_progress.require_gear`), игра завершается без ожидания потери жизней.
+   Перегенерация после правок уровней:
+   `py tools/gen_level_requirements.py` (обновляет
+   [`main/level_requirements.json`](main/level_requirements.json:1)).
+2. **Актуализация `PLAN.md`** (сделано в этой правке): этапы 3–5, 7 были
+   фактически выполнены, но не отмечены; «Текущее состояние» описывало старую
+   статическую лесенку платформ.
 
 ## Валидация
-- После каждого этапа: `POST /command/compile` (Defold Editor HTTP API) и прогон через `/command/run`, проверка консоли `/console`.
+- После изменений: `POST /command/compile` (Defold Editor HTTP API,
+  порт из `.internal/editor.port`), прогон через `/command/run`, проверка `/console`.

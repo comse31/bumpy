@@ -1,0 +1,12 @@
+text: 'NOT ENOUGH THINGS'
+font: '/main/ui/fonts/plate_small.font'
+material: '/builtins/fonts/label.material'
+size { x: 700 y: 46 z: 0 }
+color { x: 1 y: 0.96 z: 0.96 w: 1 }
+outline { x: 0.09 y: 0.10 z: 0.15 w: 1 }
+shadow { x: 0 y: 0 z: 0 w: 0 }
+leading: 1.0
+tracking: 0.0
+pivot: PIVOT_CENTER
+blend_mode: BLEND_MODE_ALPHA
+line_break: false

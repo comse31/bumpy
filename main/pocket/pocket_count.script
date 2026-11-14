@@ -1,0 +1,63 @@
+-- Подпись «x N» рядом с группой предметов HUD-кармана.
+--
+-- Показывается, когда в кармане больше MAX_VISIBLE предметов данного вида
+-- (см. main/pocket/pocket.script): три спрайта плюс подпись с общим
+-- количеством. Объект закреплён за полосой кармана: хранит ЛОКАЛЬНЫЕ
+-- координаты полосы (0..960, 640..720) и каждый кадр переводит их в мир через
+-- трансформ полосы из main/render/camera_state — так же, как спрайты
+-- предметов (main/pocket/pocket_item.script).
+--
+-- Менеджер (/pocket) присылает:
+--   "set"  {count, x, y} — показать «x <count>» в локальной точке (x, y);
+--   "hide"               — скрыть подпись.
+local camera_state = require("main.render.camera_state")
+
+-- Подпись чуть мельче собранных предметов (те показываются в масштабе 2/3):
+-- «x N» читается, но не перекрывает соседние группы.
+local COUNT_SCALE = 0.85
+
+-- локальная точка полосы -> мировая (0,0 полосы — её левый низ)
+local function to_world(x, y)
+    local s = camera_state.hud_scale
+    return camera_state.hud_x + x * s, camera_state.hud_y + y * s
+end
+
+-- поставить объект в мировые координаты, сохранив видимый размер подписи
+-- независимым от масштаба полосы
+local function place(self)
+    local s = camera_state.hud_scale
+    local wx, wy = to_world(self.px, self.py)
+    go.set_position(vmath.vector3(wx, wy, 0.0))
+    go.set_scale(vmath.vector3(COUNT_SCALE * s, COUNT_SCALE * s, 1.0))
+end
+
+function init(self)
+    self.px, self.py = 0.0, 680.0 -- локальная позиция полосы
+    self.visible = false
+    -- старт скрыт: пустой карман не показывает ни одного счётчика
+    msg.post("#label", "disable")
+end
+
+function update(self)
+    -- трансформ полосы меняется вместе с камерой — применяем каждый кадр
+    if self.visible then
+        place(self)
+    end
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("set") then
+        local count = math.max(0, (message and message.count) or 0)
+        if message and message.x then
+            self.px = message.x
+            self.py = message.y or 680.0
+        end
+        go.set("#label", "text", "x " .. tostring(count))
+        self.visible = true
+        place(self)
+        msg.post("#label", "enable")
+    elseif message_id == hash("hide") then
+        self.visible = false
+        msg.post("#label", "disable")
+    end
+end
