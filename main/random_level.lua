@@ -12,6 +12,11 @@
 -- серверных вызовах (main/records.lua, main/remote_db.lua, main/auth.lua):
 -- если backend недоступен или уровней в БД ещё нет, меню показывает ошибку.
 --
+-- ПОВТОРОВ НЕТ: в запрос передаётся player_id, и сервер выдаёт только те
+-- уровни, которые игроку ещё не предлагались. Когда непросмотренные
+-- заканчиваются, история игрока на сервере очищается и начинается новый круг
+-- (backend/app/levels_repository.py: GeneratedLevelRepository.random).
+--
 -- Адрес API и ключ берутся из remote_db, чтобы настройки (bumpy.api_url /
 -- bumpy.api_key) читались в одном месте.
 local remote_db = require("main.remote_db")
@@ -101,10 +106,17 @@ end
 --   level — таблица уровня (формат levels.json) или nil при ошибке;
 --   error — текст ошибки или nil при успехе.
 --
+-- player_id передаётся в запросе (?player_id=...), чтобы сервер не повторял
+-- уровни: игрок получает случайный уровень только из тех, которые ему ещё не
+-- предлагались, а когда они заканчиваются — круг начинается заново (см.
+-- backend/app/levels_repository.py: GeneratedLevelRepository.random).
+-- Без этого параметра выдача осталась бы чисто случайной и могла выдать один
+-- и тот же уровень несколько раз подряд.
+--
 -- Ответ устаревшего запроса отбрасывается: игрок мог нажать пункт меню
 -- несколько раз, и поздний ответ первого запроса не должен перезаписать
 -- свежий.
-function M.load(callback)
+function M.load(callback, player_id)
     if in_flight then
         return
     end
@@ -114,7 +126,18 @@ function M.load(callback)
     end
 
     in_flight = true
+    -- Идентификатор игрока: без него сервер не может вести историю выдачи.
+    -- Подставляется автоматически, если вызывающий не передал свой (например,
+    -- после входа по имени в другой записи). Пустой id не отправляем: сервер
+    -- отверг бы его (422), а игра осталась бы без уровня.
+    local pid = player_id
+    if type(pid) ~= "string" or pid == "" then
+        pid = remote_db.get_player_id()
+    end
     local url = string.format("%s/api/levels/random", remote_db.api_base())
+    if type(pid) == "string" and pid ~= "" then
+        url = string.format("%s?player_id=%s", url, pid)
+    end
     local called = false
 
     local function done(_, _, response)

@@ -444,6 +444,25 @@ def check_generated_levels() -> None:
     check("random отдаёт уровень", status == 200, str(random_level))
     check("payload — строка уровня", isinstance(random_level.get("payload"), str), str(random_level))
 
+    # ротация по player_id: игрок не получает уровень повторно, пока не
+    # сыграет все. В БД сейчас несколько уровней (тест выше их добавил),
+    # поэтому проверяем контракт, а не конкретное число кругов:
+    #   * повторные запросы с одним player_id не возвращают один и тот же
+    #     уровень дважды подряд, пока уровней хватает;
+    #   * некорректный player_id отклоняется (422) — он попадает в SQL как
+    #     параметр, но формат проверяется, чтобы история не «размазывалась».
+    rotation_player = "protation0123456789"
+    seen: list[str] = []
+    for _ in range(2):
+        status, item = request(
+            "GET", f"/api/levels/random?player_id={rotation_player}")
+        check("random с player_id отдаёт уровень", status == 200, str(item))
+        seen.append(item.get("level_id"))
+    check("уровни ротации не повторяются", len(set(seen)) == 2, str(seen))
+
+    status, error = request("GET", "/api/levels/random?player_id=bad")
+    check("некорректный player_id отклонён", status == 422, f"{status} {error}")
+
     # статистика
     status, stats = request("GET", "/api/levels/stats")
     check("stats считает уровни", status == 200 and (stats.get("total") or 0) >= 1, str(stats))

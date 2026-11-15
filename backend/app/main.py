@@ -369,14 +369,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(require_key)],
     )
     def random_level(
+        player_id: str | None = Query(default=None),
         store: GeneratedLevelRepository = Depends(get_levels),
     ) -> GeneratedLevelOut:
         """Случайный сгенерированный уровень для режима Adventure.
 
+        player_id (необязательный) включает ротацию: игрок не получит уровень
+        повторно, пока ему не были предложены все доступные уровни. Когда
+        непросмотренные заканчиваются, история игрока очищается и начинается
+        новый круг (см. GeneratedLevelRepository.random). Без player_id
+        выдача остаётся чисто случайной.
+
         404 — если в БД ещё нет ни одного уровня (генератор не запускался).
         Клиент в этом случае остаётся в меню и показывает сообщение.
         """
-        level = store.random()
+        pid = (player_id or "").strip() or None
+        if pid is not None and not PLAYER_ID_RE.match(pid):
+            raise HTTPException(
+                status_code=422,
+                detail="player_id: ожидается 8..64 символа из [A-Za-z0-9_-]",
+            )
+        level = store.random(pid)
         if level is None:
             raise HTTPException(
                 status_code=404,
