@@ -237,6 +237,11 @@ class GeneratedLevelIn(BaseModel):
 
     Поля повторяют колонки generated_levels. payload передаётся JSON-строкой,
     чтобы сервер не зависел от внутренней структуры уровня.
+
+    prompt/signature — правило генерации уровня (tools/level_prompt.py):
+    по промту уровень можно собрать заново, а подпись нужна для отсева
+    похожих на забракованные игроками. Оба поля необязательны: старые
+    генераторы их не присылают, и тогда промт собирается на сервере.
     """
 
     seed: int = Field(..., ge=0)
@@ -247,6 +252,25 @@ class GeneratedLevelIn(BaseModel):
     keys: int = Field(default=0, ge=0)
     hammers: int = Field(default=0, ge=0)
     generator: str | None = Field(default=None, max_length=64)
+    # Промт (правило генерации): текст до 8 КБ — это описание уровня, а не payload.
+    prompt: str | None = Field(default=None, max_length=8000)
+    prompt_version: int = Field(default=0, ge=0)
+    # Вектор признаков уровня в JSON (см. tools/level_prompt.py: signature).
+    signature: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("signature")
+    @classmethod
+    def _signature(cls, value: str | None) -> str | None:
+        """Подпись должна быть JSON-объектом: по ней считается похожесть."""
+        if value is None or value == "":
+            return None
+        try:
+            decoded = json.loads(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("signature: ожидается JSON-строка") from exc
+        if not isinstance(decoded, dict):
+            raise ValueError("signature: ожидается JSON-объект")
+        return value
 
     @field_validator("status")
     @classmethod
@@ -364,6 +388,78 @@ class GeneratedLevelOut(BaseModel):
     created_at: str | None = None
     # JSON уровня (формат main/levels.json) строкой — клиент декодирует сам
     payload: str
+    # Правило генерации уровня (tools/level_prompt.py). Может отсутствовать у
+    # старых записей до бэкфилла — тогда клиент просто не показывает промт.
+    prompt: str | None = None
+    prompt_version: int = 0
+    # Оценка игрока: 'up' / 'down' / None (не оценивали).
+    rating: str | None = None
+
+
+class LevelRatingIn(BaseModel):
+    """Оценка сгенерированного уровня игроком (палец вверх / вниз).
+
+    Оценивать может только опытный игрок (в классике пройдено больше 50
+    уровней) — клиент показывает плашку только ему, но сервер не доверяет
+    клиенту и проверяет player_id: иначе «средний» игрок мог бы удалять
+    уровни, до которых ещё не дошёл.
+    """
+
+    verdict: str = Field(..., max_length=8)
+    # Кто оценивает: идентификатор устройства/игрока (см. main/remote_db.lua).
+    player_id: str | None = None
+    # Сколько уровней классики пройдено — клиент присылает для лога/проверки.
+    classic_levels: int = Field(default=0, ge=0)
+
+    @field_validator("verdict")
+    @classmethod
+    def _verdict(cls, value: str) -> str:
+        verdict = (value or "").strip().lower()
+        if verdict not in ("up", "down"):
+            raise ValueError("verdict: ожидается 'up' или 'down'")
+        return verdict
+
+    @field_validator("player_id")
+    @classmethod
+    def _player_id(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        pid = value.strip()
+        if not PLAYER_ID_RE.match(pid):
+            raise ValueError("player_id: ожидается 8..64 символа из [A-Za-z0-9_-]")
+        return pid
+
+
+class LevelRatingOut(BaseModel):
+    """Результат оценки уровня.
+
+    ok        — оценка принята;
+    deleted   — уровень удалён из БД (палец вниз);
+    prompt    — промт уровня (может быть null у старых записей);
+    reason    — причина отказа, если ok = false.
+    """
+
+    ok: bool
+    verdict: str
+    deleted: bool = False
+    level_id: str
+    prompt: str | None = None
+    reason: str | None = None
+
+
+class NegativePromptOut(BaseModel):
+    """Забракованный игроком уровень: отрицательный пример для генератора.
+
+    prompt    — правило генерации забракованного уровня («так не делать»);
+    signature — подпись для поиска похожих кандидатов (см. tools/level_prompt.py);
+    level_id  — идентификатор удалённого уровня (для лога генератора).
+    """
+
+    level_id: str
+    prompt: str | None = None
+    signature: str | None = None
+    player_id: str | None = None
+    created_at: str | None = None
 
 
 class GeneratedLevelsStatsOut(BaseModel):
@@ -371,3 +467,7 @@ class GeneratedLevelsStatsOut(BaseModel):
 
     total: int
     latest_at: str | None = None
+    # Сколько записей ещё без промта (бэкфилл не запускался).
+    without_prompt: int = 0
+    # Сколько уровней забраковано игроками (отрицательные примеры).
+    rejected: int = 0

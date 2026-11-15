@@ -1,0 +1,167 @@
+-- Плашка оценки сгенерированного уровня: «палец вверх» / «палец вниз».
+--
+-- Показывается ТОЛЬКО опытным игрокам — тем, кто прошёл больше 50 уровней
+-- классики (см. main/player_profile.lua и save.progress). Условие проверяет
+-- вызывающая сторона (main/level/level.script), потому что решение зависит от
+-- прогресса игрока, а не от состояния плашки.
+--
+-- Что происходит по кнопкам:
+--   UP   — оценка уходит на сервер (POST /api/levels/{id}/rating), уровень
+--          остаётся в БД и может встретиться снова;
+--   DOWN — оценка уходит, сервер УДАЛЯЕТ уровень из выдачи, а его промт и
+--          подпись сохраняются как отрицательный пример: генератор больше не
+--          создаёт такие и похожие уровни (см. tools/gen_hourly.py).
+--
+-- Если уровень не сгенерированный (нет level_id) или сеть недоступна, плашка
+-- всё равно закрывается: оценка — вспомогательные данные, она не должна
+-- блокировать игру.
+local random_level = require("main.random_level")
+
+-- Узлы, которые включаются/выключаются вместе с плашкой.
+local NODES = {
+    "backdrop", "screen", "title", "subtitle", "hint", "skip",
+    "btn_up", "btn_up_label", "btn_down", "btn_down_label",
+}
+-- Кнопки, которые ловят нажатия (подписи не перехватывают ввод).
+local BUTTONS = { "btn_up", "btn_down" }
+
+-- Сколько ждать ответа сервера, прежде чем закрыть плашку. Медленный ответ
+-- не должен задерживать игрока: запрос всё равно уйдёт и обработается.
+local RESPONSE_TIMEOUT = 3.0
+
+local function set_visible(self, visible)
+    self.visible = visible and true or false
+    for i = 1, #NODES do
+        local node = self.nodes[NODES[i]]
+        if node then
+            gui.set_enabled(node, self.visible)
+        end
+    end
+    -- Фокус ввода забираем при показе (плашка модальная: её нажатия не должны
+    -- уходить мячу) и НЕ отпускаем при скрытии. Голый release_input_focus
+    -- оставил бы без фокуса все остальные скрипты: в Defold фокус получает
+    -- последний запросивший, и после возврата в меню ввод бы «пропал».
+    if self.visible then
+        msg.post(".", "acquire_input_focus")
+    end
+end
+
+-- Закрыть плашку и продолжить игру: сообщаем level.script, что можно
+-- возвращаться в меню (в «Приключении» после уровня игра всегда идёт в меню).
+local function finish(self, verdict)
+    if self.closed then
+        return
+    end
+    self.closed = true
+    self.timer = nil
+    set_visible(self, false)
+    msg.post("/level", "rating_done", { verdict = verdict or "" })
+end
+
+-- Отправить оценку и закрыть плашку. Ответ сервера ждём ограниченно: если он
+-- задерживается, плашка закрывается по таймеру, а запрос продолжает жить.
+local function send_rating(self, verdict)
+    if self.sending then
+        return
+    end
+    self.sending = true
+    self.chosen = verdict
+    self.timer = RESPONSE_TIMEOUT
+    random_level.rate(verdict, self.classic_levels, function(ok, status)
+        if ok then
+            print(string.format("rate: %s accepted", verdict))
+        else
+            print(string.format("rate: %s failed (%s)", verdict, tostring(status)))
+        end
+        finish(self, verdict)
+    end)
+end
+
+-- Клик по кнопке: координаты приходят в GUI-единицах, попадание проверяем по
+-- видимым кнопкам. Подписи лежат поверх кнопок и ввод не ловят.
+local function hit_button(self, x, y)
+    for _, id in ipairs(BUTTONS) do
+        local node = self.nodes[id]
+        if node and gui.pick_node(node, x, y) then
+            return id
+        end
+    end
+    return nil
+end
+
+function init(self)
+    self.nodes = {}
+    for _, id in ipairs(NODES) do
+        self.nodes[id] = gui.get_node(id)
+    end
+    self.visible = false
+    self.closed = false
+    self.sending = false
+    self.chosen = nil
+    self.timer = nil
+    self.classic_levels = 0
+    set_visible(self, false)
+end
+
+function update(self, dt)
+    -- Ответ сервера не пришёл вовремя: плашку закрываем, чтобы игрок не ждал
+    if self.timer then
+        self.timer = self.timer - dt
+        if self.timer <= 0 then
+            print("rate: server response timeout, closing")
+            finish(self, self.chosen)
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        -- show приходит с количеством пройденных уровней классики: оно уходит
+        -- на сервер вместе с оценкой (для лога и проверки «опытный игрок»)
+        self.classic_levels = math.max(0,
+            math.floor(tonumber(message and message.classic_levels) or 0))
+        self.closed = false
+        self.sending = false
+        self.chosen = nil
+        self.timer = nil
+        set_visible(self, true)
+    elseif message_id == hash("hide") then
+        self.timer = nil
+        self.sending = false
+        set_visible(self, false)
+    end
+end
+
+function on_input(self, action_id, action)
+    if not self.visible then
+        return false
+    end
+    -- Плашка модальная: пока она на экране, ввод не должен уходить мячу и
+    -- управлению, поэтому любое касание и нажатие клавиши считается
+    -- обработанным.
+    if action_id == hash("touch") then
+        if action.pressed then
+            local id = hit_button(self, action.x, action.y)
+            if id == "btn_up" then
+                send_rating(self, "up")
+            elseif id == "btn_down" then
+                send_rating(self, "down")
+            else
+                -- Тап мимо кнопок = «не хочу оценивать». Без этого игрок
+                -- оказался бы заперт: плашка забирает ввод, а других
+                -- способов её закрыть нет.
+                print("rate: skipped by player")
+                finish(self, "")
+            end
+        end
+        return true
+    end
+    -- Клавиатура: любая клавиша закрывает плашку без оценки. Иначе на
+    -- настольной сборке (управление с клавиатуры) игрок не смог бы её
+    -- закрыть мышью по «пустому» месту.
+    if action.pressed then
+        print("rate: skipped by key")
+        finish(self, "")
+    end
+    return true
+end
