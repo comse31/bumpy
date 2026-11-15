@@ -21,7 +21,9 @@ import sqlite3
 import uuid
 from typing import Any
 
+from . import level_prompts
 from .db import Database, utc_now
+from .prompts_repository import LevelPromptRepository
 from .schemas import GeneratedLevelIn, GeneratedLevelOut, GeneratedLevelsStatsOut
 
 
@@ -36,6 +38,18 @@ def _level_id(seed: int, payload: str) -> str:
     return f"g{seed}_{digest}"
 
 
+def _row_value(row: sqlite3.Row, key: str):
+    """Значение колонки, если она есть в выборке (иначе None).
+
+    Запросы здесь собираются по-разному: часть выборок идёт с JOIN на
+    level_prompts (там есть prompt/rating), часть — по одной таблице.
+    """
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
+
+
 def _row_to_level(row: sqlite3.Row) -> GeneratedLevelOut:
     return GeneratedLevelOut(
         level_id=str(row["level_id"]),
@@ -47,26 +61,63 @@ def _row_to_level(row: sqlite3.Row) -> GeneratedLevelOut:
         hammers=int(row["hammers"]),
         created_at=row["created_at"],
         payload=str(row["payload"]),
+        # Промт приходит из level_prompts (JOIN LEFT): у старых записей его
+        # может не быть до запуска tools/backfill_prompts.py.
+        prompt=_row_value(row, "prompt"),
+        prompt_version=int(_row_value(row, "prompt_version") or 0),
+        rating=_row_value(row, "rating"),
     )
+
+
+# Выборка уровня вместе с его промтом: промт лежит отдельно (level_prompts),
+# потому что он переживает удаление забракованного уровня.
+SELECT_WITH_PROMPT = (
+    "SELECT g.*, p.prompt AS prompt, p.prompt_version AS prompt_version, "
+    "       p.rating AS rating, p.signature AS signature "
+    "FROM generated_levels g "
+    "LEFT JOIN level_prompts p ON p.level_id = g.level_id "
+)
 
 
 class GeneratedLevelRepository:
     """Доступ к таблице generated_levels."""
 
-    def __init__(self, db: Database, *, window: int = 500) -> None:
+    def __init__(self, db: Database, *, window: int = 500,
+                 prompts: LevelPromptRepository | None = None,
+                 negative_limit: int = 200) -> None:
         self.db = db
         # сколько последних уровней участвует в случайной выдаче
         self.window = max(1, int(window))
+        # Промты и оценки уровней: отдельный репозиторий, потому что записи
+        # об оценках переживают удаление самого уровня из generated_levels.
+        self.prompts = prompts or LevelPromptRepository(
+            db, negative_limit=negative_limit)
 
     # --- запись -------------------------------------------------------------
 
     def add(self, item: GeneratedLevelIn) -> GeneratedLevelOut:
-        """Сохранить уровень. Дубликат по seed возвращает уже существующую запись."""
+        """Сохранить уровень и его промт. Дубликат по seed не создаёт новую запись.
+
+        Промт приходит от генератора; если его нет (старый генератор), он
+        собирается здесь из payload — правило генерации должно быть у каждого
+        уровня, иначе отрицательный отбор по «пальцу вниз» работать не сможет.
+        """
         if item.status != "solvable":
             raise ValueError("сохраняются только уровни со статусом solvable")
 
         now = utc_now()
         level_id = _level_id(item.seed, item.payload)
+        prompt = item.prompt
+        prompt_version = int(item.prompt_version or 0)
+        signature = item.signature
+        if not prompt:
+            prompt, prompt_version, signature = self._build_prompt(
+                item.payload,
+                drops=int(item.drops),
+                keys=int(item.keys),
+                hammers=int(item.hammers),
+                fallback_signature=signature,
+            )
         with self.db.transaction() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO generated_levels "
@@ -91,7 +142,53 @@ class GeneratedLevelRepository:
             ).fetchone()
         if row is None:  # pragma: no cover — INSERT OR IGNORE не мог не создать
             raise RuntimeError("не удалось сохранить сгенерированный уровень")
-        return _row_to_level(row)
+        stored_id = str(row["level_id"])
+        if prompt:
+            # Промт записывается всегда (в т.ч. для уже существующего уровня —
+            # так можно дозаполнить запись, пришедшую от старого генератора).
+            self.prompts.upsert(
+                stored_id, prompt,
+                prompt_version=prompt_version,
+                signature=signature,
+            )
+        with self.db.connection() as conn:
+            merged = conn.execute(
+                SELECT_WITH_PROMPT + "WHERE g.level_id = ?", (stored_id,)
+            ).fetchone()
+        return _row_to_level(merged if merged is not None else row)
+
+    @staticmethod
+    def _build_prompt(payload: str, *, drops: int = 0, keys: int = 0,
+                      hammers: int = 0,
+                      fallback_signature: str | None = None
+                      ) -> tuple[str | None, int, str | None]:
+        """Собрать промт из payload, если генератор его не прислал.
+
+        Требования по снаряжению лежат в отдельных колонках, а не в payload,
+        но без них промт теряет важную часть правила — поэтому они передаются
+        из записи (drops/keys/hammers).
+
+        Возвращает (prompt, version, signature). Ошибки разбора не пробрасываются:
+        уровень важнее промта, и без промта он останется работоспособным
+        (бэкфилл дозаполнит его позже).
+        """
+        try:
+            decoded = json.loads(payload)
+        except (TypeError, ValueError):
+            return None, 0, fallback_signature
+        if not isinstance(decoded, dict):
+            return None, 0, fallback_signature
+        # значения из колонок приоритетнее: payload мог прийти без требований
+        decoded["drops"] = int(drops)
+        decoded["keys"] = int(keys)
+        decoded["hammers"] = int(hammers)
+        try:
+            info = level_prompts.build(decoded)
+        except Exception:  # pragma: no cover - защита от неожиданного payload
+            return None, 0, fallback_signature
+        signature = json.dumps(
+            info["signature"], ensure_ascii=False, separators=(",", ":"))
+        return info["prompt"], int(info["version"]), signature
 
     def liked_seed(self) -> int:
         """Следующий seed для генератора: максимальный + 1.
@@ -172,8 +269,8 @@ class GeneratedLevelRepository:
         чтобы режим «Приключение» продолжал работать.
         """
         sql = (
-            "SELECT * FROM generated_levels "
-            "WHERE level_id IN ("
+            SELECT_WITH_PROMPT +
+            "WHERE g.level_id IN ("
             "  SELECT level_id FROM generated_levels "
             "  ORDER BY created_at DESC LIMIT ?"
             ") {extra} ORDER BY RANDOM() LIMIT 1"
@@ -215,7 +312,8 @@ class GeneratedLevelRepository:
         """Последние сгенерированные уровни (для отладки и админки)."""
         with self.db.connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM generated_levels ORDER BY created_at DESC LIMIT ?",
+                SELECT_WITH_PROMPT +
+                "ORDER BY g.created_at DESC LIMIT ?",
                 (max(1, int(limit)),),
             ).fetchall()
         return [_row_to_level(row) for row in rows]
@@ -223,7 +321,7 @@ class GeneratedLevelRepository:
     def get(self, level_id: str) -> GeneratedLevelOut | None:
         with self.db.connection() as conn:
             row = conn.execute(
-                "SELECT * FROM generated_levels WHERE level_id = ?", (level_id,)
+                SELECT_WITH_PROMPT + "WHERE g.level_id = ?", (level_id,)
             ).fetchone()
         return None if row is None else _row_to_level(row)
 
@@ -235,6 +333,8 @@ class GeneratedLevelRepository:
         return GeneratedLevelsStatsOut(
             total=int(row["n"] or 0) if row else 0,
             latest_at=(row["last"] if row else None),
+            without_prompt=self.prompts.count_missing(),
+            rejected=self.prompts.count_negative(),
         )
 
     def count(self) -> int:

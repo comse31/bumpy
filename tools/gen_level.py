@@ -38,10 +38,14 @@ import random
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+# промт/подпись уровня: общий модуль с backend (см. backend/app/level_prompts.py)
+sys.path.insert(0, ROOT)
 
 import level_interest as li  # noqa: E402
 import solve_level as sv  # noqa: E402
+from backend.app import level_prompts  # noqa: E402
 
 COLS = 6
 ROWS = 6
@@ -632,6 +636,8 @@ def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
                       min_items: int = MIN_REQUIRED_ITEMS,
                       min_interest: float = MIN_INTEREST,
                       interest_pool: int = DEFAULT_INTEREST_POOL,
+                      negatives=None,
+                      negative_threshold: float = 0.82,
                       on_attempt=None) -> dict | None:
     """Лучший по интересности подходящий уровень, начиная с seed.
 
@@ -646,7 +652,15 @@ def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
     (tools/level_interest.py), и в результат идёт лучший. Это делает
     генерируемые уровни разнообразнее: без отбора игра часто получала просто
     «ещё один набор хопов» с формально выполненными правилами.
+
+    `negatives` — подписи уровней, забракованных игроками («палец вниз»):
+    кандидат, слишком похожий на любой из них, отбрасывается как брак, и
+    перебор идёт дальше. Так подобные уровни больше не генерируются.
     """
+    negative_signs = [
+        sig for sig in (level_prompts.load_signature(v) for v in (negatives or ()))
+        if sig
+    ]
     best = None
     best_score = -1.0
     pool_left = max(1, interest_pool)
@@ -655,9 +669,22 @@ def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
         level = candidate(cur, index)
         if len(level["raw_grid"]) != CELLS:
             continue
-        status, _res, score = evaluate_candidate(
+        status, res, score = evaluate_candidate(
             level, node_cap=node_cap, min_items=min_items,
             min_interest=min_interest)
+        if status == "solvable" and negative_signs:
+            # Отрицательный отбор: уровень, похожий на забракованный
+            # игроками, — брак, даже если он проходим и интересен.
+            similar, culprit = level_prompts.too_similar(
+                level_prompts.signature(level, plan=(res or {}).get("actions")),
+                negative_signs,
+                threshold=negative_threshold,
+            )
+            if similar:
+                status = "rejected"
+                if on_attempt:
+                    on_attempt(cur, status)
+                continue
         if on_attempt:
             on_attempt(cur, status)
         if status != "solvable" or not score:
@@ -671,6 +698,10 @@ def generate_playable(seed: int, index: int = 1, *, attempts: int = 400,
                 key: round(v, 3) for key, v in score.items()
                 if key not in ("interest", "kinds")
             }
+            # План прохождения уже найден решателем: он нужен промту
+            # (tools/level_prompt.py) как «схема прохождения» уровня, поэтому
+            # сохраняем его вместе с уровнем — повторный solve() не нужен.
+            best["plan"] = list((res or {}).get("actions") or [])
         pool_left -= 1
         if pool_left <= 0:
             break

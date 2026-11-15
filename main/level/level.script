@@ -331,6 +331,55 @@ local function load_model()
     return model
 end
 
+-- Опытный игрок: в классике пройдено больше CLASSIC_EXPERIENCE_LEVELS уровней.
+--
+-- Порог «50» — из требований: плашку оценки сгенерированного уровня видят
+-- только те, кто уже наигрался в классику, — новичку оценка качества
+-- случайных уровней ничего не даёт. Рекорд (max_level) растёт только в
+-- классике: «Приключение» не пишет сохранение, поэтому это честный счётчик
+-- пройденных классических уровней.
+local CLASSIC_EXPERIENCE_LEVELS = 50
+
+local function experienced_player()
+    local _, max_level = save.progress()
+    return (tonumber(max_level) or 0) > CLASSIC_EXPERIENCE_LEVELS
+end
+
+-- Вернуться в стартовое меню после прохождения уровня «Приключения».
+-- Раньше это делалось прямо в обработчике level_complete; вынесено отдельной
+-- функцией, потому что теперь возврат может откладываться до закрытия плашки
+-- оценки (см. rating-ветку в level_complete и сообщение rating_done).
+local function adventure_to_menu()
+    print("level.script: ADVENTURE level complete, back to menu")
+    msg.post("/ready", "hide")
+    msg.post("/game_over", "hide")
+    -- заморозить мяч: игра уходит на паузу под меню, а физика не
+    -- должна продолжать двигать его за пределы поля
+    msg.post("/ball", "freeze")
+    game_mode.set_menu_open(true)
+    msg.post("/menu", "open")
+end
+
+-- Показать плашку оценки «палец вверх / палец вниз».
+--
+-- Условия: это сгенерированный уровень из БД (есть level_id), игрок опытный
+-- (в классике больше 50 уровней) и он ещё не оценивал ЭТОТ уровень.
+-- Возвращает true, если плашка открыта — тогда возврат в меню ждёт
+-- сообщения rating_done.
+local function show_rating(self)
+    if not random_level.get_level_id() then
+        return false
+    end
+    if not experienced_player() then
+        return false
+    end
+    local _, max_level = save.progress()
+    print(string.format("level.script: asking rating for level_id=%s (classic max %d)",
+        tostring(random_level.get_level_id()), tonumber(max_level) or 0))
+    msg.post("/rate", "show", { classic_levels = tonumber(max_level) or 0 })
+    return true
+end
+
 -- удалить объекты текущего уровня и очистить реестр.
 -- go.delete() отложен до конца кадра, поэтому меши/спрайты освобождаются из
 -- общего пула (mesh.max_count / sprite.max_count) не сразу. Если создать новый
@@ -346,6 +395,10 @@ local function clear_level()
     end
     state.reset()
     state.exit_id = nil
+    -- плашка оценки относится к конкретному уровню: при сборке нового она
+    -- не должна остаться на экране (например, если игрок вышел в меню, не
+    -- выбрав ни один вариант)
+    msg.post("/rate", "hide")
 end
 
 -- Данные уровня для self.level.
@@ -521,19 +574,35 @@ function on_message(self, message_id, message, sender)
         -- следующий уровень НЕ загружается — игра возвращается в стартовое
         -- меню, где можно выбрать любой открытый уровень и сыграть снова
         if game_mode.is_adventure() then
-            print("level.script: ADVENTURE level complete, back to menu")
+            -- Опытному игроку сначала показываем плашку оценки: возврат в меню
+            -- произойдёт по сообщению rating_done (см. show_rating). Мяч
+            -- замораживаем сразу — уровень уже пройден, двигаться незачем.
             msg.post("/ready", "hide")
             msg.post("/game_over", "hide")
-            -- заморозить мяч: игра уходит на паузу под меню, а физика не
-            -- должна продолжать двигать его за пределы поля
             msg.post("/ball", "freeze")
-            game_mode.set_menu_open(true)
-            msg.post("/menu", "open")
+            if show_rating(self) then
+                self.rating_pending = true
+                print("level.script: waiting for level rating")
+                return
+            end
+            adventure_to_menu()
             return
         end
         -- следующий уровень по кругу (после последнего — снова первый)
         self.level = (self.level % self.model.level_count) + 1
         load(self)
+    elseif message_id == hash("rating_done") then
+        -- Плашка оценки закрыта (игрок выбрал палец вверх/вниз или ответ
+        -- сервера не дождались): возвращаемся в меню. Сообщение приходит
+        -- только в «Приключении» — в классике плашка не показывается.
+        if self.rating_pending then
+            self.rating_pending = false
+            print(string.format("level.script: rating %s done, back to menu",
+                tostring(message and message.verdict or "")))
+            if game_mode.is_adventure() then
+                adventure_to_menu()
+            end
+        end
     elseif message_id == hash("reload_level") then
         if message and message.level then
             self.level = message.level

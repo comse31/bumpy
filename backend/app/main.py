@@ -10,7 +10,11 @@
     GET    /api/levels/random       — случайный сгенерированный уровень;
     GET    /api/levels/latest       — последние сгенерированные уровни;
     GET    /api/levels/stats        — счётчик уровней в БД;
-    POST   /api/levels              — сохранить уровень (часовой генератор).
+    GET    /api/levels/prompts/missing — уровни без промта (для бэкфилла);
+    GET    /api/levels/negative-prompts — забракованные игроками уровни;
+    POST   /api/levels              — сохранить уровень (часовой генератор);
+    PUT    /api/levels/{id}/prompt  — дозаполнить промт существующего уровня;
+    POST   /api/levels/{id}/rating  — оценка игрока (палец вверх/вниз).
 
 Уровни попадают в БД только после проверки проходимости решателем
 (tools/solve_level.py: is_solvable → "solvable").
@@ -42,8 +46,11 @@ from .schemas import (
     GeneratedLevelsStatsOut,
     HealthOut,
     LeaderboardOut,
+    LevelRatingIn,
+    LevelRatingOut,
     NameCheckIn,
     NameCheckOut,
+    NegativePromptOut,
     NextNameOut,
     PlayerOut,
     PlayerSyncIn,
@@ -416,11 +423,134 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         Схема GeneratedLevelIn принимает только status = "solvable": попытка
         сохранить непроверенный уровень — 422, а не «мусор» в БД.
+
+        Вместе с уровнем сохраняется промт (правило генерации): генератор
+        присылает его готовым, а если не прислал — сервер собирает промт сам
+        (см. GeneratedLevelRepository.add).
         """
         try:
             return store.add(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put(
+        "/api/levels/{level_id}/prompt",
+        response_model=GeneratedLevelOut,
+        dependencies=[Depends(require_key)],
+    )
+    def set_level_prompt(
+        level_id: str,
+        payload: dict,
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> GeneratedLevelOut:
+        """Дозаполнить промт существующего уровня (бэкфилл старых записей).
+
+        Тело: {"prompt": "...", "prompt_version": 1, "signature": "..."}.
+        Уровень при этом не пересоздаётся — меняется только правило генерации,
+        поэтому tools/backfill_prompts.py может безопасно пройтись по всей БД.
+        """
+        # Текст промта НЕ обрезается: он многострочный, и завершающий перевод
+        # строки — часть форматирования. Пустота проверяется по содержимому.
+        prompt = str(payload.get("prompt") or "")
+        if not prompt.strip():
+            raise HTTPException(status_code=422, detail="prompt: пустой текст")
+        level = store.get(level_id)
+        if level is None:
+            raise HTTPException(status_code=404, detail="уровень не найден")
+        try:
+            store.prompts.upsert(
+                level_id,
+                prompt[:8000],
+                prompt_version=int(payload.get("prompt_version") or 1),
+                signature=payload.get("signature"),
+            )
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        updated = store.get(level_id)
+        if updated is None:  # pragma: no cover - уровень только что был
+            raise HTTPException(status_code=404, detail="уровень не найден")
+        return updated
+
+    @app.get(
+        "/api/levels/prompts/missing",
+        response_model=list[GeneratedLevelOut],
+        dependencies=[Depends(require_key)],
+    )
+    def missing_prompts(
+        limit: int = Query(default=100, ge=1, le=500),
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> list[GeneratedLevelOut]:
+        """Уровни без промта (или с промтом старой версии).
+
+        Нужен tools/backfill_prompts.py: скрипт забирает payload, собирает
+        промт через backend/app/level_prompts.py и присылает его назад через
+        PUT /api/levels/{id}/prompt.
+        """
+        rows = store.prompts.missing(limit=limit)
+        out: list[GeneratedLevelOut] = []
+        for item in rows:
+            level = store.get(item["level_id"])
+            if level is not None:
+                out.append(level)
+        return out
+
+    @app.get(
+        "/api/levels/negative-prompts",
+        response_model=list[NegativePromptOut],
+        dependencies=[Depends(require_key)],
+    )
+    def negative_prompts(
+        limit: int = Query(default=100, ge=1, le=500),
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> list[NegativePromptOut]:
+        """Забракованные игроками уровни: отрицательные примеры генерации.
+
+        Возвращаются последние оценки «палец вниз» вместе с промтом и
+        подписью. Генератор (tools/gen_hourly.py) сравнивает с ними каждого
+        кандидата и отбрасывает слишком похожие — так забракованные уровни и
+        их подобия больше не попадают в игру.
+        """
+        return store.prompts.negatives(limit)
+
+    @app.post(
+        "/api/levels/{level_id}/rating",
+        response_model=LevelRatingOut,
+        dependencies=[Depends(require_key)],
+    )
+    def rate_level(
+        level_id: str,
+        payload: LevelRatingIn,
+        store: GeneratedLevelRepository = Depends(get_levels),
+    ) -> LevelRatingOut:
+        """Оценка игрока: палец вверх / палец вниз.
+
+        «Палец вниз» удаляет уровень из БД (он больше не выдаётся), а его
+        промт и подпись остаются в истории как отрицательный пример.
+
+        Оценивать разрешено только опытным игрокам (в классике пройдено
+        больше 50 уровней), но полагаться на клиентское число нельзя:
+        сервер проверяет его сам, а при отсутствии player_id оценка всё равно
+        принимается — иначе на отладочной сборке плашка не работала бы.
+        """
+        result = store.prompts.rate(
+            level_id,
+            payload.verdict,
+            player_id=payload.player_id,
+        )
+        if not result["found"]:
+            raise HTTPException(status_code=404, detail="уровень не найден")
+        log.info(
+            "levels/rating id=%s verdict=%s player=%r classic=%d deleted=%s",
+            level_id, payload.verdict, payload.player_id,
+            payload.classic_levels, result["deleted"],
+        )
+        return LevelRatingOut(
+            ok=True,
+            verdict=result["rating"],
+            deleted=bool(result["deleted"]),
+            level_id=level_id,
+            prompt=result["prompt"],
+        )
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):  # pragma: no cover

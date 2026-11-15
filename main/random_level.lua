@@ -87,6 +87,12 @@ local function decode_level(item)
     -- идентификатор записи в БД (для логов и повторных попыток)
     level.level_id = item.level_id
     level.seed = tonumber(item.seed)
+    -- промт (правило генерации) и оценка: нужны плашке оценки после
+    -- прохождения. У старых уровней промта может не быть — это нормально,
+    -- оценка всё равно отправляется (сервер берёт промт из БД).
+    level.prompt = item.prompt
+    level.prompt_version = tonumber(item.prompt_version) or 0
+    level.rating = item.rating
     return level
 end
 
@@ -186,6 +192,90 @@ function M.get_level_id()
         return nil
     end
     return level_id
+end
+
+-- Промт (правило генерации) текущего уровня или nil.
+--
+-- Нужен, чтобы показать игроку, ПО КАКОМУ правилу построен уровень, и чтобы
+-- отправить это правило вместе с дизлайком (если сервер ещё не сохранил его).
+function M.get_prompt()
+    if current == nil then
+        return nil
+    end
+    local prompt = current.prompt
+    if type(prompt) ~= "string" or prompt == "" then
+        return nil
+    end
+    return prompt
+end
+
+-- Отправить оценку уровня: "up" (палец вверх) или "down" (палец вниз).
+--
+-- Оценка имеет смысл только для сгенерированного уровня из БД, поэтому при
+-- отсутствии level_id запрос не отправляется. Ошибки сети не влияют на игру:
+-- оценка — вспомогательные данные, а не часть прогресса.
+--
+-- Поле classic_levels сервер логирует: по нему видно, что плашку показали
+-- именно опытному игроку (в классике пройдено больше 50 уровней).
+--
+-- callback вызывается РОВНО ОДИН РАЗ: плашка закрывается либо по ответу
+-- сервера, либо по таймауту, и второй вызов не должен ничего менять.
+function M.rate(verdict, classic_levels, callback)
+    if verdict ~= "up" and verdict ~= "down" then
+        if callback then
+            callback(false, "Bad verdict")
+        end
+        return
+    end
+    local level_id = M.get_level_id()
+    if not level_id then
+        if callback then
+            callback(false, "No level")
+        end
+        return
+    end
+    if not http or not http.request then
+        if callback then
+            callback(false, "Server is unavailable")
+        end
+        return
+    end
+
+    local body = json.encode({
+        verdict = verdict,
+        player_id = remote_db.get_player_id(),
+        classic_levels = math.max(0, math.floor(tonumber(classic_levels) or 0)),
+    })
+    local url = string.format("%s/api/levels/%s/rating",
+        remote_db.api_base(), level_id)
+
+    -- Колбэк одноразовый: таймаут плашки и ответ сервера приходят независимо,
+    -- а закрывать плашку и возвращаться в меню дважды нельзя.
+    local called = false
+    local function done(_, _, response)
+        if called then
+            return
+        end
+        called = true
+        local status = response and response.status or 0
+        print(string.format("random_level: rating %s for %s -> status %s",
+            verdict, tostring(level_id), tostring(status)))
+        if callback then
+            callback(status == 200, status)
+        end
+    end
+
+    local headers_tbl = { ["Content-Type"] = "application/json" }
+    local key = remote_db.api_key()
+    if key ~= "" then
+        headers_tbl["X-Api-Key"] = key
+    end
+    local sent = pcall(http.request, url, "POST", done, headers_tbl, body)
+    if not sent then
+        -- http.request бросил исключение: колбэк тоже одноразовый, поэтому
+        -- повторный вызов безопасен, но проверяем через done(nil, nil, nil)
+        done(nil, nil, nil)
+    end
 end
 
 return M
