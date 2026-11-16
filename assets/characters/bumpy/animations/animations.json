@@ -1,0 +1,33 @@
+{
+  "flip_right": {
+    "frames": 16,
+    "mode": "clip_progress",
+    "base": "happy",
+    "keys": [
+      {"i": 1, "phi": 0, "psi": 0, "face": "happy"},
+      {"i": 2, "phi": 0, "psi": 0, "sy": 0.88, "sytop": 0.96, "bulge": 0.06, "face": "happy"},
+      {"i": 3, "phi": 15, "psi": 40, "k": 1.35, "wmin": 0.82, "face": "happy"},
+      {"i": 4, "phi": 45, "psi": 55, "k": 1.20, "wmin": 0.90, "face": "happy"},
+      {"i": 5, "phi": 90, "psi": 90, "k": 1.05, "wmin": 0.97, "face": "scared"},
+      {"i": 6, "phi": 130, "psi": 115, "k": 1.12, "wmin": 0.93, "face": "worried"},
+      {"i": 7, "phi": 165, "psi": 140, "k": 1.22, "wmin": 0.88, "face": "worried"},
+      {"i": 8, "phi": 180, "psi": 150, "sy": 0.80, "sytop": 0.92, "bulge": 0.10, "face": "laughing"},
+      {"i": 9, "phi": 180, "psi": 150, "sy": 0.50, "sytop": 0.78, "bulge": 0.30, "face": "laughing"},
+      {"i": 10, "phi": 190, "psi": 40, "k": 1.35, "wmin": 0.82, "sy": 1.08, "sytop": 1.02, "face": "happy"}
+    ]
+  },
+  "second_jump": {
+    "frames": 12,
+    "mode": "clip_progress",
+    "base": "happy",
+    "keys": [
+      {"i": 10, "phi": 190, "psi": 40, "k": 1.35, "wmin": 0.82, "sy": 1.08, "sytop": 1.02, "face": "happy"},
+      {"i": 11, "phi": 225, "psi": 55, "k": 1.20, "wmin": 0.90, "face": "happy"},
+      {"i": 12, "phi": 270, "psi": 90, "k": 1.05, "wmin": 0.97, "face": "scared"},
+      {"i": 13, "phi": 315, "psi": 125, "k": 1.15, "wmin": 0.92, "face": "worried"},
+      {"i": 14, "phi": 355, "psi": 150, "sy": 0.75, "sytop": 0.90, "bulge": 0.12, "face": "happy"},
+      {"i": 15, "phi": 360, "psi": 0, "sy": 1.08, "sytop": 1.02, "face": "happy"},
+      {"i": 16, "phi": 360, "psi": 0, "face": "happy"}
+    ]
+  }
+}

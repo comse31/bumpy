@@ -81,7 +81,7 @@ end
 -- но по их исчерпании GAME OVER не показывается: игра просто возвращается в
 -- стартовое меню, где можно выбрать уровень и начать попытку заново. В
 -- классическом режиме при 0 жизней — GAME OVER и меню.
-function M.lose_life(self, cause)
+local function lose_life_now(self, cause)
     if self.game_over then
         return
     end
@@ -140,6 +140,48 @@ function M.lose_life(self, cause)
     game_mode.set_menu_open(true)
     msg.post("/menu", "open")
     dbg.always("GAME OVER (%s): no lives left", cause or "?")
+end
+
+local function death_kind(cause)
+    if cause == "spikes" then
+        return "spikes"
+    end
+    if cause == "burning platform" then
+        return "fire"
+    end
+    if cause == "stuck in slope trap" then
+        return "trap"
+    end
+    return nil
+end
+
+-- Смерть сначала проигрывает клип, и только потом теряется жизнь.
+function M.lose_life(self, cause)
+    if self.game_over or self.death_pending then
+        return
+    end
+    local kind = death_kind(cause)
+    if kind and self.hero and self.hero.begin_death then
+        phys.stop()
+        local dur = self.hero.begin_death(self, kind)
+        if dur and dur > 0.0 then
+            self.death_pending = cause
+            self.death_kind = kind
+            dbg.always("DEATH ANIM start: %s (%s)", kind, cause or "?")
+            return
+        end
+    end
+    lose_life_now(self, cause)
+end
+
+function M.finish_death(self)
+    local cause = self.death_pending
+    self.death_pending = nil
+    self.death_kind = nil
+    if cause then
+        dbg.always("DEATH ANIM done: %s", cause)
+        lose_life_now(self, cause)
+    end
 end
 
 -- Проверка снаряжения на старте уровня (п. 19 плана): если для прохождения

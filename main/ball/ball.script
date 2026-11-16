@@ -386,6 +386,12 @@ function init(self)
     self.bounce_squash_pending = false
     self.bounce_hit_pending = false
     self.bounce_hit_dir = 0
+    self.bounce_press_t = nil
+    self.bounce_press_y = nil
+    self.wall_hit_s = nil
+    self.wall_t_fly = nil
+    self.wall_press = nil
+    self.wall_hit_target = nil
     self.press_used = false
     -- бесконечная ловушка (наклонная платформа без выхода): плашка и отсчёт
     self.trap_active = false
@@ -796,6 +802,24 @@ end
 -- отскок от перегородки: X линейно — до касания перегородки (в верхней точке
 -- дуги) и обратно в центр колонки; Y остаётся физической параболой
 local function update_bounce_tween(self, dt)
+    -- type 1 wall hit: short press (frames 1-6), then instant rebound
+    if self.bounce_press_t and self.bounce_press_t > 0.0 then
+        self.bounce_press_t = math.max(0.0, self.bounce_press_t - dt)
+        local pos = go.get_position()
+        phys.set_vertical(0.0)
+        go.set_position(vmath.vector3(self.bounce_x_wall, self.bounce_press_y or pos.y, pos.z))
+        if self.bounce_press_t > 0.0 then
+            return
+        end
+        local t_fly = 0.28 * (self.wall_hit_s or 1.0)
+        self.bounce_press_y = nil
+        self.bounce_press_t = nil
+        self.bounce_duration = math.max(t_fly * 2.0, 0.001)
+        self.bounce_t = t_fly
+        self.next_touch_time = self.time + t_fly
+        phys.set_vertical(0.0)
+        return
+    end
     if self.bounce_t <= 0.0 then
         return
     end
@@ -807,7 +831,37 @@ local function update_bounce_tween(self, dt)
         self.bounce_hit_started = true
         self.squash = 1.0
         self.squash_axis = "x"
+        local breakable, can_break = obstacles.break_flags(self, self.bounce_hit_dir or 1)
+        self.wall_breakable = breakable
+        self.can_break_wall = can_break
+        local type1 = not (breakable == true and can_break == true)
+        if type1 then
+            local pos = go.get_position()
+            local ground = self.ground_y or self.dwell_ground_y or pos.y
+            local h = math.max(0.0, pos.y - ground)
+            local t_fly_raw = math.sqrt(2.0 * h / math.max(cfg.GRAVITY, 0.001))
+            local s = vmath.clamp(t_fly_raw / 0.28, 0.9, 1.3)
+            local press = 0.12 * s
+            local t_fly = 0.28 * s
+            self.wall_hit_s = s
+            self.wall_t_fly = t_fly
+            self.wall_press = press
+            self.wall_hit_target = press + 0.40 * s
+            self.bounce_press_t = press
+            self.bounce_press_y = pos.y
+            self.next_touch_time = self.time + press + t_fly
+            phys.stop()
+            go.set_position(vmath.vector3(self.bounce_x_wall, pos.y, pos.z))
+        else
+            self.wall_hit_s = nil
+            self.wall_t_fly = nil
+            self.wall_press = nil
+            self.wall_hit_target = nil
+        end
         self.hero.apply_squash(self)
+        if type1 then
+            return
+        end
     end
 
     -- удар по разрушаемой перегородке наносится именно в момент касания,
@@ -870,6 +924,12 @@ local function begin_dwell(self, row)
     self.bounce_hit_started = false
     self.bounce_squash_pending = false
     self.bounce_hit_pending = false
+    self.bounce_press_t = nil
+    self.bounce_press_y = nil
+    self.wall_hit_s = nil
+    self.wall_t_fly = nil
+    self.wall_press = nil
+    self.wall_hit_target = nil
     phys.stop()
     motion.restore_gravity()
     self.release_time = nil
@@ -1314,6 +1374,11 @@ function update(self, dt)
     end
     self.time = self.time + dt
 
+    if self.death_pending then
+        self.hero.update(self, dt)
+        return
+    end
+
     update_touch_timeout(self, dt)
     if update_trap(self, dt) then
         return
@@ -1510,6 +1575,10 @@ local function reset_level_state(self)
     -- после GAME OVER — начинается новая игра
     self.game_over = false
     self.restart_pending = false
+    self.death_pending = nil
+    self.death_kind = nil
+    self.sad_level = nil
+    self.slime_fail_until = nil
     -- плашка «NOT ENOUGH THINGS» с прошлого уровня не переносится:
     -- gear_blocked снова взведётся ниже, если снаряжения не хватит
     self.gear_blocked = false
@@ -1526,6 +1595,12 @@ local function reset_level_state(self)
     self.bounce_t = 0.0
     self.bounce_hold_t = 0.0
     self.bounce_hit_started = false
+    self.bounce_press_t = nil
+    self.bounce_press_y = nil
+    self.wall_hit_s = nil
+    self.wall_t_fly = nil
+    self.wall_press = nil
+    self.wall_hit_target = nil
     self.high_jump = false
     self.rising = false
     self.hj_row = nil
@@ -1723,6 +1798,10 @@ local function handle_contact(self, message)
 end
 
 function on_message(self, message_id, message, sender)
+    if message_id == hash("death_anim_done") then
+        progress.finish_death(self)
+        return
+    end
     -- сенсорное управление «тап по ячейке» (bumpy.controls_mode = "cells"):
     -- нажатие на игровую ячейку поля либо на боковую стенку за его границей
     if message_id == hash("cell_tap") then

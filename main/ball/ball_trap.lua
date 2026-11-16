@@ -24,6 +24,7 @@ function M.start(self)
         return
     end
     self.trap_active = true
+    self.sad_level = 1
     self.trap_timer = TRAP_COUNTDOWN
     self.trap_shown = nil
     msg.post("/trap", "show")
@@ -81,6 +82,7 @@ end
 -- снять плашку и отсчёт (старт уровня, потеря жизни)
 function M.reset(self)
     self.trap_active = false
+    self.sad_level = nil
     self.trap_timer = 0.0
     self.trap_shown = nil
     msg.post("/trap", "hide")
