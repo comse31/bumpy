@@ -898,15 +898,16 @@ function M.update(self, dt)
         local press = self.v12_seg_press_time or 0.0
         local rest = self.v12_seg_rest_time or 0.0
         local frac = self.v12_seg_press_frac or (6.0 / 26.0)
+        local end_frac = self.v12_seg_rest_end or 1.0
         local t = self.time - (self.v12_seg_start_time or self.time)
         local cursor
         if t <= press then
             cursor = press > 0.0 and (t / press) * frac or frac
         else
             local u = rest > 0.0 and math.min(1.0, (t - press) / rest) or 1.0
-            cursor = frac + u * (1.0 - frac)
+            cursor = frac + u * (end_frac - frac)
         end
-        set_cursor(self, math.min(cursor, 0.999))
+        set_cursor(self, math.min(cursor, end_frac))
         return
     end
     if kind == "hit" or kind == "event" or kind == "hurt" then
@@ -1061,8 +1062,9 @@ function M.apply_squash(self)
     local press = self.wall_press or (0.20 * (self.wall_hit_s or 1.0))
     local s = self.wall_hit_s or 1.0
     self.v12_seg_press_time = press
-    self.v12_seg_rest_time = 0.40 * s
+    self.v12_seg_rest_time = 0.28 * s
     self.v12_seg_press_frac = 6.0 / 26.0
+    self.v12_seg_rest_end = 19.0 / 26.0
     play_clip(self, name, press + self.v12_seg_rest_time, false, "hit")
     self.v12_seg_start_time = self.time
     self.v12_kind = "wall_hit_seg"
