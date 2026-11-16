@@ -33,6 +33,14 @@ M.wall_blocking = world.wall_blocking
 -- удар по разрушаемой перегородке: вид меняется только если в кармане есть
 -- ключик — расходим один ключ и шлём "hit" (стена сама ведёт прочность и вид);
 -- без ключа отскок обычный, стена не повреждается
+-- для выбора анимации удара: стена разрушаема и есть ли у игрока ключ
+function M.break_flags(self, direction)
+    local b = direction > 0 and self.col + 1 or self.col
+    local id = state.wall_id(self.row, b)
+    local breakable = id and pcall(go.get, state.component(id, "destructible"), "destroyed")
+    return breakable and true or false, (self.key_pocket or 0) > 0
+end
+
 function M.hit_destructible_wall(self, direction)
     local b = direction > 0 and self.col + 1 or self.col
     local id = state.wall_id(self.row, b)

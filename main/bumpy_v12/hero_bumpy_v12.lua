@@ -1,5 +1,6 @@
 -- Bumpy v12 gameplay hero: 2D frames, one beat = contact_* + flight_*.
 local CLIPS = require("main.bumpy_v12.bumpy_v12_clips")
+local WALL_HIT_SLOW = 1.3 -- slower wall contact for the type 2 hit
 local PHI = require("main.bumpy_v12.bumpy_v12_phi")
 local state = require("main.level.level_state")
 
@@ -11,6 +12,8 @@ M.contact_dwell = true
 
 local VISUAL = "/bumpy_v12_visual"
 local SHADOW = "/bumpy_v12_shadow_visual"
+local SPR_MAIN = "#sprite"
+local SPR_EXT = "#sprite_ext"
 
 local HERO_SPRITE_SCALE = 42.0 / 72.0
 local FRAME_PX = 144.0
@@ -81,17 +84,26 @@ local function blink_delay()
     return BLINK_MIN + math.random() * (BLINK_MAX - BLINK_MIN)
 end
 
+local function spr(self)
+    return VISUAL .. (self.v12_ext_active and SPR_EXT or SPR_MAIN)
+end
+
 local function set_visual_scale(self)
     local sx = self.v12_squash_x or 1.0
     local sy = self.v12_squash_y or 1.0
-    go.set(VISUAL .. "#sprite", "scale",
-        vmath.vector3(self.v12_sprite_k * self.v12_dir * sx, self.v12_sprite_k * sy, 1.0))
+    local v = vmath.vector3(self.v12_sprite_k * self.v12_dir * sx, self.v12_sprite_k * sy, 1.0)
+    -- keep only the active sprite visible: a missed enable/disable message
+    -- must never leave two Bumpies on screen
+    local zero = vmath.vector3(0.0, 0.0, 1.0)
+    go.set(VISUAL .. SPR_MAIN, "scale", self.v12_ext_active and zero or v)
+    go.set(VISUAL .. SPR_EXT, "scale", self.v12_ext_active and v or zero)
 end
 
 local function sync_visual(self)
     local pos = go.get_position()
     go.set_position(vmath.vector3(pos.x, pos.y + PIVOT_OFFSET, HERO_Z), self.v12_visual)
-    go.set(self.v12_visual, "rotation", vmath.quat())
+    go.set(self.v12_visual, "rotation",
+        vmath.quat_rotation_z(math.rad(self.v12_visual_angle or 0.0)))
 end
 
 local function velocity_y()
@@ -126,6 +138,13 @@ local function play_clip(self, name, target, force, reason)
     self.v12_clip = clip
     self.v12_current_name = name
     self.v12_kind = clip.kind or "event"
+    local want_ext = clip.ext == true
+    if want_ext ~= (self.v12_ext_active == true) then
+        msg.post(spr(self), "disable")
+        self.v12_ext_active = want_ext
+        msg.post(spr(self), "enable")
+        set_visual_scale(self)
+    end
     self.v12_start_time = self.time
     local tempo = self.env.tempo or 1.0
     local eff_target = target
@@ -136,13 +155,13 @@ local function play_clip(self, name, target, force, reason)
     if self.v12_target <= 0.0 then
         self.v12_target = clip.duration_sec
     end
-    msg.post(VISUAL .. "#sprite", "play_animation", { id = hash(name) })
+    msg.post(spr(self), "play_animation", { id = hash(name) })
     if clip.loop then
-        go.set(VISUAL .. "#sprite", "playback_rate",
+        go.set(spr(self), "playback_rate",
             (clip.frames / 30.0) / math.max(clip.duration_sec, 0.001) / tempo)
     else
-        go.set(VISUAL .. "#sprite", "playback_rate", 0.0)
-        go.set(VISUAL .. "#sprite", "cursor", 0.0)
+        go.set(spr(self), "playback_rate", 0.0)
+        go.set(spr(self), "cursor", 0.0)
     end
     return clip
 end
@@ -157,7 +176,7 @@ local function cursor_progress(self)
 end
 
 local function set_cursor(self, progress)
-    go.set(VISUAL .. "#sprite", "cursor", progress)
+    go.set(spr(self), "cursor", progress)
 end
 
 local function current_frame_index(self)
@@ -221,8 +240,8 @@ local function apply_slime_angle(self, angle)
         play_clip(self, name, 1.0, false, "release")
         self.v12_slime_flip = keep
     end
-    go.set(VISUAL .. "#sprite", "playback_rate", 0.0)
-    go.set(VISUAL .. "#sprite", "cursor", (idx - 1) / clip.frames)
+    go.set(spr(self), "playback_rate", 0.0)
+    go.set(spr(self), "cursor", (idx - 1) / clip.frames)
 end
 
 local function update_slime_flip(self, dt)
@@ -464,6 +483,12 @@ end
 function M.setup(self, env)
     self.env = env
     self.v12_visual = go.get_id(VISUAL)
+    -- старый визуал мяча не должен оставаться включённым рядом с v12
+    local old_ball = go.get_id("/ball_visual")
+    if old_ball then
+        msg.post(old_ball, "disable")
+        print("V12: disabled old ball_visual")
+    end
     self.v12_sprite_k = HERO_SPRITE_SCALE / go.get_scale(self.v12_visual).x
     self.v12_shadow = go.get_id(SHADOW)
     self.v12_shadow_surface = nil
@@ -476,6 +501,7 @@ function M.setup(self, env)
     self.v12_shadow_log_hidden = nil
     self.v12_shadow_log_platform = nil
     self.v12_dir = 1
+    self.v12_visual_angle = 0
     self.v12_squash_t = 0.0
     self.v12_squash_strength = 0.0
     self.v12_squash_x = 1.0
@@ -493,12 +519,26 @@ function M.setup(self, env)
     self.v12_has_floor_below = true
     self.v12_last_contact_t = nil
     self.v12_slime_flip = nil
+    self.v12_ext_active = false
+    self.v12_death = false
+    self.v12_death_done = false
+    self.sad_level = nil
+    pcall(msg.post, VISUAL .. SPR_EXT, "disable")
     set_visual_scale(self)
     sync_visual(self)
 end
 
 function M.activate(self)
-    msg.post(VISUAL .. "#sprite", "enable")
+    self.v12_visual_angle = 0
+    self.v12_ext_active = false
+    self.v12_death = false
+    self.v12_death_done = false
+    self.sad_level = nil
+    if go.get_id("/ball_visual") then
+        msg.post("/ball_visual", "disable")
+    end
+    msg.post(VISUAL .. SPR_MAIN, "enable")
+    pcall(msg.post, VISUAL .. SPR_EXT, "disable")
     play_clip(self, "idle", nil, false, "idle")
     self.v12_kind = "idle"
     set_visual_scale(self)
@@ -506,13 +546,21 @@ function M.activate(self)
 end
 
 function M.deactivate(self)
-    msg.post(VISUAL .. "#sprite", "disable")
+    msg.post(VISUAL .. SPR_MAIN, "disable")
+    pcall(msg.post, VISUAL .. SPR_EXT, "disable")
     msg.post(SHADOW .. "#s0", "disable")
     msg.post(SHADOW .. "#s1", "disable")
 end
 
 function M.reset(self)
     self.v12_dir = 1
+    self.v12_visual_angle = 0
+    self.v12_ext_active = false
+    self.v12_death = false
+    self.v12_death_done = false
+    self.sad_level = nil
+    pcall(msg.post, VISUAL .. SPR_EXT, "disable")
+    pcall(msg.post, VISUAL .. SPR_MAIN, "enable")
     self.v12_squash_t = 0.0
     self.v12_squash_strength = 0.0
     self.v12_squash_x = 1.0
@@ -547,8 +595,17 @@ end
 
 -- accepted contact: contact_feet or contact_head, cursor 0, hold the last frame
 function M.begin_contact(self, duration)
-    local name = self.v12_on_head and "contact_head" or "contact_feet"
+    self.v12_visual_angle = 0
+    local name
+    if self.sad_level and not self.v12_on_head then
+        name = "sad" .. self.sad_level .. "_contact"
+    else
+        name = self.v12_on_head and "contact_head" or "contact_feet"
+    end
+    self.v12_contact_reverse = true
     play_clip(self, name, duration or self.env.contact_dwell, true, "contact")
+    -- start from the squash frame at the landing instant, then recover
+    set_cursor(self, 1.0)
     self.v12_kind = "contact"
     self.v12_fall_hurt_done = false
     log_contact(self, self.v12_on_head and "head" or "feet", self.time, name)
@@ -562,7 +619,10 @@ function M.begin_anticipation(self)
 end
 
 -- Long fall: deep landing squash, held for its full 0.3 s
-function M.begin_big_landing(self)
+function M.begin_big_landing(self, keep_angle)
+    if not keep_angle then
+        self.v12_visual_angle = 0
+    end
     local name = self.v12_on_head and "land_head" or "landing"
     local clip = play_clip(self, name, nil, false, "landing")
     if clip then
@@ -579,6 +639,7 @@ end
 
 -- dwell end: flight clip is chosen from the player input at this exact moment
 function M.begin_flight(self, direction, duration)
+    self.v12_visual_angle = 0
     direction = direction or 0
     if direction ~= 0 then
         self.v12_dir = direction < 0 and -1 or 1
@@ -586,6 +647,9 @@ function M.begin_flight(self, direction, duration)
     end
     local start_on_head = self.v12_on_head
     local name, lands_on_head = flight_clip_for(self, start_on_head, direction)
+    if self.sad_level and not start_on_head and not lands_on_head then
+        name = "sad" .. self.sad_level .. "_flight"
+    end
     self.v12_flight_start_on_head = start_on_head
     self.v12_on_head = lands_on_head
     local target = duration or self.env.t_air
@@ -610,6 +674,7 @@ function M.set_flight_target(self, duration)
 end
 
 function M.begin_high_jump(self)
+    self.v12_visual_angle = 0
     self.v12_flight_start_on_head = self.v12_on_head
     self.v12_on_head = false
     play_clip(self, "high_jump", nil, false, "high_jump")
@@ -618,18 +683,51 @@ function M.begin_high_jump(self)
 end
 
 function M.begin_rest(self)
+    self.v12_visual_angle = 0
     self.v12_blink_timer = blink_delay()
     if self.v12_on_head then
         -- stay stuck on the head, round: frame 1 of flight_head_hop
         play_clip(self, "flight_head_hop", 1.0, false, "contact")
-        go.set(VISUAL .. "#sprite", "playback_rate", 0.0)
+        go.set(spr(self), "playback_rate", 0.0)
         -- frame 2 is the round head-down pose (frame 1 is the squash)
-        go.set(VISUAL .. "#sprite", "cursor", 1.0 / 34.0)
+        go.set(spr(self), "cursor", 1.0 / 34.0)
         self.v12_kind = "head_rest_round"
         return
     end
     play_clip(self, "idle", nil, false, "idle")
     self.v12_kind = "idle"
+end
+
+function M.begin_death(self, kind)
+    local name
+    if kind == "spikes" then
+        name = self.v12_on_head and "death_spikes_head" or "death_spikes_feet"
+    elseif kind == "fire" then
+        name = "death_fire"
+    elseif kind == "trap" then
+        name = "death_trap_cry"
+    else
+        name = "death"
+    end
+    local clip = play_clip(self, name, nil, true, "death")
+    if not clip then
+        return 0.0
+    end
+    self.v12_kind = "event"
+    self.v12_target = clip.duration_sec
+    self.v12_death = true
+    self.v12_death_done = false
+    return clip.duration_sec
+end
+
+function M.begin_slime_jump_fail(self)
+    local clip = play_clip(self, "slime_jump_fail", nil, true, "event")
+    if not clip then
+        return 0.0
+    end
+    self.v12_kind = "event"
+    self.v12_target = clip.duration_sec
+    return clip.duration_sec
 end
 
 function M.force_head_landing(self)
@@ -719,7 +817,11 @@ function M.update(self, dt)
 
     local kind = self.v12_kind
     if kind == "contact" then
-        set_cursor(self, cursor_progress(self))
+        local p = cursor_progress(self)
+        if self.v12_contact_reverse then
+            p = 1.0 - p
+        end
+        set_cursor(self, p)
         return
     end
     if kind == "flight" then
@@ -767,11 +869,32 @@ function M.update(self, dt)
         return
     end
     if kind == "head_rest_round" then
-        go.set(VISUAL .. "#sprite", "cursor", 1.0 / 34.0)
+        go.set(spr(self), "cursor", 1.0 / 34.0)
+        return
+    end
+    if kind == "wall_hit_seg" then
+        local press = self.v12_seg_press_time or 0.0
+        local rest = self.v12_seg_rest_time or 0.0
+        local frac = self.v12_seg_press_frac or (6.0 / 26.0)
+        local end_frac = self.v12_seg_rest_end or 1.0
+        local t = self.time - (self.v12_seg_start_time or self.time)
+        local cursor
+        if t <= press then
+            cursor = press > 0.0 and (t / press) * frac or frac
+        else
+            local u = rest > 0.0 and math.min(1.0, (t - press) / rest) or 1.0
+            cursor = frac + u * (end_frac - frac)
+        end
+        set_cursor(self, math.min(cursor, end_frac))
         return
     end
     if kind == "hit" or kind == "event" or kind == "hurt" then
-        set_cursor(self, cursor_progress(self))
+        local progress = cursor_progress(self)
+        set_cursor(self, progress)
+        if self.v12_death and not self.v12_death_done and progress >= 1.0 then
+            self.v12_death_done = true
+            msg.post("#", "death_anim_done")
+        end
         return
     end
     if kind == "fall" then
@@ -870,21 +993,62 @@ function M.apply_squash(self)
         leading = cosv > 0.0 and "feet" or "head"
     end
     local up = cosv > 0.0
+    -- type 2 (breakable wall + key): use the new wall-hit animation
+    if self.wall_breakable == true and self.can_break_wall == true then
+        local name
+        if leading == "head" then
+            name = up and "head_hit_side_up" or "head_hit_side_inv"
+        else
+            name = up and "feet_hit_side_up" or "feet_hit_side_inv"
+        end
+        self.v12_dir = wall == "right" and 1 or -1
+        self.v12_squash_t = 0.0
+        self.v12_squash_strength = 0.0
+        self.v12_squash_x = 1.0
+        self.v12_squash_y = 1.0
+        self.v12_visual_angle = 0.0
+        set_visual_scale(self)
+        sync_visual(self)
+        self.v12_on_head = false
+        self.v12_kind = "hit"
+        local base_clip = clip_by_name(name)
+        local hit_target = (base_clip and base_clip.duration_sec or 0.68) * WALL_HIT_SLOW
+        play_clip(self, name, hit_target, false, "hit")
+        print(string.format("WALLHIT type2 leading=%s clip=%s x=%.1f y=%.1f",
+            leading, name, go.get_position().x, go.get_position().y))
+        return
+    end
+
+    -- type 1 (no key / unbreakable): dedicated helpless clip from the ext atlas
     local name
     if leading == "head" then
-        name = up and "head_hit_side_up" or "head_hit_side_inv"
+        name = up and "wall_helpless_head_up" or "wall_helpless_head_inv"
     else
-        name = up and "feet_hit_side_up" or "feet_hit_side_inv"
+        name = up and "wall_helpless_feet_up" or "wall_helpless_feet_inv"
     end
-    -- clips are drawn for the right wall; the left wall is the mirror
     self.v12_dir = wall == "right" and 1 or -1
-    set_visual_scale(self)
+    self.v12_visual_angle = 0.0
     self.v12_on_head = false
-    self.v12_kind = "hit"
-    play_clip(self, name, nil, false, "hit")
-    print(string.format(
-        "WALLHIT t=%.3f clip=%s frame=%d s=%d hx=%.2f leading=%s result=%s x=%.1f y=%.1f",
-        self.time, tostring(clip_name), frame, s, hx, leading, name, go.get_position().x, go.get_position().y))
+    self.v12_squash_t = 0.0
+    self.v12_squash_strength = 0.0
+    self.v12_squash_x = 1.0
+    self.v12_squash_y = 1.0
+    set_visual_scale(self)
+    sync_visual(self)
+    -- segment the clip: frames 1-16 play during the short wall press,
+    -- frames 17-36 then play at their natural speed
+    local press = self.wall_press or (0.20 * (self.wall_hit_s or 1.0))
+    local s = self.wall_hit_s or 1.0
+    self.v12_seg_press_time = press
+    self.v12_seg_rest_time = 0.28 * s
+    self.v12_seg_press_frac = 6.0 / 26.0
+    self.v12_seg_rest_end = 19.0 / 26.0
+    play_clip(self, name, press + self.v12_seg_rest_time, false, "hit")
+    self.v12_seg_start_time = self.time
+    self.v12_kind = "wall_hit_seg"
+    set_cursor(self, 0.0)
+    print(string.format("WALLHIT type1 leading=%s clip=%s S=%.2f press=%.3f t_fly=%.3f",
+        leading, name, s, press, self.wall_t_fly or 0.0))
 end
 
 function M.on_ceiling(self)

@@ -21,6 +21,20 @@ local state = require("main.level.level_state")
 
 local M = {}
 
+-- v12.5: слой слизи, который тянется за шаром при соскоке с липкой платформы
+local function spawn_slime_fx(self)
+    local pos = go.get_position()
+    local ok, fx = pcall(factory.create, "#slime_fx_factory",
+        vmath.vector3(pos.x, pos.y, 0.015))
+    if not ok or not fx then
+        return
+    end
+    pcall(go.set, msg.url(nil, fx, "sprite"), "playback_rate", 2.0)
+    timer.delay(0.35, false, function()
+        pcall(go.delete, fx)
+    end)
+end
+
 local COLS = C.COLS
 local CELL_H = C.CELL_H
 local BOUNCE_Y = C.BOUNCE_Y
@@ -185,6 +199,7 @@ function M.land_on_platform(self, row)
             -- на липкой платформе удержанная в момент касания клавиша даёт
             -- обычный соскок на соседнюю ячейку (а не скатывание) и расходует
             -- действие за это касание
+            spawn_slime_fx(self)
             self.sticky_action_used = true
             self.sticky_rest = false
         end
@@ -234,6 +249,14 @@ function M.land_on_platform(self, row)
         end
         motion.start_high_jump(self)
         input.clear_tap(self)
+    elseif (input.jump_active(self) or self.pending_jump)
+        and self.sticky_rest and self.sticky_action_used then
+        if self.hero.begin_slime_jump_fail then
+            self.slime_fail_until = self.time + (self.hero.begin_slime_jump_fail(self) or 1.0)
+        end
+        input.clear_tap(self)
+    elseif self.slime_fail_until and self.time < self.slime_fail_until then
+        -- hold the slime jump fail clip; do not override with idle/contact
     else
         settle_or_stick(self)
     end
