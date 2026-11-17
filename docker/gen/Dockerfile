@@ -17,9 +17,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Генератор и решатель: gen_level.py импортирует solve_level.py, а
-# gen_hourly.py — gen_level.py, поэтому каталог копируется целиком.
+# Генератор и решатель. Импорты внутри образа:
+#   gen_hourly.py → gen_level.py → level_interest.py, solve_level.py
+#   gen_level.py / gen_hourly.py → backend.app.level_prompts
+# .dockerignore пропускает из tools/ только эти файлы, поэтому копируем
+# каталог целиком (остальные в контекст не попадают).
 COPY tools/ /app/tools/
+# Промт/подпись уровня живут в общем модуле backend/app/level_prompts.py:
+# генератор импортирует его как backend.app.level_prompts (см. sys.path в
+# gen_level.py/gen_hourly.py), поэтому пакет нужен и здесь. Копируется только
+# сам модуль: остальные файлы backend в образ генератора не нужны.
+COPY backend/app/__init__.py /app/backend/app/__init__.py
+COPY backend/app/level_prompts.py /app/backend/app/level_prompts.py
 # Уровни классики нужны только для сравнения/отладки, но solve_level.py ищет
 # levels.json по относительному пути — копируем, чтобы инструменты работали
 # из контейнера так же, как на хосте.

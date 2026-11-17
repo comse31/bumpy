@@ -18,11 +18,14 @@ google/
 *.sprite
 
 # Исключение для образа генератора (docker/gen/Dockerfile): ему нужны только
-# сам генератор, решатель и данные классических уровней. Остальные файлы
-# tools/ и main/ в контекст не попадают.
+# сам генератор, решатель, модуль подписи уровня и данные классических
+# уровней. Остальные файлы tools/ и main/ в контекст не попадают.
+# level_interest.py импортируется gen_level.py как `import level_interest`,
+# поэтому без него контейнер bumpy-gen падал бы на ModuleNotFoundError.
 !tools/gen_level.py
 !tools/gen_hourly.py
 !tools/solve_level.py
+!tools/level_interest.py
 !main/levels.json
 
 .internal/
