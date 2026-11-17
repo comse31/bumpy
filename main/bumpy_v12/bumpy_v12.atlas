@@ -2298,294 +2298,6 @@ images {
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
-  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
-}
-images {
   image: "/main/bumpy_v12/frames/hurt/hurt_01.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
@@ -2915,6 +2627,550 @@ images {
 }
 images {
   image: "/main/bumpy_v12/frames/collect/collect_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_34.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_19.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_20.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_21.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_22.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_23.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_24.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_25.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_26.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_27.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_28.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_29.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_30.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_31.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_32.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_33.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+images {
+  image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_34.png"
   sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 animations {
@@ -4718,234 +4974,6 @@ animations {
   }
 }
 animations {
-  id: "head_hit_side_up"
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
-  }
-}
-animations {
-  id: "feet_hit_side_up"
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
-  }
-}
-animations {
-  id: "head_hit_side_inv"
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
-  }
-}
-animations {
-  id: "feet_hit_side_inv"
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
-  }
-  images {
-    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
-  }
-}
-animations {
   id: "hurt"
   images {
     image: "/main/bumpy_v12/frames/hurt/hurt_01.png"
@@ -5204,5 +5232,425 @@ animations {
   }
   images {
     image: "/main/bumpy_v12/frames/collect/collect_18.png"
+  }
+}
+animations {
+  id: "head_hit_side_up"
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_up/head_hit_side_up_34.png"
+  }
+}
+animations {
+  id: "head_hit_side_inv"
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/head_hit_side_inv/head_hit_side_inv_34.png"
+  }
+}
+animations {
+  id: "feet_hit_side_up"
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_up/feet_hit_side_up_34.png"
+  }
+}
+animations {
+  id: "feet_hit_side_inv"
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_01.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_02.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_03.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_04.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_05.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_06.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_07.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_08.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_09.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_10.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_11.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_12.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_13.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_14.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_15.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_16.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_17.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_18.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_19.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_20.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_21.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_22.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_23.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_24.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_25.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_26.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_27.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_28.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_29.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_30.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_31.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_32.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_33.png"
+  }
+  images {
+    image: "/main/bumpy_v12/frames/feet_hit_side_inv/feet_hit_side_inv_34.png"
   }
 }
