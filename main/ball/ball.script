@@ -299,6 +299,37 @@ local function settle_or_stick(self)
     end
 end
 
+-- Попытка высокого прыжка на липкой платформе, когда он недоступен: действие
+-- за текущее касание уже израсходовано либо герой лежит на слизи. Высокий
+-- прыжок не выполняется, но игрок должен увидеть, что герой прилип, — поэтому
+-- проигрывается клип прилипания (slime_jump_fail).
+--
+-- force = true — разовое событие (приземление/тап по ячейке): клип запускается
+-- независимо от того, отпускал ли игрок кнопку прыжка с прошлой попытки.
+-- Без force (удержание кнопки в update каждый кадр) действует «одна попытка —
+-- один клип»: slime_fail_armed взводится отпусканием кнопки, а пока клип идёт,
+-- повторный запуск игнорируется (иначе клип перезапускался бы каждый кадр)
+local function sticky_jump_fail(self, force)
+    if not self.hero.begin_slime_jump_fail then
+        return false
+    end
+    -- клип уже проигрывается: не перезапускаем
+    if self.slime_fail_until and self.time < self.slime_fail_until then
+        return false
+    end
+    if not force and self.slime_fail_armed == false then
+        return false
+    end
+    self.slime_fail_armed = false
+    -- команда «прыжок» израсходована неудачной попыткой: иначе pending_jump
+    -- (пробел приходит текстом и без release) дожил бы до следующего
+    -- приземления и запустил высокий прыжок уже после обычного соскока
+    self.pending_jump = false
+    local dur = self.hero.begin_slime_jump_fail(self) or 1.0
+    self.slime_fail_until = self.time + dur
+    return true
+end
+
 -- сшиваем слои действий: movement/landing/input не требуют друг друга
 -- напрямую, а получают нужные функции внедрением (как герои получают ENV)
 input.bind({
@@ -306,12 +337,18 @@ input.bind({
     cancel_high_jump = function(self) return cancel_high_jump(self) end,
     hop_and_move = function(self, dir) return hop_and_move(self, dir) end,
     bounce_off_wall = function(self, dir) bounce_off_wall(self, dir) end,
+    sticky_jump_fail = function(self, force)
+        return sticky_jump_fail(self, force)
+    end,
 })
 
 landing.bind({
     motion = motion,
     actions = {
         settle_or_stick = function(self) settle_or_stick(self) end,
+        sticky_jump_fail = function(self, force)
+            return sticky_jump_fail(self, force)
+        end,
     },
 })
 
@@ -410,6 +447,10 @@ function init(self)
     self.sticky_cell = nil
     self.high_jump_locked = false
     self.hj_row = nil
+    -- анимация прилипания (неудачная попытка высокого прыжка): взведена —
+    -- ближайшее удержание прыжка на слизи покажет клип один раз
+    self.slime_fail_until = nil
+    self.slime_fail_armed = true
     -- стартовая ячейка по умолчанию (уровень 1); level.script уточнит её
     -- сообщением "level_start" после генерации уровня
     start_at(self, state.start_cell)
@@ -676,8 +717,21 @@ local function update_held_jump(self)
     -- (нажатие могло быть отпущено, а у пробела release-события нет вовсе —
     -- именно так терялся высокий прыжок из первого полёта после старта)
     local want_jump = jump_active(self) or input.buffered_jump(self)
-    if not want_jump or self.press_used or self.high_jump or not can_high_jump
+    -- отпущенная кнопка взводит показ анимации прилипания: одна попытка
+    -- высокого прыжка — один клип, а не перезапуск каждый кадр удержания
+    if not want_jump then
+        self.slime_fail_armed = true
+    end
+    if not want_jump or self.press_used or self.high_jump
         or self.move_t > 0.0 or self.bounce_t > 0.0 then
+        return
+    end
+    if not can_high_jump then
+        -- липкая платформа: высокий прыжок недоступен (действие за это касание
+        -- уже израсходовано) — герой прилип, показываем анимацию прилипания
+        if self.sticky_rest then
+            sticky_jump_fail(self)
+        end
         return
     end
     local since_touch = self.time - self.touch_time
@@ -698,7 +752,10 @@ local function update_held_jump(self)
     end
     if self.sticky_rest then
         -- липкая поверхность: окно первого касания прошло — высокий прыжок
-        -- больше не «копится», команда игнорируется (мяч прилип)
+        -- больше не «копится» (герой прилип). Игрок жмёт прыжок из состояния
+        -- покоя — это неудачная попытка высокого прыжка: показываем анимацию
+        -- прилипания, а не молча игнорируем команду
+        sticky_jump_fail(self)
         return
     end
     local until_next = math.huge
@@ -1102,6 +1159,7 @@ local function reset_level_state(self)
     self.death_duration = nil
     self.sad_level = nil
     self.slime_fail_until = nil
+    self.slime_fail_armed = true
     -- плашка «NOT ENOUGH THINGS» с прошлого уровня не переносится:
     -- gear_blocked снова взведётся ниже, если снаряжения не хватит
     self.gear_blocked = false

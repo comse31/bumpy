@@ -917,6 +917,13 @@ function M.update(self, dt)
             self.v12_death_done = true
             msg.post("#", "death_anim_done")
         end
+        -- клип прилипания (неудачная попытка высокого прыжка) доиграл: герой
+        -- остаётся лежать на слизи — возвращаем его в позу покоя, иначе он
+        -- застыл бы на последнем кадре клипа
+        if not self.v12_death and progress >= 1.0 and self.sticky_rest
+            and self.v12_current_name == "slime_jump_fail" then
+            M.begin_rest(self)
+        end
         return
     end
     if kind == "fall" then

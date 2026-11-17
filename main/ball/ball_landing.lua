@@ -145,6 +145,11 @@ function M.land_on_platform(self, row)
             self.sticky_action_used = false
             self.sticky_action_dir = 0
             self.sticky_cell = cell
+            -- новое касание — новый цикл: клип прилипания с прошлой попытки
+            -- больше не удерживается, а следующая неудачная попытка снова
+            -- покажет анимацию
+            self.slime_fail_until = nil
+            self.slime_fail_armed = true
         end
         self.sticky_rest = true
     else
@@ -295,8 +300,11 @@ function M.land_on_platform(self, row)
         input.clear_tap(self)
     elseif (input.jump_active(self) or self.pending_jump)
         and self.sticky_rest and self.sticky_action_used then
-        if self.hero.begin_slime_jump_fail then
-            self.slime_fail_until = self.time + (self.hero.begin_slime_jump_fail(self) or 1.0)
+        -- липкая платформа: действие за касание уже израсходовано, высокий
+        -- прыжок недоступен — показываем анимацию прилипания. Герой без клипа
+        -- прилипания (мячик, Slinky) просто остаётся лежать на слизи
+        if actions.sticky_jump_fail then
+            actions.sticky_jump_fail(self, true)
         end
         input.clear_tap(self)
     elseif self.slime_fail_until and self.time < self.slime_fail_until then
