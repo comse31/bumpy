@@ -168,11 +168,28 @@ function M.lose_life(self, cause)
     end
     local kind = death_kind(cause)
     if kind and self.hero and self.hero.begin_death then
+        -- На время клипа смерти мяч полностью выводится из взаимодействия с
+        -- уровнем: одной остановки скорости мало, потому что коллизия остаётся
+        -- включённой и contact_point_response продолжает приходить (мяч замер
+        -- внутри наклонной платформы/стены). Приземление из такого контакта
+        -- перебивало клип смерти клипом «sad» и меняло вид анимации на полёт,
+        -- из-за чего death_anim_done не отправлялся и уровень не перезапускался
         phys.stop()
+        phys.disable()
+        -- ловушка уже отработала (отсчёт дошёл до нуля): плашку и счётчик
+        -- снимаем сразу, чтобы они не висели поверх клипа смерти
+        if self.trap_active then
+            trap.reset(self)
+        end
         local dur = self.hero.begin_death(self, kind)
         if dur and dur > 0.0 then
             self.death_pending = cause
             self.death_kind = kind
+            -- тайм-аут клипа: если по какой-то причине death_anim_done не
+            -- придёт (анимация не доиграла), уровень не должен зависнуть —
+            -- см. M.death_anim_expired
+            self.death_start_time = self.time
+            self.death_duration = dur
             dbg.always("DEATH ANIM start: %s (%s)", kind, cause or "?")
             return
         end
@@ -180,10 +197,24 @@ function M.lose_life(self, cause)
     lose_life_now(self, cause)
 end
 
+-- не истёк ли клип смерти дольше допустимого. Страховка на случай, если
+-- анимация не отправила death_anim_done (например, её перебили): тогда жизнь
+-- всё равно теряется и уровень перезапускается, а не висит вечно
+function M.death_anim_expired(self)
+    local started = self.death_start_time
+    if not started then
+        return true
+    end
+    local limit = (self.death_duration or 1.0) * 1.5 + 0.5
+    return (self.time - started) > limit
+end
+
 function M.finish_death(self)
     local cause = self.death_pending
     self.death_pending = nil
     self.death_kind = nil
+    self.death_start_time = nil
+    self.death_duration = nil
     if cause then
         dbg.always("DEATH ANIM done: %s", cause)
         lose_life_now(self, cause)

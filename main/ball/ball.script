@@ -877,6 +877,13 @@ function update(self, dt)
 
     if self.death_pending then
         self.hero.update(self, dt)
+        -- страховка: если клип смерти так и не отправил death_anim_done
+        -- (анимация не доиграла), жизнь всё равно теряется по тайм-ауту —
+        -- иначе уровень завис бы на грустной анимации навсегда
+        if self.death_pending and progress.death_anim_expired(self) then
+            dbg.always("DEATH ANIM timeout: %s", tostring(self.death_pending))
+            progress.finish_death(self)
+        end
         return
     end
 
@@ -1017,6 +1024,11 @@ function on_input(self, action_id, action)
     if self.trap_active then
         return
     end
+    -- идёт клип смерти: мяч заморожен до перезапуска уровня, команды игрока
+    -- не должны попадать в буферы и переноситься на новую попытку
+    if self.death_pending then
+        return
+    end
     -- GAME OVER: новую игру запускает стартовое меню (/menu), а не мяч.
     -- ВАЖНО: пока жизни ещё есть, game_over означает лишь «уровень
     -- перезапускается» — level.script пересоберёт его и пришлёт level_start,
@@ -1086,6 +1098,8 @@ local function reset_level_state(self)
     self.restart_pending = false
     self.death_pending = nil
     self.death_kind = nil
+    self.death_start_time = nil
+    self.death_duration = nil
     self.sad_level = nil
     self.slime_fail_until = nil
     -- плашка «NOT ENOUGH THINGS» с прошлого уровня не переносится:
@@ -1183,6 +1197,13 @@ end
 -- разбор направления удара (снизу — отскок вниз, сверху — приземление).
 -- Вынесено из on_message, чтобы сообщение осталось «маршрутизатором».
 local function handle_contact(self, message)
+    -- идёт клип смерти: мяч уже выведен из физики (см. lose_life в
+    -- ball_progress), но задержавшиеся контакты этого кадра не должны
+    -- запускать приземление — оно перебило бы клип смерти и сбросило
+    -- перезапуск уровня (death_anim_done так и не пришёл бы)
+    if self.death_pending then
+        return
+    end
     -- contact_point_response может приходить несколько раз за кадр (несколько точек контакта);
     -- обрабатываем только первый контакт в кадре
     if self.contact_processed then
@@ -1254,7 +1275,8 @@ function on_message(self, message_id, message, sender)
     -- нажатие на игровую ячейку поля либо на боковую стенку за его границей
     if message_id == hash("cell_tap") then
         if not game_mode.is_menu_open() and not self.ready_wait
-            and not self.game_over and not self.trap_active then
+            and not self.game_over and not self.trap_active
+            and not self.death_pending then
             local mdir = tonumber(message.dir) or 0
             local mcol = tonumber(message.col)
             if mdir == 0 and mcol then
@@ -1291,7 +1313,8 @@ function on_message(self, message_id, message, sender)
         return
     end
     if message_id == hash("touch_control") then
-        if not self.ready_wait and not self.game_over and not self.trap_active then
+        if not self.ready_wait and not self.game_over and not self.trap_active
+            and not self.death_pending then
             local control = message and message.control
             local pressed = (message and message.pressed) or false
             if control == "left" then
