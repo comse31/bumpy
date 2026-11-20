@@ -73,6 +73,42 @@ function M.slope_direction(row, col)
     return rot.z > 0 and -1 or 1
 end
 
+-- наклонные платформы ряда row среди перечисленных колонок (cols — список
+-- колонок, которые перекрывает мяч по X). Возвращает список записей
+-- { id, row, col }. Нужно «призракам» наклонов (ball_slopes): скошенная нижняя
+-- грань наклона задевает мяч при пролёте под ним
+function M.slopes_in_row(row, cols)
+    local out = {}
+    if not cols then
+        return out
+    end
+    local seen = {}
+    for i = 1, #cols do
+        local col = cols[i]
+        if col and not seen[col] and M.slope_direction(row, col) ~= 0 then
+            local id = state.platform_id(row, col)
+            if id then
+                seen[col] = true
+                out[#out + 1] = { id = id, row = row, col = col }
+            end
+        end
+    end
+    return out
+end
+
+-- включить/выключить коллизию платформы (у всех прототипов платформ есть
+-- компонент collision_object). Выключение делает платформу «призраком»:
+-- мяч пролетает сквозь неё, визуал и свойства остаются.
+-- pcall: платформа могла быть уже удалена пересборкой уровня — сообщение по
+-- мёртвому адресу не должно ломать кадр
+function M.set_platform_collision(id, on)
+    if not id then
+        return
+    end
+    pcall(msg.post, state.component(id, "collision_object"),
+        on and "enable" or "disable")
+end
+
 -- достиг ли мяч финишной ячейки уровня (выхода)
 function M.is_exit_cell(row, col)
     local er, ec = grid.from_cell_index(state.exit_cell)

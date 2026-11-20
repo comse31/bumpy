@@ -33,6 +33,7 @@
 | Модуль | Ответственность |
 |---|---|
 | [`ball_goodies.lua`](ball_goodies.lua) | касание предметов и таблички EXIT, разбор `kind` |
+| [`ball_slopes.lua`](ball_slopes.lua) | наклонные платформы над мячом: «призрак» на время пролёта под ними |
 | [`ball_obstacles.lua`](ball_obstacles.lua) | перегородки и кладка: удары, верхняя грань |
 | [`ball_trap.lua`](ball_trap.lua) | детект бесконечной ловушки и отсчёт |
 | [`ball_progress.lua`](ball_progress.lua) | жизни, карман, сохранение (`persist`), GAME OVER |

@@ -48,6 +48,8 @@ local input = require("main.ball.ball_input")
 local motion = require("main.ball.ball_motion")
 -- приземление: поверхности и swept-тест
 local landing = require("main.ball.ball_landing")
+-- «призрачные» наклонные платформы при боковых прыжках
+local slopes = require("main.ball.ball_slopes")
 -- дублирование сохранения в серверную БД: досылка отложенных снимков
 local remote_db = require("main.remote_db")
 -- случайный сгенерированный уровень из БД: его level_id показывается на
@@ -993,6 +995,9 @@ function update(self, dt)
     update_move_tween(self, dt)
     update_bounce_tween(self, dt)
     update_landing(self, dt)
+    -- наклонные платформы над мячом: пока мяч под ними — «призраки». Вызов после
+    -- приземления: ряд мяча в этом кадре уже актуален
+    slopes.update(self)
     update_squash(self, dt)
 
     -- анимация визуала героя: у мяча — сплющивание и переворот,
@@ -1183,6 +1188,9 @@ local function reset_level_state(self)
     -- но при смерти откатываются к этому состоянию
     progress.snapshot_pocket(self)
     -- остановить возможное движение с прошлого уровня (смещение/отскок/прыжок)
+    -- физика наклонов, отключённая на время бокового прыжка, возвращается до
+    -- пересборки уровня (иначе платформы остались бы «призраками»)
+    slopes.reset(self)
     self.move_t = 0.0
     self.bounce_t = 0.0
     self.bounce_hold_t = 0.0
