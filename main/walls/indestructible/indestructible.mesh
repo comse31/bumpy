@@ -1,0 +1,4 @@
+material: "/main/walls/indestructible/indestructible.material"
+vertices: "/main/walls/indestructible/indestructible.buffer"
+textures: "/main/walls/indestructible/indestructible.png"
+primitive_type: PRIMITIVE_TRIANGLES

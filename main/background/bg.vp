@@ -1,0 +1,19 @@
+#version 140
+
+in highp vec4 position;
+in mediump vec2 texcoord0;
+
+out mediump vec2 var_texcoord0;
+
+uniform vs_uniforms
+{
+    // спрайты в world-space: позиция уже в мировых координатах
+    highp mat4 mtx_worldview;
+    highp mat4 mtx_proj;
+};
+
+void main()
+{
+    gl_Position = mtx_proj * vec4(position.xyz, 1.0);
+    var_texcoord0 = texcoord0;
+}

@@ -1,0 +1,59 @@
+-- разрушаемая (серая) перегородка: уничтожается с 3-го удара.
+-- Удар засчитывается только если у мяча в кармане есть ключик: ball.script
+-- тратит один ключ и шлёт сообщение "hit". Вид меняется на каждый удар:
+-- целое стекло -> слегка треснувшее -> сильно разбитое; на последнем ударе
+-- перегородка разрушается — все меши и коллизия отключаются (объект остаётся
+-- в сцене, ball.script читает свойство destroyed = 1 и перестаёт считать её
+-- стеной). Смена вида невозможна через текстуру одного меша, поэтому три
+-- состояния — три меша с разными текстурами (паттерн горящей платформы).
+-- level.script может создать перегородку уже повреждённой (коды слоя hi:
+-- 2 — один удар получен, 1 — два): factory-данные { durability = N } задают
+-- оставшуюся прочность в init(), и вид соответствует состоянию.
+go.property("durability", 3) -- оставшееся число ударов до разрушения
+go.property("destroyed", 0)  -- 1 = перегородка разрушена
+
+function init(self)
+    -- меши повреждённых состояний скрыты до первого удара
+    msg.post("#mesh_cracked", "disable")
+    msg.post("#mesh_broken", "disable")
+    if self.durability < 3 then
+        -- предварительно повреждённая перегородка: показываем соответствующий
+        -- вид (сообщения идут после disable в init, поэтому порядок верный)
+        if self.durability <= 1 then
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_broken", "enable")
+        else
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_cracked", "enable")
+        end
+    end
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("hit") then
+        if self.destroyed > 0 then
+            return
+        end
+        self.durability = self.durability - 1
+        if self.durability <= 0 then
+            -- разрушение: скрываем все меши и отключаем коллизию — мяч сможет
+            -- проходить насквозь (has_wall_* в ball.script проверит destroyed)
+            self.destroyed = 1
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_cracked", "disable")
+            msg.post("#mesh_broken", "disable")
+            msg.post("#collision_object", "disable")
+            print("DESTRUCTIBLE wall destroyed (3 hits with keys)")
+        elseif self.durability == 1 then
+            -- сильно разбитое стекло (последний удар)
+            msg.post("#mesh_cracked", "disable")
+            msg.post("#mesh_broken", "enable")
+            print("DESTRUCTIBLE wall: heavily broken (1 hit left)")
+        else
+            -- слегка треснувшее стекло
+            msg.post("#mesh", "disable")
+            msg.post("#mesh_cracked", "enable")
+            print("DESTRUCTIBLE wall: slightly cracked (2 hits left)")
+        end
+    end
+end

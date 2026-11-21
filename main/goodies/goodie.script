@@ -1,0 +1,25 @@
+-- goodies: собираемые объекты, находящиеся в центре игровой ячейки.
+-- Собираются мячиком при приземлении на платформу этой ячейки (см. ball.script):
+-- мяч шлёт сообщение "collect", а при собирании увеличивается соответствующий
+-- внутренний счётчик мяча (карман): капли — pocket, ключи — key_pocket,
+-- молотки — hammer_pocket (счётчики раздельные). kind — тип goodies:
+-- 0 = капля (drop), 1 = ключик (key), 2 = молоток (hammer); в перспективе
+-- life. collected — флаг сбора (0/1), который читает ball.script.
+go.property("kind", 0)
+go.property("collected", 0)
+
+function init(self)
+    self.is_collected = false
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("collect") then
+        -- дедупликация: повторные сообщения игнорируются
+        if self.is_collected then return end
+        self.is_collected = true
+        go.set("#goodie", "collected", 1)
+        -- у спрайта нет свойства visible; скрываем его сообщением disable
+        msg.post("#sprite", "disable")
+        print(string.format("GOODIE %s collected", self.kind))
+    end
+end

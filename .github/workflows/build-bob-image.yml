@@ -1,0 +1,93 @@
+# Сборка и публикация образа-сборщика Defold (bob) в GitHub Container Registry.
+#
+# ЗАПУСК ТОЛЬКО ВРУЧНУЮ (workflow_dispatch): автоматических триггеров нет.
+# Образ тегируется версией bob (sha1 версии Defold), например:
+#   ghcr.io/<owner>/bumpy-bob-builder:<sha1>
+# Этот же тег использует deploy-master (по текущей stable-версии Defold).
+#
+# Авторизация — через встроенный GITHUB_TOKEN (секреты не нужны), поэтому
+# workflow требует право packages: write.
+#
+# Образ содержит зависимости сборки HTML5-бандла, чтобы во время
+# `deploy-master` не выполнялся `docker build`:
+#   * JDK 25 + системные библиотеки X11/GL;
+#   * bob.jar (скачивается из GitHub Release `bob-jar-<sha1>` либо с d.defold.com).
+#
+# Движки HTML5 в образ НЕ зашиваются: `deploy-master` собирает только
+# однопоточный движок (`--architectures wasm-web`), а он лежит внутри bob.jar
+# (libexec/wasm-web) — в сеть ходить не нужно.
+#
+# Так как образ кэшируется по слоям, повторная сборка при неизменном sha1
+# быстрая.
+
+name: Build & Publish bob-builder image
+
+on:
+  workflow_dispatch:
+    inputs:
+      defold_sha1:
+        description: "sha1 версии Defold (bob). Пусто — взять текущую stable с d.defold.com"
+        required: false
+        default: "a81dbb0478e8b73931dc2d671563204f6ac0ef82"
+
+concurrency:
+  group: build-bob-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Сборка и публикация образа-сборщика
+    # Self-hosted раннер с установленным Docker (как и deploy-master).
+    runs-on: [self-hosted]
+    # Запас: bob.jar (~220 МБ) качается из GitHub Release; apt-get ставит X11/GL.
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Определение имени образа
+        # ghcr.io требует имя в нижнем регистре.
+        run: |
+          set -euo pipefail
+          OWNER_LC="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_NAME=ghcr.io/${OWNER_LC}/bumpy-bob-builder" >> "$GITHUB_ENV"
+
+      - name: Определение версии Defold (sha1)
+        id: defold
+        run: |
+          set -euo pipefail
+          SHA1="${{ inputs.defold_sha1 }}"
+          if [ -z "$SHA1" ]; then
+            SHA1="$(curl -fsSL https://d.defold.com/stable/info.json \
+              | python3 -c 'import sys, json; print(json.load(sys.stdin)["sha1"])')"
+          fi
+          echo "sha1=${SHA1}" >> "$GITHUB_OUTPUT"
+          echo "Версия bob (sha1): ${SHA1}"
+
+      - name: Логин в GitHub Container Registry
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Сборка образа-сборщика
+        run: |
+          set -euo pipefail
+          docker build \
+            --build-arg BOB_SHA1="${{ steps.defold.outputs.sha1 }}" \
+            -f docker/bob-builder.Dockerfile \
+            -t "${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}" \
+            .
+          docker image inspect "${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}" \
+            --format 'Образ собран: {{.RepoTags}} ({{.Size}} байт)'
+
+      - name: Публикация в GitHub Container Registry
+        run: |
+          set -euo pipefail
+          docker push "${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}"
+          echo "Опубликовано: ${IMAGE_NAME}:${{ steps.defold.outputs.sha1 }}"

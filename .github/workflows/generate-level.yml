@@ -1,0 +1,108 @@
+# Часовой генератор уровней Bumpy.
+#
+# Каждый час генерирует РОВНО ОДИН проходимый уровень и сохраняет его в БД
+# backend через POST /api/levels.
+#
+# Проверяется решателем tools/solve_level.py:
+#   * "solvable"   — уровень сохраняется;
+#   * "impossible" — брак, берётся следующий seed;
+#   * "limit"      — проходимость не доказана, уровень НЕ сохраняется.
+#
+# Дополнительно уровень обязан ТРЕБОВАТЬ хотя бы один предмет
+# (drops + keys + hammers > 0): генератор строит «камеру» на старте (кладка
+# под молоток, горячая платформа под каплю или перегородка под ключ).
+# Сервер отвергает и уровень без статуса "solvable", и уровень без требуемых
+# предметов (backend/app/schemas.py: GeneratedLevelIn), поэтому неподходящий
+# уровень в БД попасть не может.
+#
+# Запуск на self-hosted раннере: там же работает контейнер backend
+# (порт 8000, публикуется deploy-master.yml). Генератору нужен только python3
+# из стандартной библиотеки — зависимостей нет.
+
+name: Generate level (hourly)
+
+on:
+  schedule:
+    # 5 минут каждого часа: не на границе часа, чтобы не пересекаться с deploy
+    - cron: "5 * * * *"
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Сколько уровней сгенерировать за запуск"
+        required: false
+        default: "1"
+      level:
+        description: "Номер уровня (влияет на сложность)"
+        required: false
+        default: "1"
+
+# Один генератор за раз: параллельные запуски создавали бы лишние уровни.
+concurrency:
+  group: generate-level
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Backend опубликован на хосте self-hosted раннера (docker run -p 8000:8000).
+  BUMPY_API_URL: http://127.0.0.1:8000
+  # Заполняется секретом, если в backend/config.yml включён api_key.
+  BUMPY_API_KEY: ${{ secrets.BUMPY_API_KEY }}
+
+jobs:
+  generate:
+    name: Сгенерировать проходимый уровень
+    runs-on: [self-hosted]
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Проверка доступности backend
+        # Без backend сохранять уровень некуда: падаем сразу с понятной ошибкой,
+        # а не после 30 минут перебора seed'ов.
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null "${BUMPY_API_URL}/api/health"; then
+              echo "Backend доступен: ${BUMPY_API_URL}"
+              break
+            fi
+            echo "Ожидание backend... (${i}/30)"
+            sleep 2
+          done
+          curl -fsS "${BUMPY_API_URL}/api/health"
+          echo
+
+      - name: Статистика уровней до генерации
+        run: curl -fsS "${BUMPY_API_URL}/api/levels/stats" || true
+
+      - name: Генерация и сохранение уровня
+        # Сложность растёт со временем: номер уровня = (часы с начала эпохи) % 100 + 1,
+        # чтобы новые уровни постепенно становились интереснее, а не были все
+        # первого уровня.
+        run: |
+          set -euo pipefail
+          COUNT="${{ github.event.inputs.count || '1' }}"
+          LEVEL="${{ github.event.inputs.level || '' }}"
+          if [ -z "${LEVEL}" ]; then
+            LEVEL=$(( ($(date -u +%s) / 3600) % 100 + 1 ))
+          fi
+          echo "count=${COUNT} level=${LEVEL}"
+          # --attempts 300: проходимость с требованием предмета даёт ~25%
+          # подходящих кандидатов, поэтому запас по перебору нужен больше.
+          python3 tools/gen_hourly.py --count "${COUNT}" --level "${LEVEL}" \
+            --attempts 300 --min-items 1
+
+      - name: Статистика уровней после генерации
+        run: |
+          set -euo pipefail
+          curl -fsS "${BUMPY_API_URL}/api/levels/stats"
+          echo
+
+      - name: Диагностика при ошибке
+        if: failure()
+        run: |
+          docker logs --tail 50 bumpy-backend || true

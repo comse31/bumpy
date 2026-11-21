@@ -1,0 +1,13 @@
+images {
+  image: "/main/ball/football.png"
+  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
+}
+animations {
+  id: "ball"
+  images {
+    image: "/main/ball/football.png"
+  }
+}
+margin: 0
+extrude_borders: 2
+inner_padding: 0

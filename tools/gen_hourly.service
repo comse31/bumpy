@@ -1,0 +1,17 @@
+[Unit]
+Description=Bumpy: генерация одного проходимого уровня в БД
+Documentation=file:///opt/bumpy/tools/gen_hourly.py
+# Backend должен быть доступен: генератор пишет уровень через POST /api/levels.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Каталог репозитория: подставьте фактический путь.
+WorkingDirectory=/opt/bumpy
+# BUMPY_API_URL/BUMPY_API_KEY можно задать в /etc/bumpy-gen.env
+EnvironmentFile=-/etc/bumpy-gen.env
+ExecStart=/usr/bin/python3 tools/gen_hourly.py --count 1
+# Генерация перебирает seed'ы решателем: даём запас времени, но не бесконечно.
+TimeoutStartSec=1800
+Nice=10

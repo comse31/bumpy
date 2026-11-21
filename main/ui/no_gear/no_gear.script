@@ -1,0 +1,48 @@
+-- Плашка «NOT ENOUGH THINGS / PRESS ANY KEY»: показывается, когда на старте
+-- уровня игроку заведомо не хватает снаряжения для прохождения
+-- (см. main/ball/ball_progress.lua -> require_gear и
+-- main/level/level_requirements.lua). В отличие от GAME OVER, это не «конец
+-- игры» с откатом сохранения, а возврат в главное меню по любому нажатию:
+-- игрок может выбрать другой уровень (в «Приключении») или начать заново.
+--
+-- Сообщение "show" принимает необязательное поле `detail` — строка с
+-- конкретикой, например «2 keys, 1 hammer». Она рисуется между заголовком и
+-- подсказкой; без detail строка скрыта.
+local NODES = { "sprite", "title", "hint" }
+local DEFAULT_DETAIL = ""
+
+local function set_detail(text)
+    if text and text ~= "" then
+        go.set("#detail", "text", text)
+        msg.post("#detail", "enable")
+    else
+        msg.post("#detail", "disable")
+    end
+end
+
+local function set_visible(visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    for i = 1, #NODES do
+        msg.post("#" .. NODES[i], action)
+    end
+    if not visible then
+        msg.post("#detail", "disable")
+    end
+end
+
+function init(self)
+    go.set("#detail", "text", DEFAULT_DETAIL)
+    set_visible(false)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        set_visible(true)
+        -- подробности показываются только когда они есть: не наследуем текст
+        -- прошлого вызова
+        set_detail(message and message.detail or nil)
+    elseif message_id == hash("hide") then
+        set_visible(false)
+    end
+end

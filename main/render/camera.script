@@ -1,0 +1,484 @@
+-- Камера игрового поля для мобильных (HTML5 fullscreen) сборок.
+--
+-- Камера сама ничего не рисует: она вычисляет видимый прямоугольник мира и
+-- отправляет его рендер-скрипту (main/render/game.render_script) сообщением
+-- "set_camera_rect". Рендер-скрипт строит по этим границам ортопроекцию.
+-- Матрицу в сообщении передать нельзя (matrix4 не сериализуется), а числа —
+-- можно.
+--
+-- Что делает камера:
+--   * в режиме READY (плашка "READY FOR LEVEL N?") показывает всю сцену
+--     целиком — игровое поле 960x640 и полосу HUD над ним (до y = 720), —
+--     так что перед стартом игрок всегда видит весь уровень;
+--   * Приближение и слежение включаются ТОЛЬКО в полноэкранном режиме на
+--     устройстве (полноэкранный браузер на тач-смартфоне/планшете, нативная
+--     мобильная сборка). В оконном браузере и на десктопе игровое поле
+--     всегда показывается целиком (fit) — «Не в режиме fullscreen
+--     просматривается все игровое поле»;
+--   * в этом режиме масштабирует поле так, чтобы оно заполняло экран по
+--     длинному краю: zoom = max(w/960, field_h/640), где field_h — высота
+--     экрана минус полоса HUD. Одна из сторон поля всегда видна полностью,
+--     вторая обрезается;
+--   * в этом режиме плавно ведёт центр экрана к центру ЯЧЕЙКИ, в которой сейчас
+--     находится мяч: ячейка (клетка сетки 6x6) стремится оказаться ровно в
+--     середине видимой части. По той оси, где поле видно целиком, камера
+--     стоит по центру поля — там обрезки нет и мяч виден всегда;
+--   * мяч никогда не уходит за край экрана: если центрирование ячейки
+--     невозможно (мяч в крайней ячейке), камера прижимается к краю поля, а
+--     если мяч всё же оказался за видимой частью (высокий прыжок выше поля),
+--     камера сдвигается ровно настолько, чтобы вернуть его в кадр;
+--   * при переходе ready -> play масштаб меняется плавно.
+--
+-- Видимый прямоугольник мира и трансформ полосы HUD публикуются в общем
+-- модуле main/render/camera_state.lua. По ним:
+--   * сенсорное управление переводит координаты нажатий в мир;
+--   * предметы HUD-кармана (main/pocket/pocket_item.script) каждый кадр
+--     переводят свои локальные координаты полосы в мировые.
+--
+-- Режим задаётся сообщениями из ball.script:
+--   "ready" — уровень загружен, показываем плашку (fit всей сцены);
+--   "play"  — игрок начал уровень (cover поля, фокус за мячом).
+local camera_state = require("main.render.camera_state")
+
+-- размеры сцены: игровое поле 6x6 внизу и полоса HUD сверху (640..720)
+local FIELD_W = 960.0
+local FIELD_H = 640.0
+local SCENE_W = 960.0
+local SCENE_H = 720.0
+-- полоса HUD в дизайнерских координатах: низ y=640, высота 80
+local HUD_LOCAL_Y = 640.0
+
+-- сетка игрового поля 6x6 (совпадает с ball.script): размер одной ячейки
+local COLS = 6.0
+local CELL_W = FIELD_W / COLS
+local CELL_H = FIELD_H / COLS
+
+-- Отступ, на который камере разрешено показывать пустоту за краем поля —
+-- половина ячейки по каждой оси. В крайних ячейках поле не прижимается
+-- вплотную к краю экрана, поэтому мяч в них не «липнет» к границе кадра, а
+-- камера при переходе между крайними ячейками не дёргается.
+local MARGIN_X = CELL_W * 0.5
+local MARGIN_Y = CELL_H * 0.5
+
+local NEAR = -1.0
+local FAR = 1.0
+
+-- сглаживание: чем больше tau, тем ленивее камера догоняет цель. Небольшая
+-- задержка фокуса — по заданию («плавно с небольшой задержкой»)
+local ZOOM_TAU = 0.40
+local FOCUS_TAU = 0.35
+
+-- как часто в режиме "auto" перепроверять полноэкранный режим браузера.
+-- html5.run — дорогой вызов, поэтому опрос идёт не каждый кадр
+local COVER_REFRESH_SEC = 0.25
+
+-- Панорамирование свайпом: после последнего движения пальца камера держит
+-- ручной сдвиг ещё PAN_IDLE_SEC секунд, затем плавно возвращает фокус на
+-- ячейку мяча. Игрок успевает осмотреть поле, не теряя мяч надолго.
+local PAN_IDLE_SEC = 3.0
+
+-- плашки поверх поля: в режиме cover — центр видимой части поля
+local OVERLAYS = { "/ready", "/game_over", "/trap" }
+-- их прежние мировые координаты (используются в режиме fit)
+local OVERLAY_SCENE_X = 480.0
+local OVERLAY_SCENE_Y = 320.0
+
+-- Высота полосы HUD на экране — ровно та же доля ШИРИНЫ окна, что и в дизайне
+-- (80 из 960). Так полоса всегда занимает всю ширину экрана без искажения
+-- пропорций, а её высота в мировых единицах автоматически равна 80 * (ширина
+-- видимой области / 960).
+local HUD_SCREEN_FRAC = 80.0 / 960.0
+
+-- режим камеры из game.project (bumpy.camera_mode):
+--   "auto"  — приближение и слежение за мячом только в полноэкранном режиме
+--             на устройстве; во всех остальных случаях показывается всё поле
+--             (по умолчанию);
+--   "cover" — всегда приближать и следить за мячом (отладочный режим);
+--   "fit"   — всегда показывать сцену целиком (отладочный режим).
+local function config_mode()
+    local ok, value = pcall(sys.get_config_string, "bumpy.camera_mode", "auto")
+    local mode = (ok and type(value) == "string") and value or "auto"
+    mode = mode:gsub('^%s*"(.*)"%s*$', "%1"):gsub("^%s+", ""):gsub("%s+$", "")
+    if mode == "cover" or mode == "fit" then
+        return mode
+    end
+    return "auto"
+end
+
+-- Устройство + полноэкранный режим в HTML5. Одним JS-вызовом, потому что
+-- html5.run небесплатен и опрашивается несколько раз в секунду.
+--   * устройство — есть тач-экран (смартфон/планшет), а не десктоп;
+--   * fullscreen — Fullscreen API, standalone-PWA (window.navigator.standalone
+--     на iOS Safari, либо display-mode: standalone/fullscreen).
+local function html5_is_device_fullscreen()
+    if type(html5) ~= "table" or type(html5.run) ~= "function" then
+        return false
+    end
+    local ok, result = pcall(html5.run,
+        "String(!!( ('ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))" ..
+        " && (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement" ..
+        " || document.msFullscreenElement || window.navigator.standalone === true" ..
+        " || (window.matchMedia && (window.matchMedia('(display-mode: fullscreen)').matches" ..
+        " || window.matchMedia('(display-mode: standalone)').matches))) ))")
+    return ok and result == "true"
+end
+
+-- Платформа определяется один раз: sys.get_sys_info() вызывается из опроса
+-- полноэкранного режима несколько раз в секунду, а его результат неизменен.
+--   "html5"   — браузерная сборка, fullscreen нужно проверять через JS;
+--   "mobile"  — нативная мобильная сборка, она всегда занимает весь экран;
+--   "desktop" — всё остальное: показываем всё поле.
+local function detect_platform()
+    local ok, info = pcall(sys.get_sys_info)
+    local system = (ok and info and info.system_name) or ""
+
+    if system == "HTML5" then
+        return "html5"
+    end
+    if system == "Android" or system == "iPhone OS" or system == "iOS" then
+        return "mobile"
+    end
+    return "desktop"
+end
+
+-- Нужен ли игровой режим камеры (cover) в режиме "auto".
+-- Приближение и слежение за мячом разрешены ТОЛЬКО в полноэкранном режиме на
+-- устройстве: полноэкранный браузер на тач-смартфоне/планшете либо нативная
+-- мобильная сборка. В оконном браузере и на десктопе показывается всё поле.
+local function wants_game_camera(platform)
+    if platform == "html5" then
+        return html5_is_device_fullscreen()
+    end
+    return platform == "mobile"
+end
+
+-- экспоненциальное сглаживание: не зависит от частоты кадров
+local function smooth(current, target, dt, tau)
+    if tau <= 0.0 then
+        return target
+    end
+    local k = 1.0 - math.exp(-dt / tau)
+    return current + (target - current) * k
+end
+
+-- центр ячейки сетки, в которой находится точка (x, y). Ячейка индексируется
+-- от нижнего левого угла поля; индекс ограничен сеткой, поэтому упавший за
+-- поле мяч всё равно даёт валидную ячейку
+local function cell_center(x, y)
+    local col = math.floor(x / CELL_W)
+    local row = math.floor(y / CELL_H)
+    col = math.max(0, math.min(COLS - 1, col))
+    row = math.max(0, math.min(COLS - 1, row))
+    return (col + 0.5) * CELL_W, (row + 0.5) * CELL_H
+end
+
+-- Целевой центр камеры по одной оси.
+--   * по оси, где поле видно целиком, обрезки нет — центрируем само поле и
+--     НЕ корректируем по мячу: иначе камера дёргалась бы на каждом прыжке
+--     мяча внутри верхней ячейки (мяч приближается к краю кадра, страховка
+--     сдвигает камеру, мяч падает — камера возвращается). Поле в кадре
+--     целиком, поэтому мяч виден всегда;
+--   * иначе ведём центр к центру ячейки мяча. Границы, в которых может
+--     оказаться центр, раздвинуты за пределы поля на margin (половину
+--     ячейки): за краем поля показывается полоса пустоты шириной в половину
+--     ячейки, поэтому мяч в крайней ячейке не прижат к краю экрана, а камера
+--     не скачет при переходе между крайними ячейками.
+-- Страховка «мяч в кадре» здесь не нужна: при view >= span поле видно
+-- целиком, а при view < span кадр следует за ячейкой и мяч всегда внутри.
+local function follow_axis(cell, view, span, margin)
+    if view >= span then
+        return span * 0.5
+    end
+    local half = view * 0.5
+    local lo = half - margin
+    local hi = span - half + margin
+    if lo > hi then
+        -- видимая часть почти равна полю: границы схлопнулись, показываем
+        -- поле по центру
+        return span * 0.5
+    end
+    return vmath.clamp(cell, lo, hi)
+end
+
+-- позиция мяча (если объект ещё не создан — центр поля)
+local function ball_position()
+    local ok, pos = pcall(go.get, "/ball", "position")
+    if ok and pos then
+        return pos.x, pos.y
+    end
+    return FIELD_W * 0.5, FIELD_H * 0.5
+end
+
+-- Отправить рендер-скрипту видимый прямоугольник мира
+local function apply_projection(left, bottom, width, height)
+    msg.post("@render:", "set_camera_rect", {
+        left = left,
+        right = left + width,
+        bottom = bottom,
+        top = bottom + height,
+        near = NEAR,
+        far = FAR,
+    })
+end
+
+-- один кадр камеры: расчёт целевых значений, сглаживание (или снап) и
+-- публикация результата
+local function step(self, dt, snap)
+    local w, h = window.get_size()
+    if w <= 0 or h <= 0 then
+        return
+    end
+
+    -- cover активен только в игре и только если он выбран
+    local cover = self.cover and not self.ready
+
+    -- высота полосы HUD на экране (пиксели); в режиме fit полосы нет —
+    -- она рисуется как часть сцены на своём месте
+    local hud_px = cover and (w * HUD_SCREEN_FRAC) or 0.0
+
+    -- целевой масштаб: пикселей окна на мировую единицу
+    local target_zoom
+    if cover then
+        local field_px_h = math.max(1.0, h - hud_px)
+        target_zoom = math.max(w / FIELD_W, field_px_h / FIELD_H)
+    else
+        target_zoom = math.min(w / SCENE_W, h / SCENE_H)
+    end
+
+    if snap or not self.zoom then
+        self.zoom = target_zoom
+    else
+        self.zoom = smooth(self.zoom, target_zoom, dt, ZOOM_TAU)
+    end
+
+    -- видимая область мира при текущем масштабе
+    local view_w = w / self.zoom
+    local view_h = h / self.zoom
+    local hud_world_h = hud_px / self.zoom
+    local field_view_h = math.max(1.0, view_h - hud_world_h)
+
+    -- ручное панорамирование: пока игрок двигал экран свайпом (и PAN_IDLE_SEC
+    -- после последнего движения), камера стоит там, куда её сдвинули, и не
+    -- следит за мячом
+    if self.panning then
+        self.pan_idle = (self.pan_idle or 0.0) + dt
+        if self.pan_idle >= PAN_IDLE_SEC or not cover then
+            self.panning = false
+        end
+    end
+
+    -- целевой центр камеры
+    local target_cx, target_cy
+    if self.panning then
+        -- ручной сдвиг: цель — текущее положение, движения нет
+        target_cx, target_cy = self.cx, self.cy
+    elseif cover then
+        -- игра: центр экрана ведём к центру ячейки мяча; по оси, где поле
+        -- видно целиком, камера стоит по центру поля
+        local bx, by = ball_position()
+        local ccx, ccy = cell_center(bx, by)
+        target_cx = follow_axis(ccx, view_w, FIELD_W, MARGIN_X)
+        target_cy = follow_axis(ccy, field_view_h, FIELD_H, MARGIN_Y)
+    else
+        -- плашка READY / режим fit: центр всей сцены (поле + HUD)
+        target_cx = SCENE_W * 0.5
+        target_cy = SCENE_H * 0.5
+    end
+
+    if snap or self.panning then
+        self.cx, self.cy = target_cx, target_cy
+    else
+        self.cx = smooth(self.cx, target_cx, dt, FOCUS_TAU)
+        self.cy = smooth(self.cy, target_cy, dt, FOCUS_TAU)
+    end
+
+    -- Границы видимой области: по X — центр минус полширины; по Y низ —
+    -- низ видимой части поля, сверху полоса HUD.
+    local left = self.cx - view_w * 0.5
+    local bottom
+    if cover then
+        bottom = self.cy - field_view_h * 0.5
+    else
+        bottom = (SCENE_H - view_h) * 0.5
+    end
+
+    -- Трансформ полосы HUD. Предметы в ней хранят ЛОКАЛЬНЫЕ дизайнерские
+    -- координаты (x 0..960, y 640..720), world = hud_origin + local * hud_s:
+    --   * fit   — масштаб 1, полоса на своём месте в сцене;
+    --   * cover — постоянный экранный размер, полоса над видимой частью поля.
+    local hud_x, hud_y, hud_s
+    if cover then
+        -- полоса занимает всю ширину экрана: 960 локальных единиц = view_w
+        hud_s = view_w / SCENE_W
+        hud_x = left
+        hud_y = bottom + field_view_h - HUD_LOCAL_Y * hud_s
+    else
+        -- fit: полоса лежит на своём месте в сцене (x 0..960, y 640..720),
+        -- поэтому локальные дизайнерские координаты совпадают с мировыми.
+        -- Привязывать её к левому низу видимой области нельзя: при fit по
+        -- ширине окна left != 0 и полоса съехала бы вместе с полем.
+        hud_s = 1.0
+        hud_x = 0.0
+        hud_y = 0.0
+    end
+
+    -- публикация видимой области мира и трансформа полосы HUD
+    camera_state.left = left
+    camera_state.bottom = bottom
+    camera_state.width = view_w
+    camera_state.height = view_h
+    camera_state.zoom = self.zoom
+    camera_state.window_w = w
+    camera_state.window_h = h
+    camera_state.hud_x = hud_x
+    camera_state.hud_y = hud_y
+    camera_state.hud_scale = hud_s
+
+    apply_projection(left, bottom, view_w, view_h)
+
+    -- Плашки READY / GAME OVER / TRAPPED:
+    --   fit   — прежние координаты и масштаб;
+    --   cover — центр видимой части поля и экранный размер как при fit
+    local ov_s, ov_x, ov_y
+    if cover then
+        local fit_zoom = math.min(w / SCENE_W, h / SCENE_H)
+        ov_s = fit_zoom / self.zoom
+        ov_x = self.cx
+        ov_y = bottom + field_view_h * 0.5
+    else
+        ov_s = 1.0
+        ov_x = OVERLAY_SCENE_X
+        ov_y = OVERLAY_SCENE_Y
+    end
+    if snap or not self.ov_s then
+        self.ov_s, self.ov_x, self.ov_y = ov_s, ov_x, ov_y
+    else
+        self.ov_s = smooth(self.ov_s, ov_s, dt, ZOOM_TAU)
+        self.ov_x = smooth(self.ov_x, ov_x, dt, ZOOM_TAU)
+        self.ov_y = smooth(self.ov_y, ov_y, dt, ZOOM_TAU)
+    end
+    for _, id in ipairs(OVERLAYS) do
+        local ok, pos = pcall(go.get_position, id)
+        if ok and pos then
+            pcall(go.set_position, vmath.vector3(self.ov_x, self.ov_y, pos.z), id)
+            pcall(go.set_scale, vmath.vector3(self.ov_s, self.ov_s, 1.0), id)
+        end
+    end
+end
+
+function init(self)
+    self.ready = true        -- до первого "play" показываем уровень целиком
+    self.zoom = nil          -- на первом кадре масштаб задаётся сразу
+    self.cx = SCENE_W * 0.5  -- центр сцены по X
+    self.cy = SCENE_H * 0.5  -- центр поля по Y
+    self.panning = false     -- ручной сдвиг камеры свайпом
+    self.pan_idle = 0.0      -- время с последнего движения пальцем
+
+    self.platform = detect_platform()
+    self.mode = config_mode()
+    if self.mode == "cover" then
+        self.cover = true
+    elseif self.mode == "fit" then
+        self.cover = false
+    else
+        self.cover = wants_game_camera(self.platform)
+    end
+    self.cover_check = 0.0  -- таймер перепроверки fullscreen в режиме "auto"
+
+    -- первый кадр: сразу валидная проекция всей сцены, чтобы не мигало
+    step(self, 0.0, true)
+end
+
+-- в режиме "auto" перепроверяем полноэкранный режим: при входе в fullscreen
+-- включается приближение и слежение за мячом, при выходе — снова всё поле.
+-- Вход в cover происходит плавно (в fit-режиме видно всё поле, мяч не теряется),
+-- а выход из него выставляется сразу — чтобы после сворачивания окна кадр
+-- мгновенно показывал весь уровень, без «промежуточной» обрезки
+local function refresh_cover(self, dt)
+    if self.mode ~= "auto" then
+        return
+    end
+    self.cover_check = (self.cover_check or 0.0) + dt
+    if self.cover_check < COVER_REFRESH_SEC then
+        return
+    end
+    self.cover_check = 0.0
+    local cover = wants_game_camera(self.platform)
+    if cover ~= self.cover then
+        self.cover = cover
+        self.panning = false
+        self.pan_idle = 0.0
+        if not cover then
+            -- выход из fullscreen: кадр fit-режима выставляем сразу
+            self.snap = true
+        end
+    end
+end
+
+function update(self, dt)
+    refresh_cover(self, dt)
+    local snap = self.snap
+    self.snap = false
+    step(self, dt, snap)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("ready") then
+        -- плашка READY всегда показывает поле целиком: масштаб и центр
+        -- выставляются сразу, без промежуточных кадров
+        self.ready = true
+        self.snap = true
+        -- ручной сдвиг сбрасывается: на плашке виден весь уровень
+        self.panning = false
+        self.pan_idle = 0.0
+    elseif message_id == hash("play") then
+        -- старт уровня: дальше масштаб и центр меняются плавно
+        self.ready = false
+    elseif message_id == hash("camera_focus") then
+        -- игрок снова управляет мячом (тап по ячейке, нажатие кнопки):
+        -- ручной сдвиг снимается, фокус сразу возвращается к мячу
+        self.panning = false
+        self.pan_idle = 0.0
+    elseif message_id == hash("camera_pan") then
+        -- Свайп по экрану: сдвигаем камеру на delta (в мировых единицах) и
+        -- продлеваем удержание фокуса. Пока идут движения, pan_idle = 0, затем
+        -- PAN_IDLE_SEC без свайпов — и камера плавно возвращается к мячу.
+        if not self.cover or self.ready or not self.zoom then
+            return
+        end
+        local dx = message.dx or 0.0
+        local dy = message.dy or 0.0
+        if dx == 0.0 and dy == 0.0 then
+            return
+        end
+        local w, h = window.get_size()
+        local view_w = w / self.zoom
+        local view_h = h / self.zoom
+        -- видимая часть поля по высоте (без полосы HUD) — так же, как в step
+        local hud_px = w * HUD_SCREEN_FRAC
+        local field_view_h = math.max(1.0, view_h - hud_px / self.zoom)
+
+        -- Границы те же, что при слежении: за краем поля показывается не
+        -- больше половины ячейки. По оси, где поле видно целиком, двигать
+        -- нечего — камера там жёстко по центру поля.
+        local moved = false
+        if view_w < FIELD_W then
+            local lo, hi = view_w * 0.5 - MARGIN_X, FIELD_W - view_w * 0.5 + MARGIN_X
+            if lo <= hi then
+                self.cx = vmath.clamp(self.cx + dx, lo, hi)
+                moved = true
+            end
+        end
+        if field_view_h < FIELD_H then
+            local lo, hi = field_view_h * 0.5 - MARGIN_Y, FIELD_H - field_view_h * 0.5 + MARGIN_Y
+            if lo <= hi then
+                self.cy = vmath.clamp(self.cy + dy, lo, hi)
+                moved = true
+            end
+        end
+        if moved then
+            self.panning = true
+            self.pan_idle = 0.0
+        end
+    end
+end

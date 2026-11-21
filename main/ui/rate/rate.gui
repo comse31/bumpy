@@ -1,0 +1,233 @@
+script: "/main/ui/rate/rate.gui_script"
+fonts {
+  name: "big"
+  font: "/main/ui/menu/menu_big.font"
+}
+fonts {
+  name: "normal"
+  font: "/main/ui/menu/menu.font"
+}
+textures {
+  name: "rate"
+  texture: "/main/ui/rate/rate.atlas"
+}
+nodes {
+  position {
+    x: 480.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  color {
+    x: 0.05
+    y: 0.06
+    z: 0.11
+  }
+  type: TYPE_BOX
+  texture: "rate/white"
+  id: "backdrop"
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: true
+  alpha: 0.82
+}
+nodes {
+  position {
+    x: 480.0
+    y: 360.0
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  type: TYPE_BOX
+  id: "screen"
+  adjust_mode: ADJUST_MODE_FIT
+  inherit_alpha: false
+  alpha: 0.0
+}
+nodes {
+  position {
+    y: 150.0
+    z: 0.1
+  }
+  size {
+    x: 820.0
+    y: 70.0
+  }
+  color {
+    x: 1.0
+    y: 0.96
+    z: 0.96
+  }
+  type: TYPE_TEXT
+  text: "DID YOU LIKE THIS LEVEL?"
+  font: "normal"
+  id: "title"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: 84.0
+    z: 0.1
+  }
+  size {
+    x: 820.0
+    y: 52.0
+  }
+  color {
+    x: 0.78
+    y: 0.84
+    z: 0.92
+  }
+  type: TYPE_TEXT
+  text: "BEST PLAYERS RATE RANDOM LEVELS"
+  font: "normal"
+  id: "subtitle"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: -150.0
+    y: -30.0
+  }
+  size {
+    x: 200.0
+    y: 200.0
+  }
+  color {
+    x: 0.18
+    y: 0.62
+    z: 0.34
+  }
+  type: TYPE_BOX
+  texture: "rate/white"
+  id: "btn_up"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: -150.0
+    y: -30.0
+    z: 0.1
+  }
+  size {
+    x: 190.0
+    y: 190.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "UP"
+  font: "big"
+  id: "btn_up_label"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    x: 150.0
+    y: -30.0
+  }
+  size {
+    x: 200.0
+    y: 200.0
+  }
+  color {
+    x: 0.72
+    y: 0.24
+    z: 0.24
+  }
+  type: TYPE_BOX
+  texture: "rate/white"
+  id: "btn_down"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  adjust_mode: ADJUST_MODE_STRETCH
+  inherit_alpha: false
+}
+nodes {
+  position {
+    x: 150.0
+    y: -30.0
+    z: 0.1
+  }
+  size {
+    x: 190.0
+    y: 190.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_TEXT
+  text: "DOWN"
+  font: "big"
+  id: "btn_down_label"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -200.0
+    z: 0.1
+  }
+  size {
+    x: 820.0
+    y: 52.0
+  }
+  color {
+    x: 1.0
+    y: 0.81
+    z: 0.47
+  }
+  type: TYPE_TEXT
+  text: "THUMBS DOWN DELETES THE LEVEL"
+  font: "normal"
+  id: "hint"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}
+nodes {
+  position {
+    y: -258.0
+    z: 0.1
+  }
+  size {
+    x: 820.0
+    y: 44.0
+  }
+  color {
+    x: 0.72
+    y: 0.76
+    z: 0.82
+  }
+  type: TYPE_TEXT
+  text: "TAP ANYWHERE ELSE TO SKIP"
+  font: "normal"
+  id: "skip"
+  parent: "screen"
+  pivot: PIVOT_CENTER
+  inherit_alpha: false
+  shadow_alpha: 0.0
+}

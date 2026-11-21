@@ -1,0 +1,79 @@
+-- Плашка "READY FOR LEVEL N?": показывается перед началом каждого уровня,
+-- ждёт нажатия любой клавиши (см. ball.script). Состоит из фонового спрайта
+-- (ready.sprite, текстура main/ui/ready/ready.png — только рамка и подложка)
+-- и label-компонента с номером уровня. Текст набран общим шрифтом меню
+-- (main/ui/fonts/plate.font), поэтому интерфейс выглядит единообразно.
+-- До сообщения "show" оба компонента выключены.
+--
+-- Режим «Приключение» играет на случайном сгенерированном уровне из БД, где
+-- номера уровня в модели нет. Поэтому ball.script передаёт вместе с "show"
+-- идентификатор записи (level_id, например g1793956154010_6393b723fa270ee1),
+-- и плашка показывает его: по нему видно, КАКОЙ именно уровень из БД играется
+-- (это же id возвращает GET /api/levels/random).
+local DEFAULT_TEXT = "READY FOR LEVEL 1?"
+-- Текст для сгенерированного уровня: id может быть длинным (например
+-- g1793956154010_6393b723fa270ee1 — 29 символов), поэтому он выводится
+-- отдельной строкой, а масштаб label подбирается под ширину плашки.
+local GENERATED_TEXT = "RANDOM LEVEL\n%s"
+
+-- Ширина плашки (спрайт ready.png — 640x220) с небольшим отступом от рамки.
+local MAX_TEXT_WIDTH = 600.0
+-- Размер шрифта в ready_text.label (plate.font: size 48).
+local FONT_SIZE = 48.0
+-- Средняя ширина глифа MarkerFeltThin относительно кегля: шрифт узкий,
+-- 0.55 с запасом покрывает цифры и заглавные буквы id.
+local GLYPH_RATIO = 0.55
+
+local function set_visible(self, visible)
+    -- имя переменной не "msg": оно затеняло бы глобальную msg из Defold
+    local action = visible and "enable" or "disable"
+    msg.post("#sprite", action)
+    msg.post("#label", action)
+end
+
+-- Подобрать масштаб label, чтобы самая длинная строка влезла в плашку.
+-- Без этого длинный level_id обрезался бы за границей рамки.
+local function fit_scale(text)
+    local longest = 0
+    for line in tostring(text):gmatch("[^\n]+") do
+        longest = math.max(longest, #line)
+    end
+    if longest == 0 then
+        return 1.0
+    end
+    local estimated = longest * FONT_SIZE * GLYPH_RATIO
+    if estimated <= MAX_TEXT_WIDTH then
+        return 1.0
+    end
+    return math.max(0.35, MAX_TEXT_WIDTH / estimated)
+end
+
+-- Записать текст и (при необходимости) уменьшить масштаб label.
+local function set_text(text)
+    go.set("#label", "text", text)
+    local scale = fit_scale(text)
+    go.set("#label", "scale", vmath.vector3(scale, scale, 1.0))
+end
+
+function init(self)
+    -- скрыть плашку до первого уровня: level.script пришлёт "show"
+    set_text(DEFAULT_TEXT)
+    set_visible(self, false)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("show") then
+        local level_id = message and message.level_id
+        if type(level_id) == "string" and level_id ~= "" then
+            -- «Приключение»: показываем идентификатор уровня из БД
+            set_text(string.format(GENERATED_TEXT, level_id))
+        else
+            -- классика: номер уровня из main/levels.json
+            local level = message and message.level or 1
+            set_text(string.format("READY FOR LEVEL %d?", level))
+        end
+        set_visible(self, true)
+    elseif message_id == hash("hide") then
+        set_visible(self, false)
+    end
+end

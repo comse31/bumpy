@@ -1,0 +1,4 @@
+material: "/main/platforms/spike/platform.material"
+vertices: "/main/platforms/spike/platform.buffer"
+textures: "/main/platforms/spike/platform.png"
+primitive_type: PRIMITIVE_TRIANGLES

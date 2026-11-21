@@ -1,0 +1,4 @@
+material: "/main/walls/destructible/destructible.material"
+vertices: "/main/walls/destructible/destructible.buffer"
+textures: "/main/walls/destructible/cracked.png"
+primitive_type: PRIMITIVE_TRIANGLES

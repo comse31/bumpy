@@ -1,0 +1,4 @@
+tile_set: "/main/bumpy_v12/bumpy_v12_fx.atlas"
+default_animation: "shadow_0"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

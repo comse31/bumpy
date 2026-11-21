@@ -1,0 +1,146 @@
+-- Предмет HUD-кармана (капля/ключ/молоток/сердечко).
+--
+-- Полоса кармана больше не привязана к мировым координатам: поле может быть
+-- больше экрана и камера за ним следует, поэтому полоса закреплена за экраном
+-- (см. main/render/camera.script). Предмет хранит позицию в ЛОКАЛЬНЫХ
+-- координатах полосы (той же дизайнерской сетке 0..960, 640..720) и каждый
+-- кадр переводит её в мир через трансформ полосы из main/render/camera_state.
+--
+-- Менеджер (/pocket) присылает:
+--   "fly"  {from, to} — перелёт по дуге: from — МИРОВАЯ точка сбора предмета,
+--                       to — ЛОКАЛЬНАЯ точка полосы;
+--   "show" {to}       — мгновенно показать в точке (to — локальная);
+--   "snap" {to}       — мгновенно переставить (to — локальная);
+--   "hide"            — скрыть спрайт.
+local camera_state = require("main.render.camera_state")
+
+local FLY_TIME = 0.45 -- секунд на перелёт по дуге
+local ARC      = 40   -- желаемая высота дуги в локальных единицах полосы
+local TOP_PAD  = 24   -- отступ центров спрайтов от верхнего края полосы
+local SCALE    = 1.0 / 1.5 -- собранные предметы в кармане уменьшаются в 1.5 раза
+
+-- локальная точка полосы -> мировая (0,0 полосы — её левый низ)
+local function to_world(x, y)
+    local s = camera_state.hud_scale
+    return camera_state.hud_x + x * s, camera_state.hud_y + y * s
+end
+
+-- мировая точка -> локальная точка полосы
+local function to_local(x, y)
+    local s = camera_state.hud_scale
+    if s <= 0.0 then
+        return x, y
+    end
+    return (x - camera_state.hud_x) / s, (y - camera_state.hud_y) / s
+end
+
+-- поставить объект в мировые координаты, сохранив видимый размер спрайта
+-- независимым от масштаба полосы: итоговый масштаб = локальный * масштаб HUD
+local function place(self)
+    local s = camera_state.hud_scale
+    local wx, wy = to_world(self.px, self.py)
+    go.set_position(vmath.vector3(wx, wy, 0.0))
+    go.set_scale(vmath.vector3(self.scale_k * s, self.scale_k * s, 1.0))
+end
+
+-- Дуга перелёта в локальных координатах полосы: прямолинейный путь
+-- поднимается до max(from.y, to.y), поэтому ограничиваем дугу так, чтобы
+-- предмет не вылетал над полосой
+local function clamp_arc(from_y, to_y)
+    local line_peak = math.max(from_y, to_y)
+    local avail = (720.0 - TOP_PAD) - line_peak
+    return math.min(ARC, math.max(avail, 0))
+end
+
+function init(self)
+    self.flying = false
+    self.t = 0
+    self.px, self.py = 0.0, 680.0 -- локальная позиция полосы
+    self.from_x, self.from_y = self.px, self.py
+    self.to_x, self.to_y = self.px, self.py
+    self.scale_k = SCALE
+    -- start hidden: no sprite flash before the first flight
+    msg.post("#sprite", "disable")
+end
+
+local function ease_out_cubic(t)
+    local u = 1.0 - t
+    return 1.0 - u * u * u
+end
+
+function update(self, dt)
+    if self.flying then
+        self.t = self.t + dt / FLY_TIME
+        local t = self.t >= 1 and 1 or self.t
+        local e = ease_out_cubic(t)
+        self.px = self.from_x + (self.to_x - self.from_x) * e
+        self.py = self.from_y + (self.to_y - self.from_y) * e
+            + math.sin(math.pi * t) * (self.arc or 0)
+        self.scale_k = 1.0 + (SCALE - 1.0) * t
+        if self.t >= 1 then
+            self.flying = false
+            self.px, self.py = self.to_x, self.to_y
+            self.scale_k = SCALE
+        end
+    end
+    -- трансформ полосы меняется вместе с камерой — применяем каждый кадр
+    place(self)
+end
+
+-- мгновенно показать в точке (локальные координаты полосы)
+local function show_at(self, x, y)
+    self.flying = false
+    self.t = 1
+    self.px, self.py = x, y
+    self.scale_k = SCALE
+    place(self)
+    msg.post("#sprite", "enable")
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("show") then
+        local x, y = 0.0, 680.0
+        if message and message.to then
+            x, y = message.to.x, message.to.y -- уже локальные координаты полосы
+        end
+        show_at(self, x, y)
+    elseif message_id == hash("fly") then
+        -- from — мировая точка сбора (переводим в локальные координаты полосы),
+        -- to — уже локальная точка полосы
+        local fx, fy = 0.0, 680.0
+        local tx, ty = 0.0, 680.0
+        if message and message.from then
+            fx, fy = to_local(message.from.x, message.from.y)
+        end
+        if message and message.to then
+            tx, ty = message.to.x, message.to.y
+        end
+        self.from_x, self.from_y = fx, fy
+        self.to_x, self.to_y = tx, ty
+        self.arc = clamp_arc(fy, ty)
+        self.t = 0
+        self.scale_k = 1.0
+        self.px, self.py = fx, fy
+        self.flying = true
+        place(self)
+        msg.post("#sprite", "enable")
+    elseif message_id == hash("hide") then
+        self.flying = false
+        msg.post("#sprite", "disable")
+    elseif message_id == hash("snap") then
+        -- мгновенная перегруппировка (например, ключи сдвигаются при
+        -- добавлении капли): без анимации
+        local x, y = self.px, self.py
+        if message and message.to then
+            x, y = message.to.x, message.to.y -- уже локальные координаты полосы
+        end
+        self.flying = false
+        self.arc = 0
+        self.t = 1
+        self.from_x, self.to_x = x, x
+        self.from_y, self.to_y = y, y
+        self.px, self.py = x, y
+        self.scale_k = SCALE
+        place(self)
+    end
+end
